@@ -196,7 +196,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <div id="register-panel" style="display:none;margin-top:16px;border-top:1px solid #eee;padding-top:16px;text-align:left">
       <p style="font-size:12px;color:var(--gray);margin-bottom:10px;text-align:center">Enter master PIN to register a new farm</p>
       <input id="master-pin-input" type="password" placeholder="Master PIN" style="width:100%;padding:10px;border:2px solid #ddd;border-radius:8px;font-size:15px;margin-bottom:8px">
-      <input id="reg-farm-code" type="text" placeholder="Farm Code (e.g. SF_PT_001)" autocapitalize="characters" style="width:100%;padding:10px;border:2px solid #ddd;border-radius:8px;font-size:15px;margin-bottom:8px;text-transform:uppercase" oninput="this.value=this.value.toUpperCase().replace(/\s/g,'')">
+      <input id="reg-farm-code" type="text" placeholder="Farm Code (e.g. FARM_001)" autocapitalize="characters" style="width:100%;padding:10px;border:2px solid #ddd;border-radius:8px;font-size:15px;margin-bottom:8px;text-transform:uppercase" oninput="this.value=this.value.toUpperCase().replace(/\s/g,'')">
       <input id="reg-farm-name" type="text" placeholder="Farm Name (e.g. Green Valley)" style="width:100%;padding:10px;border:2px solid #ddd;border-radius:8px;font-size:15px;margin-bottom:10px">
       <button class="btn btn-primary" style="width:100%;padding:12px" onclick="registerFarm()">Create Farm</button>
       <p id="reg-err" style="font-size:13px;margin-top:8px;min-height:18px;text-align:center"></p>
