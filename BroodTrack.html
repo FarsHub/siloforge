@@ -145,14 +145,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <!-- Login Screen -->
-<div id="login-screen" style="position:fixed;inset:0;background:var(--p1);display:flex;align-items:center;justify-content:center;z-index:9999">
-  <div style="background:var(--white);border-radius:var(--radius);padding:32px;width:90%;max-width:340px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.25)">
+<div id="login-screen" style="position:fixed;inset:0;background:var(--p1);display:flex;align-items:center;justify-content:center;z-index:9999;overflow-y:auto">
+  <div style="background:var(--white);border-radius:var(--radius);padding:32px;width:90%;max-width:340px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.25);margin:16px auto">
     <div style="font-size:48px;margin-bottom:8px">🐣</div>
     <h2 style="color:var(--p2);font-size:22px;margin-bottom:4px">BroodTrack</h2>
     <p style="color:var(--gray);font-size:13px;margin-bottom:24px">SiloForge Farm Apps</p>
     <input id="farm-code-input" type="text" placeholder="FARM CODE" autocomplete="off" autocapitalize="characters" style="width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:20px;text-align:center;letter-spacing:3px;text-transform:uppercase;margin-bottom:12px" oninput="this.value=this.value.toUpperCase().replace(/\s/g,'')" onkeydown="if(event.key==='Enter')doLogin()">
-    <button class="btn btn-primary" style="width:100%;padding:14px;font-size:16px" onclick="doLogin()">Enter Farm</button>
+    <button id="login-btn" class="btn btn-primary" style="width:100%;padding:14px;font-size:16px" onclick="doLogin()">Enter Farm</button>
     <p id="login-err" style="color:var(--red);font-size:13px;margin-top:10px;min-height:18px"></p>
+    <p style="margin-top:12px"><a href="#" style="font-size:12px;color:var(--gray);text-decoration:underline" onclick="event.preventDefault();toggleRegister()">Register new farm</a></p>
+    <div id="register-panel" style="display:none;margin-top:16px;border-top:1px solid #eee;padding-top:16px;text-align:left">
+      <p style="font-size:12px;color:var(--gray);margin-bottom:10px;text-align:center">Enter master PIN to register a new farm</p>
+      <input id="master-pin-input" type="password" placeholder="Master PIN" style="width:100%;padding:10px;border:2px solid #ddd;border-radius:8px;font-size:15px;margin-bottom:8px">
+      <input id="reg-farm-name" type="text" placeholder="Farm Name (e.g. Green Valley)" style="width:100%;padding:10px;border:2px solid #ddd;border-radius:8px;font-size:15px;margin-bottom:10px">
+      <button class="btn btn-primary" style="width:100%;padding:12px" onclick="registerFarm()">Create Farm</button>
+      <p id="reg-err" style="font-size:13px;margin-top:8px;min-height:18px;text-align:center"></p>
+    </div>
   </div>
 </div>
 
@@ -190,11 +198,37 @@ function showLoginErr(msg){document.getElementById('login-err').textContent=msg;
 async function doLogin(){
   const code=document.getElementById('farm-code-input').value.trim().toUpperCase();
   if(!code){showLoginErr('Please enter a farm code');return;}
-  FARM_CODE=code;
-  const ls=document.getElementById('login-screen');
-  ls.innerHTML='<div style="color:#fff;font-size:18px;font-weight:600">Loading farm data\u2026</div>';
-  try{await loadFromFirestore();ls.style.display='none';localStorage.setItem('sf_farm_code',code);renderHome();}
-  catch(err){FARM_CODE='';location.reload();}
+  const btn=document.getElementById('login-btn');
+  btn.textContent='Verifying\u2026';btn.disabled=true;showLoginErr('');
+  try{
+    const reg=await db.collection('registry').doc(code).get();
+    if(!reg.exists){showLoginErr('Farm code not found. Contact your administrator.');btn.textContent='Enter Farm';btn.disabled=false;return;}
+    FARM_CODE=code;btn.textContent='Loading data\u2026';
+    await loadFromFirestore();
+    document.getElementById('login-screen').style.display='none';
+    localStorage.setItem('sf_farm_code',code);renderHome();
+  }catch(err){showLoginErr('Connection error. Check your internet.');btn.textContent='Enter Farm';btn.disabled=false;}
+}
+function toggleRegister(){
+  const p=document.getElementById('register-panel');
+  p.style.display=p.style.display==='none'?'block':'none';
+}
+async function registerFarm(){
+  const pin=document.getElementById('master-pin-input').value.trim();
+  const code=document.getElementById('farm-code-input').value.trim().toUpperCase();
+  const name=document.getElementById('reg-farm-name').value.trim();
+  const errEl=document.getElementById('reg-err');
+  errEl.style.color='var(--red)';errEl.textContent='';
+  if(!pin||!code||!name){errEl.textContent='All fields are required';return;}
+  try{
+    const masterDoc=await db.collection('appConfig').doc('master').get();
+    if(!masterDoc.exists||masterDoc.data().pin!==pin){errEl.textContent='Incorrect master PIN';return;}
+    const existing=await db.collection('registry').doc(code).get();
+    if(existing.exists){errEl.textContent='Farm code already in use';return;}
+    await db.collection('registry').doc(code).set({name,code,created:new Date().toISOString()});
+    errEl.style.color='var(--g3)';errEl.textContent='\u2713 Farm created! You can now log in.';
+    document.getElementById('register-panel').style.display='none';
+  }catch(e){errEl.textContent='Error: check your connection';}
 }
 function initApp(){
   const saved=localStorage.getItem('sf_farm_code');
