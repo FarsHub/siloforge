@@ -1,0 +1,1787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#2d6a4f">
+<title>LayerTrack</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --g1:#1b4332;--g2:#2d6a4f;--g3:#40916c;--g4:#74c69d;--g5:#d8f3dc;
+  --amber:#e9a319;--amberBg:#fef3cd;--red:#d62839;--redBg:#fde8ea;
+  --blue:#4895ef;--blueBg:#e8f4fd;--purple:#7b2d8b;--purpleBg:#f3e8fd;
+  --gray:#6c757d;--light:#f0f4f1;--white:#fff;
+  --shadow:0 2px 10px rgba(0,0,0,.1);--radius:14px;--nav-h:64px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--light);color:#1a1a1a;min-height:100vh;padding-bottom:var(--nav-h)}
+#nav{position:fixed;bottom:0;left:0;right:0;height:var(--nav-h);background:var(--white);display:flex;border-top:1px solid #e0e0e0;z-index:100;box-shadow:0 -2px 10px rgba(0,0,0,.08);overflow-x:auto;scrollbar-width:none}
+#nav::-webkit-scrollbar{display:none}
+.nav-btn{flex:0 0 auto;min-width:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:none;background:none;font-size:10px;color:var(--gray);cursor:pointer;transition:color .2s;padding:0 4px}
+.nav-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.nav-btn.active{color:var(--g2)}
+.topbar{background:var(--g2);color:var(--white);padding:16px 20px 14px;display:flex;align-items:center;justify-content:space-between}
+.topbar h1{font-size:20px;font-weight:700;letter-spacing:.5px}
+.topbar small{opacity:.8;font-size:12px;display:block;margin-top:2px}
+.view{display:none;min-height:calc(100vh - var(--nav-h));animation:fadeIn .2s ease}
+.view.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.card{background:var(--white);border-radius:var(--radius);padding:18px;margin:14px 16px;box-shadow:var(--shadow)}
+.card-title{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--gray);margin-bottom:12px}
+.kpi-row-5{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin:10px 10px}
+.kpi-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 16px}
+.kpi-row-2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 16px 10px}
+.kpi{background:var(--white);border-radius:var(--radius);padding:14px 10px;box-shadow:var(--shadow);text-align:center}
+.kpi-sm{background:var(--white);border-radius:var(--radius);padding:8px 4px;box-shadow:var(--shadow);text-align:center}
+.kpi-val{font-size:26px;font-weight:800;color:var(--g2)}
+.kpi-val-sm{font-size:18px;font-weight:800;color:var(--g2)}
+.kpi-lbl{font-size:10px;color:var(--gray);margin-top:3px;font-weight:700;text-transform:uppercase}
+.kpi-lbl-sm{font-size:9px;color:var(--gray);margin-top:2px;font-weight:700;text-transform:uppercase;line-height:1.2}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 20px;border-radius:12px;font-size:15px;font-weight:700;border:none;cursor:pointer;width:100%;transition:all .15s;letter-spacing:.2px}
+.btn-primary{background:var(--g2);color:var(--white)}
+.btn-primary:active{background:var(--g1);transform:scale(.98)}
+.btn-secondary{background:var(--g5);color:var(--g1)}
+.btn-danger{background:var(--redBg);color:var(--red)}
+.btn-amber{background:var(--amberBg);color:#7d4e00}
+.btn-sm{padding:8px 14px;font-size:13px;width:auto;border-radius:8px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;font-weight:700;color:var(--g1);margin-bottom:6px}
+.field input,.field select,.field textarea{width:100%;padding:12px 14px;border:1.5px solid #ddd;border-radius:10px;font-size:15px;background:var(--white);color:#1a1a1a;appearance:none;font-family:inherit}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--g3)}
+.field textarea{resize:vertical;min-height:70px}
+.badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.badge-green{background:var(--g5);color:var(--g1)}
+.badge-amber{background:var(--amberBg);color:#7d4e00}
+.badge-red{background:var(--redBg);color:var(--red)}
+.badge-gray{background:#f0f0f0;color:var(--gray)}
+.badge-blue{background:var(--blueBg);color:#1a5fa8}
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 4px;font-size:12px;font-weight:800;color:var(--g1);text-transform:uppercase;letter-spacing:.4px}
+.list-item{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;background:var(--white);border-bottom:1px solid #f5f5f5}
+.list-item:last-child{border-bottom:none}
+/* COLLECT */
+.collect-hdr{background:var(--g1);color:var(--white);padding:14px 16px;position:sticky;top:0;z-index:10}
+.collect-hdr h2{font-size:16px;font-weight:700}
+.collect-hdr .sub{font-size:11px;opacity:.7;margin-top:2px}
+.prog-bar{height:4px;background:rgba(255,255,255,.25);border-radius:2px;margin-top:8px;overflow:hidden}
+.prog-fill{height:100%;background:var(--g4);border-radius:2px;transition:width .3s}
+.round-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:800}
+.round-1{background:#e8f4fd;color:#1a5fa8}
+.round-2{background:var(--amberBg);color:#7d4e00}
+.round-3{background:#f3e8fd;color:#6a0dad}
+/* CELL CARDS */
+.tier-section{margin:0 10px 10px}
+.tier-label{font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;letter-spacing:.5px;padding:8px 4px 4px;display:flex;align-items:center;gap:8px}
+.tier-stats{font-size:10px;font-weight:700;color:var(--g3);margin-left:auto}
+.cell-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:6px}
+.cell-card{background:var(--white);border:2px solid #e8e8e8;border-radius:10px;padding:7px 6px;text-align:center;transition:border-color .2s;position:relative}
+.cell-card.c-good{border-color:var(--g4);background:#f7fff9}
+.cell-card.c-low{border-color:var(--amber);background:#fffdf0}
+.cell-card.c-poor{border-color:var(--red);background:#fff8f8}
+.cell-card.c-over{border-color:#e67e00;background:#fff8ed;box-shadow:0 0 0 2px #f9a82540}
+.cell-id{font-size:9px;font-weight:800;color:var(--gray);margin-bottom:3px;letter-spacing:.3px}
+.cell-birds-row{display:flex;align-items:center;justify-content:center;gap:4px;margin-bottom:4px}
+.birds-val{font-size:12px;font-weight:800;color:var(--g2);cursor:pointer;padding:1px 5px;border-radius:4px;border:1.5px solid var(--g4);background:var(--g5);min-width:22px;text-align:center}
+.birds-val:active{background:var(--g4)}
+.cell-egg-input{width:100%;border:1.5px solid #ddd;border-radius:7px;padding:5px 2px;text-align:center;font-size:20px;font-weight:800;color:var(--g1);background:#fafafa}
+.cell-egg-input:focus{outline:none;border-color:var(--g3);background:var(--white)}
+.cell-broken-row{display:flex;align-items:center;justify-content:center;gap:2px;margin-top:4px}
+.broken-lbl{font-size:9px;color:var(--red);font-weight:700}
+.broken-input{width:40px;border:1px solid #fcc;border-radius:4px;padding:2px 3px;text-align:center;font-size:12px;font-weight:700;color:var(--red);background:#fff8f8}
+.broken-input:focus{outline:none;border-color:var(--red)}
+.cell-prev{font-size:9px;color:var(--gray);margin-top:3px;font-weight:600}
+.cell-rate-lbl{font-size:10px;font-weight:800;margin-top:2px;height:13px}
+.action-bar{position:fixed;bottom:var(--nav-h);left:0;right:0;padding:10px 14px;background:var(--white);border-top:1px solid #eee;display:flex;gap:10px;box-shadow:0 -2px 8px rgba(0,0,0,.08);z-index:5}
+/* SETUP */
+.acc-item{background:var(--white);margin:0 16px 8px;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.acc-hdr{display:flex;align-items:center;justify-content:space-between;padding:15px 16px;cursor:pointer;font-weight:700}
+.acc-body{display:none;padding:0 14px 14px;border-top:1px solid #f5f5f5}
+.acc-item.open .acc-body{display:block}
+.acc-arr{transition:transform .2s;font-size:16px;color:var(--gray)}
+.acc-item.open .acc-arr{transform:rotate(180deg)}
+.stand-row{background:#f8f9f8;border-radius:10px;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+/* ANALYTICS */
+.ana-table{width:100%;border-collapse:collapse;font-size:13px}
+.ana-table th{background:var(--g5);padding:9px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--g1)}
+.ana-table td{padding:10px 10px;border-bottom:1px solid #f3f3f3;vertical-align:middle}
+.ana-table tr:last-child td{border-bottom:none}
+.rate-bar-wrap{display:flex;align-items:center;gap:6px}
+.rate-bar{height:7px;border-radius:4px;min-width:4px;transition:width .3s}
+/* MODAL */
+#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;justify-content:center}
+#overlay.open{display:flex}
+.modal{background:var(--white);border-radius:20px 20px 0 0;padding:22px 18px 34px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;animation:slideUp .22s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-ttl{font-size:17px;font-weight:800;color:var(--g1);margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
+.modal-x{width:30px;height:30px;border-radius:50%;background:#f0f0f0;border:none;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+/* TOAST */
+#toast{position:fixed;bottom:calc(var(--nav-h)+14px);left:50%;transform:translateX(-50%) translateY(16px);background:var(--g1);color:var(--white);padding:11px 18px;border-radius:22px;font-size:14px;font-weight:600;opacity:0;transition:all .28s;z-index:300;white-space:nowrap;pointer-events:none}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.empty{text-align:center;padding:44px 24px;color:var(--gray)}
+.empty svg{width:52px;height:52px;stroke:var(--g4);margin-bottom:14px;opacity:.5}
+.empty h3{font-size:16px;font-weight:700;margin-bottom:6px;color:var(--g1)}
+.empty p{font-size:13px;line-height:1.6}
+.inner-tabs{display:flex;background:var(--white);border-bottom:2px solid #eee;padding:0 16px;overflow-x:auto;scrollbar-width:none}
+.inner-tabs::-webkit-scrollbar{display:none}
+.inner-tab{padding:12px 16px;font-size:13px;font-weight:700;color:var(--gray);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s;white-space:nowrap;flex-shrink:0}
+.inner-tab.active{color:var(--g2);border-bottom-color:var(--g2)}
+.alert-item{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-radius:10px;margin:4px 0;font-size:13px;font-weight:600}
+.alert-red{background:var(--redBg);color:var(--red)}
+.alert-amber{background:var(--amberBg);color:#7d4e00}
+.alert-green{background:var(--g5);color:var(--g1)}
+.log-status-row{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--white);border-bottom:1px solid #f5f5f5}
+.log-status-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.bar-chart-row{display:flex;align-items:flex-end;gap:4px;height:60px;margin:8px 0}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
+.bar-fill{width:100%;border-radius:4px 4px 0 0;min-height:2px;transition:height .3s}
+.bar-lbl{font-size:8px;color:var(--gray);text-align:center;white-space:nowrap;overflow:hidden;width:100%}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+<div id="overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal-body"></div>
+</div>
+
+<div id="v-home"     class="view active"></div>
+<div id="v-eggs"     class="view"></div>
+<div id="v-flock"    class="view"></div>
+<div id="v-feed"     class="view"></div>
+<div id="v-health"   class="view"></div>
+<div id="v-finance"  class="view"></div>
+<div id="v-reports"  class="view"></div>
+<div id="v-settings" class="view"></div>
+
+<nav id="nav">
+  <button class="nav-btn active" data-view="home" onclick="go('home')">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Home
+  </button>
+  <button class="nav-btn" data-view="eggs" onclick="go('eggs')">
+    <svg viewBox="0 0 24 24"><ellipse cx="12" cy="13" rx="7" ry="9"/></svg>Eggs
+  </button>
+  <button class="nav-btn" data-view="flock" onclick="go('flock')">
+    <svg viewBox="0 0 24 24"><circle cx="9" cy="9" r="3"/><path d="M17 20c0-3.3-3.6-6-8-6s-8 2.7-8 6"/><circle cx="17" cy="8" r="2.5"/><path d="M23 20c0-2.8-2.7-5-6-5"/></svg>Flock
+  </button>
+  <button class="nav-btn" data-view="feed" onclick="go('feed')">
+    <svg viewBox="0 0 24 24"><path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z"/></svg>Feed
+  </button>
+  <button class="nav-btn" data-view="health" onclick="go('health')">
+    <svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Health
+  </button>
+  <button class="nav-btn" data-view="finance" onclick="go('finance')">
+    <svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Finance
+  </button>
+  <button class="nav-btn" data-view="reports" onclick="go('reports')">
+    <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Reports
+  </button>
+  <button class="nav-btn" data-view="settings" onclick="go('settings')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings
+  </button>
+</nav>
+
+<script>
+// ═══════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════
+const ROUNDS = [
+  {id:1,label:'1st Pick',sub:'Morning',  cls:'round-1'},
+  {id:2,label:'2nd Pick',sub:'Afternoon',cls:'round-2'},
+  {id:3,label:'3rd Pick',sub:'Evening',  cls:'round-3'},
+];
+const FLOCK_STAGES = [
+  {maxWeek:18, label:'Pre-Lay',    emoji:'🥚',expected:5, warn:0, bg:'#f0f0f0',color:'#888'},
+  {maxWeek:22, label:'Early Lay',  emoji:'🌱',expected:30,warn:10,bg:'#e8f4fd',color:'#1a5fa8'},
+  {maxWeek:27, label:'Building Up',emoji:'📈',expected:65,warn:35,bg:'#fef3cd',color:'#7d4e00'},
+  {maxWeek:55, label:'Peak',       emoji:'⭐',expected:87,warn:72,bg:'#d8f3dc',color:'#1b4332'},
+  {maxWeek:65, label:'Post-Peak',  emoji:'📉',expected:78,warn:60,bg:'#e8f4fd',color:'#1a5fa8'},
+  {maxWeek:75, label:'Declining',  emoji:'🔻',expected:65,warn:48,bg:'#fef3cd',color:'#7d4e00'},
+  {maxWeek:999,label:'Late Lay',   emoji:'⏳',expected:50,warn:35,bg:'#fde8ea',color:'#d62839'},
+];
+const FEED_TYPES = ['Chick Mash','Grower Pellets','Pre-Layer Mash','Layer Mash','Concentrate','Other'];
+const EXPENSE_CATS = ['Feed Purchase','Medication','Transport','Generator Fuel','Labour','Litter/Bedding','Chick Purchase','Equipment','Water Purchase','Other'];
+const PRODUCT_TYPES = ['Eggs — Crates','Culled Birds','Cockerels','Manure','Other'];
+const MED_SUGGESTIONS = ['Floxinor','MAXI Vitaconc','Lasota (ND)','Gumboro Vaccine','Amprolium','Tylosin','Oxytetracycline','Vitamin C','Electrolytes','Multivitamin','Water only'];
+const DROP_OPTIONS = ['Normal','Brownish','Greenish','Bloody','Watery','Yellowish'];
+const ADMIN_METHODS = ['Oral (Drinking Water)','Oral (Direct)','Injection','Eye Drop','Feed Mixing'];
+
+// ═══════════════════════════════════════════════
+// DATA LAYER
+// ═══════════════════════════════════════════════
+const KEYS = {
+  farm:'lt_farm_v1', cols:'lt_cols_v1', birds:'lt_birds_v1',
+  feed:'lt_feed_v1', health:'lt_health_v1',
+  expenses:'lt_expenses_v1', sales:'lt_sales_v1', recv:'lt_recv_v1'
+};
+const DB = {
+  today(){ return new Date().toISOString().slice(0,10) },
+  _get(k){ return JSON.parse(localStorage.getItem(k)||'null') },
+  _set(k,v){ localStorage.setItem(k,JSON.stringify(v)) },
+  _arr(k){ return JSON.parse(localStorage.getItem(k)||'[]') },
+  _push(k,item){ const a=this._arr(k); a.push(item); this._set(k,a) },
+  _del(k,id){ this._set(k,this._arr(k).filter(x=>x.id!==id)) },
+  _upd(k,id,upd){ this._set(k,this._arr(k).map(x=>x.id===id?{...x,...upd}:x)) },
+  getFarm(){ return this._get(KEYS.farm) },
+  saveFarm(f){ this._set(KEYS.farm,f) },
+  getCols(){ return this._arr(KEYS.cols) },
+  saveCols(c){ this._set(KEYS.cols,c) },
+  addCol(c){ this._push(KEYS.cols,c) },
+  updateCol(id,upd){ this._upd(KEYS.cols,id,upd) },
+  getCol(id){ return this._arr(KEYS.cols).find(c=>c.id===id)||null },
+  todayCols(){ return this._arr(KEYS.cols).filter(c=>c.date===this.today()) },
+  getBirds(){ return this._arr(KEYS.birds) },
+  todayBirds(){ return this._arr(KEYS.birds).filter(b=>b.date===this.today()) },
+  addBird(r){ this._push(KEYS.birds,r) },
+  delBird(id){ this._del(KEYS.birds,id) },
+  updBird(id,u){ this._upd(KEYS.birds,id,u) },
+  getFeed(){ return this._arr(KEYS.feed) },
+  todayFeed(){ return this._arr(KEYS.feed).filter(f=>f.date===this.today()) },
+  addFeed(r){ this._push(KEYS.feed,r) },
+  delFeed(id){ this._del(KEYS.feed,id) },
+  updFeed(id,u){ this._upd(KEYS.feed,id,u) },
+  getHealth(){ return this._arr(KEYS.health) },
+  todayHealth(){ return this._arr(KEYS.health).filter(h=>h.date===this.today()) },
+  addHealth(r){ this._push(KEYS.health,r) },
+  delHealth(id){ this._del(KEYS.health,id) },
+  updHealth(id,u){ this._upd(KEYS.health,id,u) },
+  getExpenses(){ return this._arr(KEYS.expenses) },
+  addExpense(r){ this._push(KEYS.expenses,r) },
+  delExpense(id){ this._del(KEYS.expenses,id) },
+  updExpense(id,u){ this._upd(KEYS.expenses,id,u) },
+  getSales(){ return this._arr(KEYS.sales) },
+  addSale(r){ this._push(KEYS.sales,r) },
+  delSale(id){ this._del(KEYS.sales,id) },
+  updSale(id,u){ this._upd(KEYS.sales,id,u) },
+  getRecv(){ return this._arr(KEYS.recv) },
+  addRecv(r){ this._push(KEYS.recv,r) },
+  delRecv(id){ this._del(KEYS.recv,id) },
+  updRecv(id,u){ this._upd(KEYS.recv,id,u) },
+};
+
+// ═══════════════════════════════════════════════
+// SESSION STATE (Egg Collection)
+// ═══════════════════════════════════════════════
+let SES=null, SES_STAND=0;
+
+// ═══════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════
+function go(name){
+  if(SES&&name!=='eggs'){
+    if(!confirm('Active collection in progress. Leave anyway?'))return;
+    SES=null;SES_STAND=0;
+  }
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('v-'+name).classList.add('active');
+  document.querySelector(`[data-view="${name}"]`).classList.add('active');
+  ({home:renderHome,eggs:renderEggs,flock:renderFlock,feed:renderFeed,
+    health:renderHealth,finance:renderFinance,reports:renderReports,
+    settings:renderSettings})[name]?.();
+}
+
+// ═══════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6) }
+function fmtDate(iso){ const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) }
+function fmtMoney(n){ return '₦'+Number(n||0).toLocaleString('en-NG',{minimumFractionDigits:0}) }
+function toast(msg,dur=2200){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),dur) }
+function openModal(html){ document.getElementById('modal-body').innerHTML=html; document.getElementById('overlay').classList.add('open') }
+function closeModal(){ document.getElementById('overlay').classList.remove('open') }
+function rateBadge(rate){
+  if(rate===null||rate===undefined)return '<span class="badge badge-gray">—</span>';
+  const cls=rate>=85?'badge-green':rate>=70?'badge-amber':'badge-red';
+  return `<span class="badge ${cls}">${rate.toFixed(1)}%</span>`;
+}
+function rateColor(r){ return r===null?'#aaa':r>=85?'var(--g2)':r>=70?'var(--amber)':'var(--red)' }
+function getCellBirds(stand,tier,cell){
+  const k=`${tier}_${cell}`;
+  if(stand.cellBirds&&stand.cellBirds[k]!==undefined)return stand.cellBirds[k];
+  return stand.defaultBirds||4;
+}
+function findStandInFarm(farm,standId){
+  for(const pen of farm.pens||[])
+    for(const line of pen.lines||[])
+      for(const s of line.stands||[])
+        if(s.id===standId)return s;
+  return null;
+}
+function getFarmTotalBirds(farm){
+  let total=0;
+  for(const pen of farm.pens||[])
+    for(const line of pen.lines||[])
+      for(const stand of line.stands||[])
+        for(let t=1;t<=stand.tiers;t++)
+          for(let c=1;c<=stand.cellsPerTier;c++)
+            total+=getCellBirds(stand,t,c);
+  return total*2;
+}
+function getPenStage(pen){
+  if(!pen||!pen.flockStartDate)return null;
+  const placed=new Date(pen.flockStartDate+'T00:00:00');
+  const weeksSince=Math.floor((Date.now()-placed.getTime())/(7*24*60*60*1000));
+  const ageAtArrival=pen.flockAgeAtArrival||0;
+  const weeks=weeksSince+ageAtArrival;
+  const stage=FLOCK_STAGES.find(s=>weeks<s.maxWeek)||FLOCK_STAGES[FLOCK_STAGES.length-1];
+  return{weeks,weeksSince,ageAtArrival,...stage};
+}
+function getFarmAgeWeeks(farm){
+  const pen=(farm.pens||[])[0];
+  const st=getPenStage(pen);
+  return st?st.weeks:null;
+}
+
+// ═══════════════════════════════════════════════
+// HOME
+// ═══════════════════════════════════════════════
+function renderHome(){
+  const farm=DB.getFarm(), el=document.getElementById('v-home');
+  if(!farm){
+    el.innerHTML=`
+      <div class="topbar"><div><h1>🐔 LayerTrack</h1><small>Layer Farm Management</small></div></div>
+      <div class="empty">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 15v-4m0-4v-.01"/></svg>
+        <h3>Welcome to LayerTrack</h3>
+        <p>Set up your farm in <b>Settings</b> first.<br>Add pens, lines, and stands to begin.</p>
+      </div>`;
+    return;
+  }
+  const today=DB.today(), todayCols=DB.todayCols();
+  const farmBirds=getFarmTotalBirds(farm);
+  let totalEggs=0,totalBroken=0;
+  todayCols.forEach(c=>(c.entries||[]).forEach(e=>{ totalEggs+=(e.eggs||0); totalBroken+=(e.broken||0); }));
+  const todayRate=farmBirds>0?totalEggs/farmBirds*100:null;
+  const todayCrack=totalEggs>0?totalBroken/totalEggs*100:null;
+  const crackColor=todayCrack===null?'var(--gray)':todayCrack>3?'var(--red)':todayCrack>=2?'var(--amber)':'var(--g3)';
+  const crackAlert=todayCrack!==null&&todayCrack>3?' 🚨':todayCrack!==null&&todayCrack>=2?' ⚠️':'';
+  const todayFeed=DB.todayFeed(); const totalFeedKg=todayFeed.reduce((s,f)=>s+(f.feed_kg_used||0),0);
+  const todayBird=DB.todayBirds(); const hasBirdLog=todayBird.length>0;
+  const todayHealth=DB.todayHealth(); const hasHealthLog=todayHealth.length>0;
+  const hasFeedLog=todayFeed.length>0;
+  const recent=getDailySummary(7);
+  // Mortality today
+  const todayDeaths=todayBird.reduce((s,b)=>s+(b.deaths||0),0);
+  const todayCulls=todayBird.reduce((s,b)=>s+(b.culls||0),0);
+  const mortalityRate=farmBirds>0?(todayDeaths/farmBirds*100):0;
+
+  // Alerts
+  const alerts=[];
+  if(todayDeaths>0){
+    const cls=mortalityRate>0.5?'alert-red':'alert-amber';
+    alerts.push(`<div class="alert-item ${cls}">⚠ ${todayDeaths} death${todayDeaths>1?'s':''} recorded today (${mortalityRate.toFixed(2)}% mortality rate)</div>`);
+  }
+  if(todayRate!==null&&todayRate<(farm.warnRate||70))
+    alerts.push(`<div class="alert-item alert-amber">📉 Production rate ${todayRate.toFixed(0)}% is below warn threshold of ${farm.warnRate||70}%</div>`);
+  if(todayCrack!==null&&todayCrack>3)
+    alerts.push(`<div class="alert-item alert-red">💔 Crack rate ${todayCrack.toFixed(1)}% is above 3% danger threshold</div>`);
+  if(todayFeed.length>0){
+    const req=todayFeed.reduce((s,f)=>s+(f.feed_req_kg||0),0);
+    if(req>0){
+      const variance=Math.abs(totalFeedKg-req)/req*100;
+      if(variance>15) alerts.push(`<div class="alert-item alert-amber">🌾 Feed usage variance ${variance.toFixed(0)}% from daily requirement</div>`);
+    }
+  }
+  if(todayHealth.length>0&&todayHealth.some(h=>h.droppings_observation&&h.droppings_observation!=='Normal'))
+    alerts.push(`<div class="alert-item alert-amber">💊 Abnormal droppings observed today — check health log</div>`);
+  const allPass=getAllPassStatus(farm,todayCols);
+  const roundCards=ROUNDS.map(rnd=>{
+    const passes=allPass.filter(p=>p.round===rnd.id);
+    const pending=passes.filter(p=>!p.complete);
+    const doneAll=passes.length>0&&pending.length===0;
+    const eggs=todayCols.filter(c=>c.round===rnd.id).reduce((s,c)=>(c.entries||[]).reduce((ss,e)=>ss+(e.eggs||0),s),0);
+    return{rnd,passes,pending,doneAll,eggs};
+  });
+  const roundsHtml=roundCards.map(({rnd,pending,doneAll,eggs})=>{
+    if(doneAll)return`<div class="stand-row" style="margin-bottom:8px;background:#f7fff9;border:1.5px solid var(--g4)">
+      <div><span class="${rnd.cls} round-chip">${rnd.label} · ${rnd.sub}</span>
+      <div style="font-size:12px;color:var(--g3);font-weight:700;margin-top:5px">✓ All passes done · ${eggs} eggs</div></div>
+      <button class="btn btn-secondary btn-sm" onclick="COLLECT_ROUND=${rnd.id};go('eggs')">View</button></div>`;
+    if(pending.length===0)return'';
+    const inP=pending.filter(p=>p.started);
+    return`<div class="stand-row" style="margin-bottom:8px">
+      <div><span class="${rnd.cls} round-chip">${rnd.label} · ${rnd.sub}</span>
+      <div style="font-size:12px;color:var(--gray);margin-top:5px">${inP.length>0?inP.length+' in progress · ':''} ${pending.length} not done${eggs>0?' · '+eggs+' eggs':''}</div></div>
+      <button class="btn btn-primary btn-sm" onclick="COLLECT_ROUND=${rnd.id};go('eggs')">${inP.length>0?'Resume':'Start →'}</button></div>`;
+  }).join('');
+
+  el.innerHTML=`
+    <div class="topbar"><div><h1>🐔 LayerTrack</h1><small>${farm.name||'My Farm'} · ${fmtDate(today)}</small></div></div>
+    <div class="kpi-row-5">
+      <div class="kpi-sm"><div class="kpi-val-sm">${totalEggs}</div><div class="kpi-lbl-sm">Eggs Today</div></div>
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(todayRate)}">${todayRate!==null?todayRate.toFixed(0)+'%':'—'}</div><div class="kpi-lbl-sm">Prod Rate</div></div>
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g1)">${farmBirds}</div><div class="kpi-lbl-sm">Total Birds</div></div>
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--red)">${totalBroken}</div><div class="kpi-lbl-sm">Broken</div></div>
+      <div class="kpi-sm" style="${todayCrack>3?'border:2px solid var(--red)':todayCrack>=2?'border:2px solid var(--amber)':''}">
+        <div class="kpi-val-sm" style="color:${crackColor}">${todayCrack!==null?todayCrack.toFixed(1)+'%'+crackAlert:'—'}</div>
+        <div class="kpi-lbl-sm">Crack Rate</div>
+      </div>
+    </div>
+    ${alerts.length?`<div style="margin:0 16px 8px">${alerts.join('')}</div>`:''}
+
+    <div class="sec-hdr">Today's Daily Logs
+      <span style="font-size:11px;color:var(--gray);text-transform:none;font-weight:500">Tap to log</span>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;margin-top:2px">
+      <div class="log-status-row" onclick="go('flock')" style="cursor:pointer">
+        <div class="log-status-icon" style="background:${hasBirdLog?'var(--g5)':'#f5f5f5'}">${hasBirdLog?'✓':'🐔'}</div>
+        <div style="flex:1"><div style="font-weight:700;font-size:14px">Flock Status</div>
+          <div style="font-size:12px;color:var(--gray)">${hasBirdLog?`${todayDeaths} deaths · ${todayCulls} culls logged today`:'Not logged today — tap to add or backfill'}</div></div>
+        <span style="color:var(--gray);font-size:18px">›</span>
+      </div>
+      <div class="log-status-row" onclick="go('feed')" style="cursor:pointer">
+        <div class="log-status-icon" style="background:${hasFeedLog?'var(--g5)':'#f5f5f5'}">${hasFeedLog?'✓':'🌾'}</div>
+        <div style="flex:1"><div style="font-weight:700;font-size:14px">Feed Usage</div>
+          <div style="font-size:12px;color:var(--gray)">${hasFeedLog?`${totalFeedKg} kg used today`:'Not logged — tap to add (can log yesterday\'s consumption now)'}</div></div>
+        <span style="color:var(--gray);font-size:18px">›</span>
+      </div>
+      <div class="log-status-row" onclick="go('health')" style="cursor:pointer;border-bottom:none">
+        <div class="log-status-icon" style="background:${hasHealthLog?'var(--g5)':'#f5f5f5'}">${hasHealthLog?'✓':'💊'}</div>
+        <div style="flex:1"><div style="font-weight:700;font-size:14px">Health Log</div>
+          <div style="font-size:12px;color:var(--gray)">${hasHealthLog?`Water: ${todayHealth[0]?.water_consumed_liters||'—'}L · ${todayHealth[0]?.droppings_observation||'—'} droppings`:'Not logged — tap to add or backfill past dates'}</div></div>
+        <span style="color:var(--gray);font-size:18px">›</span>
+      </div>
+    </div>
+
+    <div class="sec-hdr">Today's Collections</div>
+    <div style="margin:0 16px 10px">${roundsHtml||'<div style="color:var(--gray);font-size:13px;padding:8px 0">No farm passes configured.</div>'}</div>
+
+    <div class="sec-hdr">Last 7 Days</div>
+    <div class="card" style="padding:0;overflow:hidden">
+      ${recent.length===0?'<div class="empty" style="padding:20px"><p>No data yet.</p></div>':
+        recent.map(r=>`<div class="list-item">
+          <div><div style="font-weight:700;font-size:14px">${fmtDate(r.date)}</div>
+            <div style="font-size:12px;color:var(--gray);margin-top:2px">${r.eggs} eggs · ${r.broken} broken · ${r.deaths} deaths</div></div>
+          ${rateBadge(r.rate)}</div>`).join('')}
+    </div>
+    <div style="height:12px"></div>`;
+}
+
+function getAllPassStatus(farm,todayCols){
+  const res=[];
+  (farm.pens||[]).forEach(pen=>(pen.lines||[]).forEach(line=>['A','B'].forEach(side=>ROUNDS.forEach(rnd=>{
+    const col=todayCols.find(c=>c.penId===pen.id&&c.lineId===line.id&&c.side===side&&c.round===rnd.id);
+    const total=(line.stands||[]).length, done=col?(col.completedStands||[]).length:0;
+    res.push({penId:pen.id,penName:pen.name,lineId:line.id,lineName:line.name,
+      side,round:rnd.id,done,total,complete:total>0&&done>=total,started:done>0});
+  }))));
+  return res;
+}
+function getDailySummary(days){
+  const farm=DB.getFarm(), birds=farm?getFarmTotalBirds(farm):0;
+  const validIds=new Set((farm?.pens||[]).map(p=>p.id));
+  const cols=DB.getCols().filter(c=>validIds.has(c.penId));
+  const birdRecs=DB.getBirds();
+  const map={};
+  cols.forEach(c=>{
+    if(!map[c.date])map[c.date]={eggs:0,broken:0};
+    (c.entries||[]).forEach(e=>{map[c.date].eggs+=(e.eggs||0);map[c.date].broken+=(e.broken||0);});
+  });
+  birdRecs.forEach(b=>{
+    if(!map[b.date])map[b.date]={eggs:0,broken:0};
+    if(!map[b.date].deaths)map[b.date].deaths=0;
+    map[b.date].deaths+=(b.deaths||0);
+  });
+  return Object.entries(map).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,days)
+    .map(([date,v])=>({date,eggs:v.eggs,broken:v.broken,deaths:v.deaths||0,rate:birds>0?v.eggs/birds*100:null}));
+}
+
+// ═══════════════════════════════════════════════
+// EGGS — EGG COLLECTION (Ported from PoulTrack)
+// ═══════════════════════════════════════════════
+let COLLECT_ROUND=null;
+function toggleCollectRound(id){COLLECT_ROUND=COLLECT_ROUND===id?null:id; renderEggs();}
+function renderEggs(){
+  if(SES){renderSession();return;}
+  const farm=DB.getFarm(), el=document.getElementById('v-eggs');
+  if(!farm||(farm.pens||[]).length===0){
+    el.innerHTML=`<div class="topbar"><div><h1>Egg Collection</h1></div></div><div class="empty"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg><h3>No farm set up</h3><p>Go to Settings to add pens and lines.</p></div>`;
+    return;
+  }
+  const today=DB.today(), todayCols=DB.todayCols(), allPass=getAllPassStatus(farm,todayCols);
+  let openRound=COLLECT_ROUND;
+  if(openRound===null){const fp=ROUNDS.find(r=>allPass.some(p=>p.round===r.id&&!p.complete));openRound=fp?fp.id:ROUNDS[0].id;}
+  const roundSections=ROUNDS.map(rnd=>{
+    const passes=allPass.filter(p=>p.round===rnd.id);
+    const totalP=passes.length, doneP=passes.filter(p=>p.complete).length;
+    const eggs=todayCols.filter(c=>c.round===rnd.id).reduce((s,c)=>(c.entries||[]).reduce((ss,e)=>ss+(e.eggs||0),s),0);
+    const allDone=totalP>0&&doneP===totalP, isOpen=openRound===rnd.id;
+    const rndBadge=allDone?`<span class="badge badge-green">✓ Done · ${eggs} eggs</span>`:
+      doneP>0?`<span class="badge badge-amber">${doneP}/${totalP} passes · ${eggs} eggs</span>`:
+      `<span class="badge badge-gray">Not started</span>`;
+    const passRows=passes.map(p=>{
+      const bc=p.complete?'badge-green':p.started?'badge-amber':'badge-gray';
+      const bt=p.complete?'✓ Done':p.started?`${p.done}/${p.total} stands`:'New';
+      const bl=p.complete?'Re-do':p.started?'Resume':'Start';
+      const bcl=p.complete?'btn-secondary':p.started?'btn-amber':'btn-primary';
+      return`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5">
+        <div><div style="font-weight:700;font-size:13px">${p.penName} · ${p.lineName}</div>
+          <div style="display:flex;gap:6px;margin-top:4px"><span class="badge badge-gray" style="font-size:10px">Side ${p.side}</span><span class="badge ${bc}">${bt}</span></div></div>
+        <button class="btn ${bcl} btn-sm" style="flex-shrink:0;margin-left:10px"
+          onclick="beginSession('${p.penId}','${p.lineId}','${p.side}',${rnd.id})">${bl}</button></div>`;
+    }).join('');
+    return`<div style="background:var(--white);border-radius:var(--radius);margin:0 16px 10px;box-shadow:var(--shadow);overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;${isOpen?'border-bottom:2px solid var(--g5)':''}"
+        onclick="toggleCollectRound(${rnd.id})">
+        <div><span class="${rnd.cls} round-chip" style="font-size:13px;padding:5px 12px">${rnd.label} · ${rnd.sub}</span>
+          <div style="margin-top:6px">${rndBadge}</div></div>
+        <span style="font-size:20px;color:var(--gray);transition:transform .2s;${isOpen?'transform:rotate(180deg)':''}">▾</span>
+      </div>
+      ${isOpen?`<div style="padding:0 16px 6px">${passRows||'<div style="padding:14px 0;color:var(--gray);font-size:13px">No passes configured.</div>'}</div>`:''}</div>`;
+  }).join('');
+  el.innerHTML=`<div class="topbar"><div><h1>Egg Collection</h1><small>${fmtDate(today)}</small></div></div>
+    <div style="background:var(--g5);padding:10px 18px;font-size:12px;color:var(--g1);line-height:1.7">
+      <b>Side A</b> = Right side, walking forward &nbsp;·&nbsp; <b>Side B</b> = Left side, walking back</div>
+    <div style="padding-top:12px;padding-bottom:24px">${roundSections}</div>`;
+}
+
+function beginSession(penId,lineId,side,round){
+  const farm=DB.getFarm(), pen=(farm.pens||[]).find(p=>p.id===penId);
+  const line=(pen?.lines||[]).find(l=>l.id===lineId); if(!line)return;
+  const today=DB.today(), todayCols=DB.todayCols();
+  let col=todayCols.find(c=>c.penId===penId&&c.lineId===lineId&&c.side===side&&c.round===round);
+  if(!col){
+    const stage=getPenStage(pen);
+    const snapExp=stage?stage.expected:(farm?.expectedRate||85);
+    const snapWarn=stage?stage.warn:(farm?.warnRate||70);
+    col={id:uid(),date:today,penId,lineId,side,round,
+      roundLabel:ROUNDS.find(r=>r.id===round)?.label||`Round ${round}`,
+      penName:pen.name,lineName:line.name,exp:snapExp,warn:snapWarn,
+      completedStands:[],entries:[],notes:''};
+    DB.addCol(col);
+  }
+  const stands=side==='B'?[...line.stands].reverse():[...line.stands];
+  const nextIdx=stands.findIndex(s=>!(col.completedStands||[]).includes(s.id));
+  SES={...col,stands,farm};SES_STAND=nextIdx>=0?nextIdx:0;
+  renderSession();
+}
+
+function renderSession(){
+  const el=document.getElementById('v-eggs');
+  const{stands,penName,lineName,side,round,roundLabel,completedStands,id}=SES;
+  const stand=stands[SES_STAND], standConfig=findStandInFarm(SES.farm,stand.id);
+  const total=stands.length, pct=Math.round(completedStands.length/total*100);
+  const rndInfo=ROUNDS.find(r=>r.id===round)||ROUNDS[0];
+  const pen=(SES.farm.pens||[]).find(p=>p.id===SES.penId);
+  const stage=getPenStage(pen);
+  const EXP=stage?stage.expected:(DB.getFarm()?.expectedRate||85);
+  const WARN=stage?stage.warn:(DB.getFarm()?.warnRate||70);
+  const otherCols=DB.todayCols().filter(c=>c.penId===SES.penId&&c.lineId===SES.lineId&&c.side===side&&c.round!==round);
+  const prevByCell={};
+  otherCols.forEach(c=>(c.entries||[]).filter(e=>e.standId===stand.id).forEach(e=>{
+    const k=`${e.tier}_${e.cellNum}`;
+    if(!prevByCell[k])prevByCell[k]={eggs:0};
+    prevByCell[k].eggs+=e.eggs||0;
+  }));
+  const saved=(DB.getCol(id)?.entries||[]).filter(e=>e.standId===stand.id);
+  let tiersHtml='';
+  for(let tier=standConfig.tiers;tier>=1;tier--){
+    let tierEggs=0,tierBirds=0,cellsHtml='';
+    for(let cell=1;cell<=standConfig.cellsPerTier;cell++){
+      const k=`${tier}_${cell}`, birds=getCellBirds(standConfig,tier,cell);
+      const savedE=saved.find(e=>e.tier===tier&&e.cellNum===cell);
+      const eggs=savedE?savedE.eggs:'', broken=savedE?savedE.broken:'';
+      const prevEggs=prevByCell[k]?.eggs||0, remaining=Math.max(0,birds-prevEggs);
+      const thisEggs=parseInt(eggs)||0, dailyTotal=prevEggs+thisEggs, overQuota=dailyTotal>birds;
+      const rate=(savedE&&birds>0)?(thisEggs/birds*100):null;
+      let cardCls='';
+      if(savedE){cardCls=overQuota?'c-over':(rate>=EXP?'c-good':rate>=WARN?'c-low':'c-poor');}
+      const rateClr=rate===null?'':overQuota?'color:var(--amber)':rate>=EXP?'color:var(--g3)':rate>=WARN?'color:var(--amber)':'color:var(--red)';
+      tierEggs+=thisEggs;tierBirds+=birds;
+      const quotaHtml=prevEggs>0?`<div class="cell-prev" id="quota_${k}" style="${overQuota?'color:var(--amber);font-weight:800':''}">
+        ${prevEggs} prev · ${remaining>0?remaining+' left':'full'}${overQuota?' ⚠':''}</div>`:'';
+      cellsHtml+=`<div class="cell-card ${cardCls}" id="cc_${k}" data-exp="${EXP}" data-warn="${WARN}">
+        <div class="cell-id">T${tier}·C${cell}</div>
+        <div class="cell-birds-row"><span class="birds-val" onclick="editCellBirds('${stand.id}',${tier},${cell},${birds})">${birds}</span>🐔</div>
+        <input class="cell-egg-input" type="number" min="0" inputmode="numeric" pattern="[0-9]*" placeholder="0"
+          value="${eggs}" id="ei_${k}" data-stand="${stand.id}" data-tier="${tier}" data-cell="${cell}"
+          data-birds="${birds}" data-prev="${prevEggs}" data-exp="${EXP}" data-warn="${WARN}" oninput="onEggInput(this)">
+        <div class="cell-broken-row"><span class="broken-lbl">💔</span>
+          <input class="broken-input" type="number" min="0" max="${eggs!==''?eggs:0}" inputmode="numeric" placeholder="0"
+            value="${broken}" id="bi_${k}" data-tier="${tier}" data-cell="${cell}" oninput="onBrokenInput(this,'${k}')"></div>
+        ${quotaHtml}
+        <div class="cell-rate-lbl" id="rl_${k}" style="${rateClr}">${rate!==null?rate.toFixed(0)+'%':''}</div></div>`;
+    }
+    const tierRate=tierBirds>0?tierEggs/tierBirds*100:null;
+    tiersHtml+=`<div class="tier-section"><div class="tier-label">Tier ${tier} ${tier===standConfig.tiers?'(Top)':tier===1?'(Bottom)':''}
+      <span class="tier-stats">${tierEggs}/${tierBirds} ${tierRate!==null?tierRate.toFixed(0)+'%':''}</span></div>
+      <div class="cell-grid">${cellsHtml}</div></div>`;
+  }
+  const stageBanner=stage?`<div style="background:${stage.bg};padding:8px 14px;display:flex;align-items:center;gap:8px;font-size:12px;color:${stage.color};font-weight:800;border-bottom:1px solid rgba(0,0,0,.06)">
+    ${stage.emoji} Week ${stage.weeks} · ${stage.label} · Expect ≥${stage.expected}% · Warn &lt;${stage.warn}%</div>`:'';
+  el.innerHTML=`<div class="collect-hdr">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between">
+      <div><h2>${penName} · ${lineName} · Side ${side} · ${stand.name}</h2>
+        <div class="sub">Stand ${SES_STAND+1}/${total} · ${standConfig.tiers}T × ${standConfig.cellsPerTier}C</div></div>
+      <span class="${rndInfo.cls} round-chip" style="flex-shrink:0;margin-left:6px">${roundLabel}</span></div>
+    <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div></div>
+    ${stageBanner}
+    <div style="padding:8px 10px 0;display:flex;flex-wrap:wrap;gap:5px">
+      <span class="badge badge-green">≥${EXP}% Good</span>
+      <span class="badge badge-amber">${WARN}–${EXP-1}% Low</span>
+      <span class="badge badge-red">&lt;${WARN}% Poor</span>
+      <span class="badge badge-gray">Tap 🐔 to edit birds</span></div>
+    <div style="padding-bottom:100px">${tiersHtml}</div>
+    <div class="action-bar">
+      <button class="btn btn-secondary" style="width:auto;padding:14px 16px;flex-shrink:0" onclick="exitSession()">✕</button>
+      <button class="btn btn-amber" style="flex:0 0 auto;width:auto;padding:14px 16px" onclick="addNoteModal()">📝</button>
+      <button class="btn btn-primary" onclick="saveStand()">${SES_STAND<total-1?'Save & Next →':'Complete Pass ✓'}</button></div>`;
+}
+function onEggInput(inp){
+  const birds=parseInt(inp.dataset.birds), prevEggs=parseInt(inp.dataset.prev)||0;
+  const remaining=Math.max(0,birds-prevEggs), EXP=parseInt(inp.dataset.exp)||85, WARN=parseInt(inp.dataset.warn)||70;
+  let eggs=parseInt(inp.value)||0;
+  if(eggs>birds){eggs=birds;inp.value=birds;}
+  if(eggs<0){eggs=0;inp.value=0;}
+  const overBirds=(prevEggs+eggs)>birds;
+  const k=`${inp.dataset.tier}_${inp.dataset.cell}`;
+  const bi=document.getElementById('bi_'+k), card=document.getElementById('cc_'+k);
+  const rl=document.getElementById('rl_'+k), quot=document.getElementById('quota_'+k);
+  if(bi){bi.max=eggs;if((parseInt(bi.value)||0)>eggs)bi.value=eggs;}
+  if(quot){quot.textContent=`${prevEggs} prev · ${Math.max(0,remaining-eggs)} left${overBirds?' ⚠':''}`;
+    quot.style.color=overBirds?'var(--amber)':'';quot.style.fontWeight=overBirds?'800':'';}
+  const rate=birds>0?eggs/birds*100:null;
+  if(rl){rl.textContent=rate!==null?rate.toFixed(0)+'%':'';
+    rl.style.color=rate===null?'':overBirds?'var(--amber)':rate>=EXP?'var(--g3)':rate>=WARN?'var(--amber)':'var(--red)';}
+  if(card){card.className='cell-card '+(overBirds?'c-over':rate>=EXP?'c-good':rate>=WARN?'c-low':eggs>0?'c-poor':'');}
+}
+function onBrokenInput(inp,k){
+  const ei=document.getElementById('ei_'+k), maxEggs=parseInt(ei?.value)||0;
+  let val=parseInt(inp.value)||0;
+  if(val<0){val=0;inp.value=0;}if(val>maxEggs){val=maxEggs;inp.value=maxEggs;}
+}
+function editCellBirds(standId,tier,cell,current){
+  openModal(`<div class="modal-ttl">Edit Bird Count <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:13px;color:var(--gray);margin-bottom:16px">Stand <b>${standId}</b> · Tier ${tier} · Cell ${cell}</p>
+    <div class="field"><label>Number of Birds</label>
+      <select id="m_birds">${[0,1,2,3,4,5,6].map(n=>`<option value="${n}" ${n===current?'selected':''}>${n===0?'0 (empty)':n}</option>`).join('')}</select></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-primary" onclick="saveCellBirds('${standId}',${tier},${cell})">Save</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+function saveCellBirds(standId,tier,cell){
+  const n=parseInt(document.getElementById('m_birds').value), farm=DB.getFarm();
+  for(const pen of farm.pens||[])for(const line of pen.lines||[])for(const s of line.stands||[])
+    if(s.id===standId){if(!s.cellBirds)s.cellBirds={};s.cellBirds[`${tier}_${cell}`]=n;}
+  DB.saveFarm(farm);SES.farm=farm;closeModal();toast(`Cell updated to ${n} bird${n!==1?'s':''} ✓`);renderSession();
+}
+function addNoteModal(){
+  const col=DB.getCol(SES.id);
+  openModal(`<div class="modal-ttl">Session Note <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="field"><textarea id="m_note" placeholder="e.g. Water line blocked, sick bird found...">${col?.notes||''}</textarea></div>
+    <button class="btn btn-primary" onclick="saveNote()">Save Note</button>`);
+}
+function saveNote(){DB.updateCol(SES.id,{notes:document.getElementById('m_note').value.trim()});closeModal();toast('Note saved ✓');}
+function saveStand(){
+  const stand=SES.stands[SES_STAND], standConfig=findStandInFarm(SES.farm,stand.id), entries=[];
+  for(let tier=1;tier<=standConfig.tiers;tier++)for(let cell=1;cell<=standConfig.cellsPerTier;cell++){
+    const k=`${tier}_${cell}`, ei=document.getElementById('ei_'+k), bi=document.getElementById('bi_'+k);
+    if(ei){const birds=getCellBirds(standConfig,tier,cell);
+      entries.push({standId:stand.id,tier,cellNum:cell,birds,eggs:parseInt(ei.value)||0,broken:parseInt(bi?.value)||0,ts:new Date().toISOString()});}
+  }
+  const col=DB.getCols().find(c=>c.id===SES.id);
+  if(col){col.entries=[(col.entries||[]).filter(e=>e.standId!==stand.id),...entries].flat();
+    if(!col.completedStands.includes(stand.id))col.completedStands.push(stand.id);
+    DB.saveCols(DB.getCols().map(c=>c.id===SES.id?col:c));SES.completedStands=col.completedStands;}
+  if(SES_STAND<SES.stands.length-1){SES_STAND++;toast(`Stand ${SES_STAND} saved ✓`);renderSession();window.scrollTo(0,0);}
+  else{toast('Pass complete! 🎉',3000);SES=null;SES_STAND=0;go('eggs');}
+}
+function exitSession(){
+  openModal(`<div class="modal-ttl">Exit Collection? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">Completed stands are saved. Resume later from the Eggs tab.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();SES=null;SES_STAND=0;go('eggs')">Exit</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Continue Collecting</button></div>`);
+}
+
+// ═══════════════════════════════════════════════
+// FLOCK — DAILY BIRD STATUS
+// ═══════════════════════════════════════════════
+function renderFlock(){
+  const el=document.getElementById('v-flock'), today=DB.today(), farm=DB.getFarm();
+  const recs=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date));
+  const todayRec=recs.find(r=>r.date===today);
+  const farmBirds=farm?getFarmTotalBirds(farm):0;
+  const ageWeeks=farm?getFarmAgeWeeks(farm):null;
+  const logFormHtml=`
+    <div class="card">
+      <div class="card-title">${todayRec?'Today\'s Flock Log ✓':'Log Bird Status'}</div>
+      ${todayRec?`
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+          <div class="kpi-sm"><div class="kpi-val-sm">${todayRec.opening_birds}</div><div class="kpi-lbl-sm">Opening</div></div>
+          <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--red)">${todayRec.deaths}</div><div class="kpi-lbl-sm">Deaths</div></div>
+          <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--amber)">${todayRec.culls}</div><div class="kpi-lbl-sm">Culls</div></div>
+          <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g2)">${todayRec.closing_birds}</div><div class="kpi-lbl-sm">Closing</div></div>
+        </div>
+        ${todayRec.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-bottom:10px">"${todayRec.notes}"</div>`:''}
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-amber btn-sm" style="flex:1" onclick="openBirdForm('${todayRec.id}')">Edit</button>
+          <button class="btn btn-danger btn-sm" style="flex:1" onclick="delBirdLog('${todayRec.id}')">Delete</button>
+        </div>`:`
+        <button class="btn btn-primary" onclick="openBirdForm()">+ Add Bird Status Record</button>`}
+    </div>`;
+
+  const histHtml=recs.filter(r=>r.date!==today).slice(0,30).map(r=>{
+    const mortality=r.opening_birds>0?(r.deaths/r.opening_birds*100):0;
+    const mBadge=mortality>0.5?`<span class="badge badge-red">${mortality.toFixed(2)}% mortality</span>`:
+      mortality>0.2?`<span class="badge badge-amber">${mortality.toFixed(2)}% mortality</span>`:
+      r.deaths>0?`<span class="badge badge-gray">${mortality.toFixed(2)}% mortality</span>`:'';
+    return`<div class="list-item">
+      <div><div style="font-weight:700;font-size:14px">${fmtDate(r.date)} <span style="font-size:11px;color:var(--gray)">Wk ${r.age_weeks||'—'}</span></div>
+        <div style="font-size:12px;color:var(--gray);margin-top:2px">${r.opening_birds}→${r.closing_birds} birds · ${r.deaths} deaths · ${r.culls} culls</div>
+        ${mBadge}</div>
+      <div style="display:flex;gap:5px">
+        <button class="btn btn-secondary btn-sm" onclick="openBirdForm('${r.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="delBirdLog('${r.id}')">✕</button>
+      </div></div>`;
+  }).join('');
+
+  el.innerHTML=`<div class="topbar"><div><h1>Flock Status</h1><small>Bird mortality & daily count</small></div></div>
+    <div class="kpi-row-3">
+      <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${farmBirds}</div><div class="kpi-lbl">Farm Birds</div></div>
+      <div class="kpi"><div class="kpi-val">${ageWeeks!==null?'Wk '+ageWeeks:'—'}</div><div class="kpi-lbl">Flock Age</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:var(--red)">${recs.slice(0,7).reduce((s,r)=>s+(r.deaths||0),0)}</div><div class="kpi-lbl">Deaths (7d)</div></div>
+    </div>
+    ${logFormHtml}
+    <div class="sec-hdr">History</div>
+    <div class="card" style="padding:0;overflow:hidden">${histHtml||'<div class="empty" style="padding:24px"><p>No previous records.</p></div>'}</div>
+    <div style="height:12px"></div>`;
+}
+function openBirdForm(editId){
+  const farm=DB.getFarm(), today=DB.today();
+  const rec=editId?DB.getBirds().find(r=>r.id===editId):null;
+  const lastRec=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date)).find(r=>!editId||r.id!==editId);
+  const defOpen=rec?rec.opening_birds:(lastRec?.closing_birds||getFarmTotalBirds(farm)||0);
+  const ageWeeks=getFarmAgeWeeks(farm)||0;
+  openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Bird Status <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
+      📅 Change the date to log records for <b>yesterday or any past day</b>. Feed and water are often measured the next morning — just set the date to when the consumption actually happened.
+    </div>
+    <div class="field"><label>Date</label><input type="date" id="bf_date" value="${rec?rec.date:today}" max="${today}"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Opening Birds</label><input type="number" id="bf_open" value="${defOpen}" min="0" oninput="calcClosing()"></div>
+      <div class="field"><label>Age (weeks)</label><input type="number" id="bf_age" value="${rec?.age_weeks??ageWeeks}" min="0"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Deaths Today</label><input type="number" id="bf_deaths" value="${rec?.deaths||0}" min="0" oninput="calcClosing()"></div>
+      <div class="field"><label>Culls Today</label><input type="number" id="bf_culls" value="${rec?.culls||0}" min="0" oninput="calcClosing()"></div>
+    </div>
+    <div class="field"><label>Closing Birds (auto)</label>
+      <input type="number" id="bf_close" value="${rec?.closing_birds??defOpen}" readonly style="background:#f5f5f5;color:var(--g1);font-weight:700"></div>
+    <div class="field"><label>Notes</label><textarea id="bf_notes" placeholder="e.g. Birds are stable. Found dead bird in T2·C3.">${rec?.notes||''}</textarea></div>
+    <button class="btn btn-primary" onclick="saveBirdLog('${editId||''}')">Save</button>`);
+}
+function calcClosing(){
+  const o=parseInt(document.getElementById('bf_open')?.value)||0;
+  const d=parseInt(document.getElementById('bf_deaths')?.value)||0;
+  const c=parseInt(document.getElementById('bf_culls')?.value)||0;
+  const cl=document.getElementById('bf_close'); if(cl)cl.value=Math.max(0,o-d-c);
+}
+function saveBirdLog(editId){
+  const date=document.getElementById('bf_date').value;
+  const opening=parseInt(document.getElementById('bf_open').value)||0;
+  const deaths=parseInt(document.getElementById('bf_deaths').value)||0;
+  const culls=parseInt(document.getElementById('bf_culls').value)||0;
+  const age_weeks=parseInt(document.getElementById('bf_age').value)||0;
+  const notes=document.getElementById('bf_notes').value.trim();
+  const rec={id:editId||uid(),date,opening_birds:opening,deaths,culls,
+    closing_birds:Math.max(0,opening-deaths-culls),age_weeks,notes};
+  if(editId)DB.updBird(editId,rec); else DB.addBird(rec);
+  closeModal();toast('Bird status saved ✓');renderFlock();
+}
+function delBirdLog(id){
+  openModal(`<div class="modal-ttl">Delete Record? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">This cannot be undone.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();DB.delBird('${id}');toast('Deleted');renderFlock()">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+
+// ═══════════════════════════════════════════════
+// FEED — DAILY FEED USAGE
+// ═══════════════════════════════════════════════
+function renderFeed(){
+  const el=document.getElementById('v-feed'), today=DB.today(), farm=DB.getFarm();
+  const recs=DB.getFeed().sort((a,b)=>b.date.localeCompare(a.date));
+  const todayRecs=recs.filter(r=>r.date===today);
+  const totalUsed7=recs.filter(r=>{const d=new Date(today);d.setDate(d.getDate()-7);return r.date>d.toISOString().slice(0,10);}).reduce((s,r)=>s+(r.feed_kg_used||0),0);
+  const farmBirds=farm?getFarmTotalBirds(farm):0;
+  const feedRate=(farm?.feedRateG||110)/1000;
+  const lastBird=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date))[0];
+  const closingBirds=lastBird?.closing_birds||farmBirds;
+  const todayReq=(closingBirds*feedRate).toFixed(1);
+  const todayUsed=todayRecs.reduce((s,r)=>s+(r.feed_kg_used||0),0);
+  const variance=parseFloat(todayReq)>0?((todayUsed-parseFloat(todayReq))/parseFloat(todayReq)*100):0;
+  const varColor=Math.abs(variance)>15?'var(--red)':Math.abs(variance)>10?'var(--amber)':'var(--g2)';
+  const logHtml=`<div class="card">
+    <div class="card-title">Today's Feed Log</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g2)">${todayUsed}</div><div class="kpi-lbl-sm">kg Used</div></div>
+      <div class="kpi-sm"><div class="kpi-val-sm">${todayReq}</div><div class="kpi-lbl-sm">kg Required</div></div>
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:${varColor}">${variance>0?'+':''}${variance.toFixed(0)}%</div><div class="kpi-lbl-sm">Variance</div></div>
+    </div>
+    ${todayRecs.map(r=>`<div class="stand-row" style="margin-bottom:6px">
+      <div><div style="font-weight:700">${r.feed_type}</div>
+        <div style="font-size:12px;color:var(--gray)">${r.feed_kg_used} kg used · Req: ${r.feed_req_kg} kg</div></div>
+      <div style="display:flex;gap:5px">
+        <button class="btn btn-secondary btn-sm" onclick="openFeedForm('${r.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="delFeed('${r.id}')">✕</button>
+      </div></div>`).join('')}
+    <button class="btn btn-primary" style="margin-top:4px" onclick="openFeedForm()">+ Add Feed Entry</button>
+  </div>`;
+  const histHtml=Object.entries(
+    recs.filter(r=>r.date!==today).reduce((m,r)=>{(m[r.date]=m[r.date]||{date:r.date,kg:0,req:0});m[r.date].kg+=r.feed_kg_used||0;m[r.date].req+=r.feed_req_kg||0;return m;},{})
+  ).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,30)
+  .map(([date,v])=>{const vr=v.req>0?(v.kg-v.req)/v.req*100:0;const vc=Math.abs(vr)>15?'badge-red':Math.abs(vr)>10?'badge-amber':'badge-green';
+    return`<div class="list-item"><div><div style="font-weight:700;font-size:14px">${fmtDate(date)}</div>
+      <div style="font-size:12px;color:var(--gray)">${v.kg} kg used · Req: ${v.req.toFixed(1)} kg</div></div>
+      <span class="badge ${vc}">${vr>0?'+':''}${vr.toFixed(0)}%</span></div>`;
+  }).join('');
+  el.innerHTML=`<div class="topbar"><div><h1>Feed Management</h1><small>Daily usage tracking</small></div></div>
+    <div class="kpi-row-3">
+      <div class="kpi"><div class="kpi-val">${totalUsed7.toFixed(0)}</div><div class="kpi-lbl">kg Used (7d)</div></div>
+      <div class="kpi"><div class="kpi-val">${(farm?.feedRateG||110)}</div><div class="kpi-lbl">g/Bird/Day</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${closingBirds}</div><div class="kpi-lbl">Active Birds</div></div>
+    </div>
+    ${logHtml}
+    <div class="sec-hdr">History (30 days)</div>
+    <div class="card" style="padding:0;overflow:hidden">${histHtml||'<div class="empty" style="padding:24px"><p>No previous records.</p></div>'}</div>
+    <div style="height:12px"></div>`;
+}
+function openFeedForm(editId){
+  const farm=DB.getFarm(), today=DB.today();
+  const rec=editId?DB.getFeed().find(r=>r.id===editId):null;
+  const lastBird=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date))[0];
+  const closingBirds=lastBird?.closing_birds||getFarmTotalBirds(farm)||0;
+  const feedRate=(farm?.feedRateG||110)/1000;
+  const defReq=(closingBirds*feedRate).toFixed(1);
+  openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Feed Entry <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
+      📅 Logging yesterday's feed? Change the date — e.g. weigh leftover feed in the morning, then record it as <b>yesterday's</b> consumption.
+    </div>
+    <div class="field"><label>Date</label><input type="date" id="ff_date" value="${rec?rec.date:today}" max="${today}"></div>
+    <div class="field"><label>Feed Type</label>
+      <select id="ff_type">${FEED_TYPES.map(t=>`<option value="${t}" ${rec?.feed_type===t?'selected':''}>${t}</option>`).join('')}</select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>kg Used</label><input type="number" id="ff_used" value="${rec?.feed_kg_used||''}" min="0" step="0.5" placeholder="e.g. 73"></div>
+      <div class="field"><label>kg Required</label><input type="number" id="ff_req" value="${rec?.feed_req_kg||defReq}" min="0" step="0.1" placeholder="${defReq}"></div>
+    </div>
+    <button class="btn btn-primary" onclick="saveFeedLog('${editId||''}')">Save</button>`);
+}
+function saveFeedLog(editId){
+  const date=document.getElementById('ff_date').value;
+  const feed_type=document.getElementById('ff_type').value;
+  const feed_kg_used=parseFloat(document.getElementById('ff_used').value)||0;
+  const feed_req_kg=parseFloat(document.getElementById('ff_req').value)||0;
+  const ageWeeks=getFarmAgeWeeks(DB.getFarm())||0;
+  const rec={id:editId||uid(),date,feed_type,feed_kg_used,feed_req_kg,age_weeks:ageWeeks};
+  if(editId)DB.updFeed(editId,rec);else DB.addFeed(rec);
+  closeModal();toast('Feed log saved ✓');renderFeed();
+}
+function delFeed(id){
+  openModal(`<div class="modal-ttl">Delete? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">This cannot be undone.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();DB.delFeed('${id}');toast('Deleted');renderFeed()">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+
+// ═══════════════════════════════════════════════
+// HEALTH — DAILY HEALTH LOG
+// ═══════════════════════════════════════════════
+function renderHealth(){
+  const el=document.getElementById('v-health'), today=DB.today();
+  const recs=DB.getHealth().sort((a,b)=>b.date.localeCompare(a.date));
+  const todayRec=recs.find(r=>r.date===today);
+  const abnormal=recs.slice(0,7).filter(r=>r.droppings_observation&&r.droppings_observation!=='Normal').length;
+  const logHtml=`<div class="card">
+    <div class="card-title">${todayRec?'Today\'s Health Log ✓':'Log Health'}</div>
+    ${todayRec?`
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--blue)">${todayRec.water_consumed_liters||'—'}</div><div class="kpi-lbl-sm">Water (L)</div></div>
+        <div class="kpi-sm"><div class="kpi-val-sm" style="font-size:13px;color:${todayRec.droppings_observation==='Normal'?'var(--g2)':'var(--amber)'}">${todayRec.droppings_observation||'—'}</div><div class="kpi-lbl-sm">Droppings</div></div>
+      </div>
+      ${todayRec.vaccination_or_medication?`<div style="font-size:13px;font-weight:700;margin-bottom:4px">💊 ${todayRec.vaccination_or_medication}</div>
+        <div style="font-size:12px;color:var(--gray);margin-bottom:10px">via ${todayRec.admin_method||'—'}</div>`:''}
+      ${todayRec.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-bottom:10px">"${todayRec.notes}"</div>`:''}
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-amber btn-sm" style="flex:1" onclick="openHealthForm('${todayRec.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" style="flex:1" onclick="delHealth('${todayRec.id}')">Delete</button>
+      </div>`:`<button class="btn btn-primary" onclick="openHealthForm()">+ Add Health Record</button>`}
+  </div>`;
+  const histHtml=recs.filter(r=>r.date!==today).slice(0,30).map(r=>{
+    const dropCls=r.droppings_observation==='Normal'?'badge-green':r.droppings_observation?'badge-red':'badge-gray';
+    return`<div class="list-item">
+      <div><div style="font-weight:700;font-size:14px">${fmtDate(r.date)}</div>
+        <div style="font-size:12px;color:var(--gray);margin-top:2px">Water: ${r.water_consumed_liters||'—'}L · ${r.vaccination_or_medication||'No meds'}</div>
+        <span class="badge ${dropCls}" style="margin-top:4px">${r.droppings_observation||'—'} droppings</span></div>
+      <div style="display:flex;gap:5px">
+        <button class="btn btn-secondary btn-sm" onclick="openHealthForm('${r.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="delHealth('${r.id}')">✕</button>
+      </div></div>`;
+  }).join('');
+  el.innerHTML=`<div class="topbar"><div><h1>Health Log</h1><small>Water, droppings, medication</small></div></div>
+    <div class="kpi-row-3">
+      <div class="kpi"><div class="kpi-val" style="color:var(--blue)">${recs[0]?.water_consumed_liters||'—'}</div><div class="kpi-lbl">Last Water (L)</div></div>
+      <div class="kpi"><div class="kpi-val">${recs.length}</div><div class="kpi-lbl">Total Logs</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:${abnormal>0?'var(--amber)':'var(--g2)'}">${abnormal}</div><div class="kpi-lbl">Abnormal (7d)</div></div>
+    </div>
+    ${logHtml}
+    <div class="sec-hdr">History</div>
+    <div class="card" style="padding:0;overflow:hidden">${histHtml||'<div class="empty" style="padding:24px"><p>No previous records.</p></div>'}</div>
+    <div style="height:12px"></div>`;
+}
+function openHealthForm(editId){
+  const rec=editId?DB.getHealth().find(r=>r.id===editId):null, today=DB.today();
+  const medOpts=MED_SUGGESTIONS.map(m=>`<option value="${m}">${m}</option>`).join('');
+  openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Health Record <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
+      📅 Water measured in the morning? Log it as <b>yesterday's</b> record by changing the date below.
+    </div>
+    <div class="field"><label>Date</label><input type="date" id="hf_date" value="${rec?rec.date:today}" max="${today}"></div>
+    <div class="field"><label>Water Consumed (litres)</label><input type="number" id="hf_water" value="${rec?.water_consumed_liters||''}" min="0" step="0.5" placeholder="e.g. 200"></div>
+    <div class="field"><label>Droppings Observation</label>
+      <select id="hf_drop">${DROP_OPTIONS.map(d=>`<option value="${d}" ${rec?.droppings_observation===d?'selected':''}>${d}</option>`).join('')}</select></div>
+    <div class="field"><label>Vaccination / Medication <span style="color:var(--gray);font-weight:400">— optional</span></label>
+      <input type="text" id="hf_med" value="${rec?.vaccination_or_medication||''}" placeholder="Type or select below" list="med_list">
+      <datalist id="med_list">${medOpts}</datalist></div>
+    <div class="field"><label>Administration Method</label>
+      <select id="hf_admin">${ADMIN_METHODS.map(m=>`<option value="${m}" ${rec?.admin_method===m?'selected':''}>${m}</option>`).join('')}</select></div>
+    <div class="field"><label>Notes</label><textarea id="hf_notes" placeholder="e.g. Birds responding well to treatment">${rec?.notes||''}</textarea></div>
+    <button class="btn btn-primary" onclick="saveHealthLog('${editId||''}')">Save</button>`);
+}
+function saveHealthLog(editId){
+  const rec={id:editId||uid(),date:document.getElementById('hf_date').value,
+    water_consumed_liters:parseFloat(document.getElementById('hf_water').value)||0,
+    droppings_observation:document.getElementById('hf_drop').value,
+    vaccination_or_medication:document.getElementById('hf_med').value.trim(),
+    admin_method:document.getElementById('hf_admin').value,
+    notes:document.getElementById('hf_notes').value.trim()};
+  if(editId)DB.updHealth(editId,rec);else DB.addHealth(rec);
+  closeModal();toast('Health log saved ✓');renderHealth();
+}
+function delHealth(id){
+  openModal(`<div class="modal-ttl">Delete? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">This cannot be undone.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();DB.delHealth('${id}');toast('Deleted');renderHealth()">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+
+// ═══════════════════════════════════════════════
+// FINANCE — EXPENSES + SALES + RECEIVABLES
+// ═══════════════════════════════════════════════
+// ── FINANCE ─────────────────────────────────────
+// Sales carry payment_type: 'cash' | 'credit'
+// Credit sales are NOT paid (paid:false) until marked.
+// Receivables tab = sales.filter(credit). No separate receivable store needed.
+let FIN_TAB='expenses';
+function renderFinance(){
+  const el=document.getElementById('v-finance');
+  const expenses=DB.getExpenses().sort((a,b)=>b.date.localeCompare(a.date));
+  const sales=DB.getSales().sort((a,b)=>b.date.localeCompare(a.date));
+  const today=DB.today(), thisMonth=today.slice(0,7);
+  const monthExp=expenses.filter(e=>e.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.amount_ngn||0),0);
+  const monthSales=sales.filter(s=>s.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.total_amount_ngn||0),0);
+  const creditSales=sales.filter(s=>s.payment_type==='credit');
+  const unpaidCredit=creditSales.filter(s=>!s.paid);
+  const totalOwed=unpaidCredit.reduce((s,r)=>s+(r.total_amount_ngn||0),0);
+  const overdueCount=unpaidCredit.filter(s=>s.due_date&&s.due_date<today).length;
+  const cashCollectedMonth=sales.filter(s=>s.date.startsWith(thisMonth)&&(s.payment_type==='cash'||s.paid)).reduce((s,e)=>s+(e.total_amount_ngn||0),0);
+
+  let tabContent='';
+  if(FIN_TAB==='expenses'){
+    tabContent=`
+      <div style="margin:12px 16px"><button class="btn btn-primary" onclick="openExpenseForm()">+ Add Expense</button></div>
+      <div class="card" style="padding:0;overflow:hidden">
+        ${expenses.length===0?'<div class="empty" style="padding:24px"><p>No expenses logged yet.</p></div>':
+          expenses.slice(0,50).map(e=>`<div class="list-item">
+            <div><div style="font-weight:700;font-size:14px">${e.category}</div>
+              <div style="font-size:12px;color:var(--gray)">${fmtDate(e.date)} · ${e.notes||'—'}</div></div>
+            <div style="text-align:right">
+              <div style="font-weight:800;color:var(--red)">${fmtMoney(e.amount_ngn)}</div>
+              ${e.amount_usd?`<div style="font-size:11px;color:var(--gray)">$${e.amount_usd}</div>`:''}
+              <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
+                <button class="btn btn-secondary btn-sm" onclick="openExpenseForm('${e.id}')">Edit</button>
+                <button class="btn btn-danger btn-sm" onclick="delExpense('${e.id}')">✕</button>
+              </div></div></div>`).join('')}
+      </div>`;
+
+  } else if(FIN_TAB==='sales'){
+    tabContent=`
+      <div style="margin:12px 16px"><button class="btn btn-primary" onclick="openSaleForm()">+ Record Sale</button></div>
+      <div style="margin:0 16px 8px;background:var(--g5);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--g1)">
+        💡 Choose <b>Cash</b> if payment was collected on the spot, or <b>Credit</b> if the customer takes goods and pays later — credit sales automatically appear in Receivables.
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        ${sales.length===0?'<div class="empty" style="padding:24px"><p>No sales recorded yet.</p></div>':
+          sales.slice(0,50).map(s=>{
+            const isCash=!s.payment_type||s.payment_type==='cash';
+            const isCredit=s.payment_type==='credit';
+            const overdue=isCredit&&!s.paid&&s.due_date&&s.due_date<today;
+            const payBadge=isCash
+              ?`<span class="badge badge-green">Cash</span>`
+              :s.paid
+                ?`<span class="badge badge-green">Credit — Paid ✓</span>`
+                :overdue
+                  ?`<span class="badge badge-red">Credit — Overdue</span>`
+                  :`<span class="badge badge-amber">Credit — Pending</span>`;
+            return`<div class="list-item">
+              <div style="flex:1">
+                <div style="font-weight:700;font-size:14px">${s.product}</div>
+                <div style="font-size:12px;color:var(--gray);margin-top:2px">${fmtDate(s.date)} · ${s.quantity} × ${fmtMoney(s.unit_price_ngn)}${s.customer?' · '+s.customer:''}</div>
+                <div style="margin-top:4px">${payBadge}${isCredit&&s.due_date?`<span style="font-size:11px;color:var(--gray);margin-left:6px">Due ${fmtDate(s.due_date)}</span>`:''}</div>
+              </div>
+              <div style="text-align:right;flex-shrink:0;margin-left:10px">
+                <div style="font-weight:800;color:var(--g2)">${fmtMoney(s.total_amount_ngn)}</div>
+                <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
+                  ${isCredit&&!s.paid?`<button class="btn btn-primary btn-sm" onclick="markSalePaid('${s.id}')">Paid ✓</button>`:''}
+                  <button class="btn btn-secondary btn-sm" onclick="openSaleForm('${s.id}')">Edit</button>
+                  <button class="btn btn-danger btn-sm" onclick="delSale('${s.id}')">✕</button>
+                </div>
+              </div></div>`;
+          }).join('')}
+      </div>`;
+
+  } else if(FIN_TAB==='recv'){
+    tabContent=`
+      ${overdueCount>0?`<div style="margin:12px 16px 0"><div class="alert-item alert-red">⚠ ${overdueCount} overdue payment${overdueCount>1?'s':''} — follow up with customer${overdueCount>1?'s':''}</div></div>`:''}
+      <div style="margin:12px 16px 8px;background:var(--blueBg);border-left:3px solid var(--blue);padding:10px 12px;border-radius:0 8px 8px 0;font-size:12px;color:#1a5fa8">
+        Credit sales appear here automatically. To log a new credit sale, go to the <b>Sales</b> tab and select <b>Credit</b> as the payment type — no double entry needed.
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        ${creditSales.length===0
+          ?`<div class="empty" style="padding:24px"><p>No credit sales yet.</p><p style="font-size:12px;margin-top:6px">Record a sale in the Sales tab and select "Credit (pay later)".</p></div>`
+          :creditSales.sort((a,b)=>b.date.localeCompare(a.date)).map(s=>{
+            const overdue=!s.paid&&s.due_date&&s.due_date<today;
+            const statusCls=s.paid?'badge-green':overdue?'badge-red':'badge-amber';
+            const statusTxt=s.paid?'Paid ✓':overdue?'Overdue':'Pending';
+            return`<div class="list-item">
+              <div style="flex:1">
+                <div style="font-weight:700;font-size:14px">${s.customer||'Unknown customer'}</div>
+                <div style="font-size:12px;color:var(--gray)">${s.product} · ${s.quantity} unit${s.quantity>1?'s':''} · ${fmtDate(s.date)}</div>
+                <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+                  <span class="badge ${statusCls}">${statusTxt}</span>
+                  ${s.due_date?`<span style="font-size:11px;color:${overdue?'var(--red)':'var(--gray)'}">${overdue?'Overdue since ':' Due '}${fmtDate(s.due_date)}</span>`:''}
+                </div>
+              </div>
+              <div style="text-align:right;flex-shrink:0;margin-left:10px">
+                <div style="font-weight:800;color:${s.paid?'var(--gray)':overdue?'var(--red)':'var(--amber)'}">${fmtMoney(s.total_amount_ngn)}</div>
+                <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
+                  ${!s.paid?`<button class="btn btn-primary btn-sm" onclick="markSalePaid('${s.id}')">Paid ✓</button>`:''}
+                  <button class="btn btn-secondary btn-sm" onclick="openSaleForm('${s.id}')">Edit</button>
+                </div>
+              </div></div>`;
+          }).join('')}
+      </div>`;
+  }
+
+  el.innerHTML=`<div class="topbar"><div><h1>Finance</h1><small>Expenses · Sales · Receivables</small></div></div>
+    <div class="kpi-row-3">
+      <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${fmtMoney(monthSales)}</div><div class="kpi-lbl">Sales (Month)</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:var(--red)">${fmtMoney(monthExp)}</div><div class="kpi-lbl">Expenses (Month)</div></div>
+      <div class="kpi" style="${overdueCount>0?'border:2px solid var(--red)':totalOwed>0?'border:2px solid var(--amber)':''}">
+        <div class="kpi-val" style="color:${overdueCount>0?'var(--red)':totalOwed>0?'var(--amber)':'var(--gray)'}">${fmtMoney(totalOwed)}</div>
+        <div class="kpi-lbl">Owed to You</div>
+      </div>
+    </div>
+    <div style="margin:0 16px 8px;background:var(--g5);border-radius:10px;padding:12px;display:flex;justify-content:space-between;gap:12px">
+      <div><div style="font-size:11px;color:var(--g1);font-weight:700;text-transform:uppercase">This Month Margin</div>
+        <div style="font-size:20px;font-weight:800;color:${monthSales-monthExp>=0?'var(--g2)':'var(--red)'}">${monthSales-monthExp>=0?'+':''}${fmtMoney(monthSales-monthExp)}</div></div>
+      <div style="text-align:right"><div style="font-size:11px;color:var(--g1);font-weight:700;text-transform:uppercase">Cash Collected</div>
+        <div style="font-size:20px;font-weight:800;color:var(--g2)">${fmtMoney(cashCollectedMonth)}</div></div>
+    </div>
+    <div class="inner-tabs">
+      <button class="inner-tab ${FIN_TAB==='expenses'?'active':''}" onclick="FIN_TAB='expenses';renderFinance()">Expenses</button>
+      <button class="inner-tab ${FIN_TAB==='sales'?'active':''}" onclick="FIN_TAB='sales';renderFinance()">Sales</button>
+      <button class="inner-tab ${FIN_TAB==='recv'?'active':''}" onclick="FIN_TAB='recv';renderFinance()">Receivables${overdueCount>0?' 🔴':unpaidCredit.length>0?' ('+unpaidCredit.length+')':''}</button>
+    </div>
+    ${tabContent}
+    <div style="height:12px"></div>`;
+}
+
+function openExpenseForm(editId){
+  const rec=editId?DB.getExpenses().find(e=>e.id===editId):null, today=DB.today();
+  openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Expense <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="field"><label>Date</label><input type="date" id="ef_date" value="${rec?rec.date:today}" max="${today}"></div>
+    <div class="field"><label>Category</label>
+      <select id="ef_cat">${EXPENSE_CATS.map(c=>`<option value="${c}" ${rec?.category===c?'selected':''} >${c}</option>`).join('')}</select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Amount (₦ NGN)</label><input type="number" id="ef_ngn" value="${rec?.amount_ngn||''}" min="0" step="100" placeholder="0"></div>
+      <div class="field"><label>Amount ($ USD) <span style="color:var(--gray);font-weight:400">opt</span></label><input type="number" id="ef_usd" value="${rec?.amount_usd||''}" min="0" step="0.01" placeholder="0.00"></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="ef_notes" placeholder="e.g. 50 bags of grower pellets">${rec?.notes||''}</textarea></div>
+    <button class="btn btn-primary" onclick="saveExpense('${editId||''}')">Save</button>`);
+}
+function saveExpense(editId){
+  const rec={id:editId||uid(),date:document.getElementById('ef_date').value,
+    category:document.getElementById('ef_cat').value,
+    amount_ngn:parseFloat(document.getElementById('ef_ngn').value)||0,
+    amount_usd:parseFloat(document.getElementById('ef_usd').value)||0,
+    notes:document.getElementById('ef_notes').value.trim()};
+  if(editId)DB.updExpense(editId,rec);else DB.addExpense(rec);
+  closeModal();toast('Expense saved ✓');renderFinance();
+}
+function delExpense(id){openModal(`<div class="modal-ttl">Delete Expense? <button class="modal-x" onclick="closeModal()">×</button></div>
+  <p style="font-size:14px;color:var(--gray);margin-bottom:18px">This cannot be undone.</p>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <button class="btn btn-danger" onclick="closeModal();DB.delExpense('${id}');toast('Deleted');renderFinance()">Delete</button>
+    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);}
+
+function openSaleForm(editId){
+  const rec=editId?DB.getSales().find(s=>s.id===editId):null, today=DB.today();
+  const isCredit=rec?.payment_type==='credit';
+  openModal(`<div class="modal-ttl">${rec?'Edit':'Record'} Sale <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="field"><label>Date of Sale</label><input type="date" id="sf_date" value="${rec?rec.date:today}" max="${today}"></div>
+    <div class="field"><label>Product</label>
+      <select id="sf_prod">${PRODUCT_TYPES.map(p=>`<option value="${p}" ${rec?.product===p?'selected':''} >${p}</option>`).join('')}</select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Quantity</label><input type="number" id="sf_qty" value="${rec?.quantity||''}" min="1" placeholder="e.g. 10" oninput="calcSaleTotal()"></div>
+      <div class="field"><label>Unit Price (₦)</label><input type="number" id="sf_price" value="${rec?.unit_price_ngn||''}" min="0" step="100" placeholder="e.g. 3500" oninput="calcSaleTotal()"></div>
+    </div>
+    <div class="field"><label>Total Amount (₦)</label>
+      <input type="number" id="sf_total" value="${rec?.total_amount_ngn||''}" placeholder="Auto-calculated" style="background:#f5f5f5"></div>
+    <div class="field"><label>Payment</label>
+      <select id="sf_pay" onchange="toggleSalePayFields()">
+        <option value="cash" ${!isCredit?'selected':''}>Cash — collected immediately</option>
+        <option value="credit" ${isCredit?'selected':''}>Credit — customer pays later</option>
+      </select></div>
+    <div id="sf_credit_fields" style="display:${isCredit?'block':'none'}">
+      <div class="field"><label>Customer Name <span style="color:var(--red)">*</span> <span style="font-size:11px;color:var(--gray);font-weight:400">required for credit</span></label>
+        <input type="text" id="sf_cust" value="${isCredit?rec?.customer||'':'' }" placeholder="e.g. Alhaji Musa"></div>
+      <div class="field"><label>Payment Due Date</label>
+        <input type="date" id="sf_due" value="${rec?.due_date||''}" min="${today}"></div>
+    </div>
+    <div id="sf_cash_fields" style="display:${!isCredit?'block':'none'}">
+      <div class="field"><label>Customer <span style="color:var(--gray);font-weight:400">— optional</span></label>
+        <input type="text" id="sf_cust_cash" value="${!isCredit?rec?.customer||'':'' }" placeholder="Customer name (optional for cash)"></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="sf_notes" placeholder="Optional">${rec?.notes||''}</textarea></div>
+    <button class="btn btn-primary" onclick="saveSale('${editId||''}')">Save Sale</button>`);
+}
+function toggleSalePayFields(){
+  const isCredit=document.getElementById('sf_pay')?.value==='credit';
+  const cf=document.getElementById('sf_credit_fields'), ca=document.getElementById('sf_cash_fields');
+  if(cf)cf.style.display=isCredit?'block':'none';
+  if(ca)ca.style.display=isCredit?'none':'block';
+}
+function calcSaleTotal(){
+  const q=parseFloat(document.getElementById('sf_qty')?.value)||0;
+  const p=parseFloat(document.getElementById('sf_price')?.value)||0;
+  const t=document.getElementById('sf_total'); if(t)t.value=(q*p).toFixed(0);
+}
+function saveSale(editId){
+  const payType=document.getElementById('sf_pay').value;
+  const isCredit=payType==='credit';
+  const customer=isCredit
+    ?(document.getElementById('sf_cust')?.value.trim()||''  )
+    :(document.getElementById('sf_cust_cash')?.value.trim()||''  );
+  if(isCredit&&!customer){toast('Enter customer name for credit sale');return;}
+  const qty=parseFloat(document.getElementById('sf_qty').value)||0;
+  const price=parseFloat(document.getElementById('sf_price').value)||0;
+  const existingRec=editId?DB.getSales().find(s=>s.id===editId):null;
+  const rec={
+    id:editId||uid(),
+    date:document.getElementById('sf_date').value,
+    product:document.getElementById('sf_prod').value,
+    quantity:qty, unit_price_ngn:price,
+    total_amount_ngn:parseFloat(document.getElementById('sf_total').value)||(qty*price),
+    payment_type:payType,
+    paid:isCredit?(existingRec?.paid||false):true,
+    due_date:isCredit?(document.getElementById('sf_due')?.value||null):null,
+    customer, notes:document.getElementById('sf_notes').value.trim()};
+  if(editId)DB.updSale(editId,rec);else DB.addSale(rec);
+  closeModal();toast(isCredit?'Credit sale recorded — see Receivables ✓':'Cash sale recorded ✓');renderFinance();
+}
+function markSalePaid(saleId){
+  DB.updSale(saleId,{paid:true});
+  toast('Payment received — marked as paid ✓');renderFinance();
+}
+function delSale(id){openModal(`<div class="modal-ttl">Delete Sale? <button class="modal-x" onclick="closeModal()">×</button></div>
+  <p style="font-size:14px;color:var(--gray);margin-bottom:18px">This cannot be undone.</p>
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <button class="btn btn-danger" onclick="closeModal();DB.delSale('${id}');toast('Deleted');renderFinance()">Delete</button>
+    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);}
+
+
+// ═══════════════════════════════════════════════
+// REPORTS — MULTI-MODULE ANALYTICS
+// ═══════════════════════════════════════════════
+let REP_TAB='eggs', ANA_TAB='cells', ANA_DATE=null;
+function filterColsByDate(allCols){
+  if(!ANA_DATE)return allCols;
+  if(ANA_DATE==='last7'||ANA_DATE==='last30'){
+    const days=ANA_DATE==='last7'?7:30;
+    const cutoff=new Date();cutoff.setDate(cutoff.getDate()-days);
+    return allCols.filter(c=>c.date>=cutoff.toISOString().slice(0,10));
+  }
+  return allCols.filter(c=>c.date===ANA_DATE);
+}
+function anaModeLabel(){if(!ANA_DATE)return'All Time';if(ANA_DATE==='last7')return'Last 7 Days';if(ANA_DATE==='last30')return'Last 30 Days';return fmtDate(ANA_DATE);}
+
+function renderReports(){
+  const el=document.getElementById('v-reports');
+  const farm=DB.getFarm();
+  if(!farm){el.innerHTML=`<div class="topbar"><div><h1>Reports</h1></div></div><div class="empty"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><h3>No data yet</h3><p>Start logging data to see reports.</p></div>`;return;}
+
+  const allCols=DB.getCols();
+  const allDates=[...new Set(allCols.map(c=>c.date))].sort((a,b)=>b.localeCompare(a));
+  const farmBirds=getFarmTotalBirds(farm);
+  const validPenIds=new Set((farm.pens||[]).map(p=>p.id));
+  const cols=filterColsByDate(allCols).filter(c=>validPenIds.has(c.penId));
+  const modeLabel=anaModeLabel();
+  const dateOpts=`<option value="" ${!ANA_DATE?'selected':''}>All Time</option>
+    <optgroup label="─── Quick Range ───">
+      <option value="last7" ${ANA_DATE==='last7'?'selected':''}>Last 7 Days</option>
+      <option value="last30" ${ANA_DATE==='last30'?'selected':''}>Last 30 Days</option>
+    </optgroup>
+    <optgroup label="─── Specific Day ───">
+      ${allDates.map(d=>`<option value="${d}" ${d===ANA_DATE?'selected':''}>${fmtDate(d)}</option>`).join('')}
+    </optgroup>`;
+
+  let tabContent='';
+  if(REP_TAB==='eggs'){
+    // Egg analytics (from PoulTrack)
+    const isSingleDay=!!ANA_DATE&&ANA_DATE!=='last7'&&ANA_DATE!=='last30';
+    const sessionCol=isSingleDay?'Rounds':'Sessions';
+    const cellMap={}, cellDayBirds={};
+    cols.forEach(col=>{
+      const colExp=col.exp??(farm.expectedRate||85), colWarn=col.warn??(farm.warnRate||70);
+      (col.entries||[]).forEach(e=>{
+        const k=`${col.penId}|${col.side}|${e.standId}|${e.tier}|${e.cellNum}`;
+        const dk=`${k}|${col.date}`;
+        if(!cellMap[k])cellMap[k]={totalEggs:0,totalBirds:0,totalBroken:0,sessions:0,sumExp:0,sumWarn:0,penId:col.penId,side:col.side,standId:e.standId,tier:e.tier,cellNum:e.cellNum};
+        cellMap[k].totalEggs+=(e.eggs||0);cellMap[k].totalBroken+=(e.broken||0);
+        cellMap[k].sessions++;cellMap[k].sumExp+=colExp;cellMap[k].sumWarn+=colWarn;
+        if(!cellDayBirds[dk]){cellDayBirds[dk]=true;cellMap[k].totalBirds+=(e.birds||0);}
+      });
+    });
+    const cells=Object.values(cellMap).map(c=>({...c,days:c.sessions,
+      rate:c.totalBirds>0?c.totalEggs/c.totalBirds*100:null,
+      avgExp:c.sessions>0?c.sumExp/c.sessions:(farm.expectedRate||85),
+      avgWarn:c.sessions>0?c.sumWarn/c.sessions:(farm.warnRate||70)}));
+    const poor=cells.filter(c=>c.rate!==null&&c.rate<c.avgWarn).sort((a,b)=>a.rate-b.rate);
+    const top=cells.filter(c=>c.rate!==null&&c.rate>=c.avgExp).sort((a,b)=>b.rate-a.rate).slice(0,10);
+    let totalEggs=0,totalBroken=0;
+    cols.forEach(col=>(col.entries||[]).forEach(e=>{totalEggs+=(e.eggs||0);totalBroken+=(e.broken||0);}));
+    const overallRate=farmBirds>0?totalEggs/farmBirds*100:null;
+    const crackRate=totalEggs>0?totalBroken/totalEggs*100:null;
+    const crackColor=crackRate===null?'var(--gray)':crackRate>3?'var(--red)':crackRate>=2?'var(--amber)':'var(--g3)';
+    const roundMap={};
+    cols.forEach(c=>{if(!roundMap[c.round])roundMap[c.round]={label:c.roundLabel,eggs:0};
+      (c.entries||[]).forEach(e=>{roundMap[c.round].eggs+=(e.eggs||0);});});
+    const totalRndEggs=Object.values(roundMap).reduce((s,v)=>s+v.eggs,0);
+
+    const cellRow=(c)=>{
+      const stand=findStandInFarm(farm,c.standId), pen=(farm.pens||[]).find(p=>p.id===c.penId);
+      const cRate=c.totalEggs>0?c.totalBroken/c.totalEggs*100:null;
+      const cColor=cRate===null?'var(--gray)':cRate>3?'var(--red)':cRate>=2?'var(--amber)':'var(--g3)';
+      return`<tr>
+        <td><b>T${c.tier}·C${c.cellNum}</b><br><small style="color:var(--gray)">${pen?.name||''} · ${stand?.name||c.standId}</small></td>
+        <td><span class="badge badge-gray">Side ${c.side}</span></td>
+        <td style="color:var(--gray)">${c.days}</td>
+        <td style="color:var(--red);font-weight:700">${c.totalBroken}</td>
+        <td><div class="rate-bar-wrap"><div class="rate-bar" style="width:${Math.min(c.rate||0,100)}px;background:${rateColor(c.rate)}"></div>${rateBadge(c.rate)}</div></td>
+        <td style="font-weight:700;color:${cColor}">${cRate!==null?cRate.toFixed(1)+'%':'—'}</td></tr>`;
+    };
+
+    if(ANA_TAB==='cells'){
+      tabContent=`
+        <div class="kpi-row-5">
+          <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g2)">${totalEggs}</div><div class="kpi-lbl-sm">Eggs</div></div>
+          <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(overallRate)}">${overallRate!==null?overallRate.toFixed(0)+'%':'—'}</div><div class="kpi-lbl-sm">Prod Rate</div></div>
+          <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g1)">${farmBirds}</div><div class="kpi-lbl-sm">Birds</div></div>
+          <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--red)">${totalBroken}</div><div class="kpi-lbl-sm">Broken</div></div>
+          <div class="kpi-sm" style="${crackRate>3?'border:2px solid var(--red)':crackRate>=2?'border:2px solid var(--amber)':''}">
+            <div class="kpi-val-sm" style="color:${crackColor}">${crackRate!==null?crackRate.toFixed(1)+'%':'—'}</div>
+            <div class="kpi-lbl-sm">Crack Rate</div></div>
+        </div>
+        <div class="sec-hdr" style="margin-top:8px">⭐ Top Performing Cells</div>
+        <div style="font-size:11px;color:var(--gray);margin:-4px 16px 8px">Meeting or exceeding target rate at time of collection.</div>
+        <div class="card" style="padding:0;overflow:hidden">
+          ${top.length===0?'<div class="empty" style="padding:20px 16px"><p style="margin:0;font-size:13px">No top-performing cells yet.</p></div>':
+            `<table class="ana-table"><tr><th>Cell</th><th>Side</th><th>${sessionCol}</th><th>Broken</th><th>Avg Rate</th><th>Crack Rate</th></tr>
+            ${top.map(cellRow).join('')}</table>`}
+        </div>
+        <div class="sec-hdr" style="margin-top:16px">⚠️ Underperforming Cells</div>
+        <div style="font-size:11px;color:var(--gray);margin:-4px 16px 8px">Below warn threshold — flagged for action.</div>
+        <div class="card" style="padding:0;overflow:hidden">
+          ${poor.length===0?'<div class="empty" style="padding:20px 16px"><p style="margin:0;font-size:13px">No underperforming cells 🎉</p></div>':
+            `<table class="ana-table"><tr><th>Cell</th><th>Side</th><th>${sessionCol}</th><th>Broken</th><th>Avg Rate</th><th>Crack Rate</th></tr>
+            ${poor.map(cellRow).join('')}</table>`}
+        </div>`;
+    } else if(ANA_TAB==='rounds'){
+      const daily=getDailySummary(14);
+      tabContent=`
+        <div class="sec-hdr" style="margin-top:8px">Round Distribution — ${modeLabel}</div>
+        <div class="card" style="padding:0;overflow:hidden">
+          ${Object.keys(roundMap).length===0?'<div style="padding:16px;color:var(--gray);font-size:13px">No data.</div>':
+            Object.entries(roundMap).map(([r,v])=>{
+              const pct=totalRndEggs>0?Math.round(v.eggs/totalRndEggs*100):0;
+              const rInfo=ROUNDS.find(ri=>ri.id===parseInt(r))||{cls:'',label:`Round ${r}`};
+              return`<div class="list-item"><div><span class="${rInfo.cls} round-chip">${v.label||rInfo.label}</span>
+                <div style="font-size:11px;color:var(--gray);margin-top:4px">${v.eggs} eggs</div></div>
+                <div style="text-align:right"><div style="font-size:18px;font-weight:800">${pct}%</div>
+                  <div style="height:6px;width:80px;background:#eee;border-radius:3px;margin-top:4px;overflow:hidden">
+                    <div style="height:100%;width:${pct}%;background:var(--g3);border-radius:3px"></div></div></div></div>`;}).join('')}
+        </div>
+        <div class="sec-hdr">Daily Production (Last 14 Days)</div>
+        <div class="card" style="padding:0;overflow:hidden">
+          ${daily.map(d=>`<div class="list-item" style="cursor:pointer" onclick="ANA_DATE='${d.date}';ANA_TAB='cells';renderReports()">
+            <div><div style="font-weight:700;font-size:14px">${fmtDate(d.date)}</div>
+              <div style="font-size:12px;color:var(--gray)">${d.eggs} eggs · ${d.broken} broken · tap to drill in</div></div>
+            ${rateBadge(d.rate)}</div>`).join('')}
+        </div>`;
+    } else if(ANA_TAB==='pens'){
+      const penMap={}, penDB={};
+      cols.forEach(col=>{if(!penMap[col.penId])penMap[col.penId]={name:col.penName||col.penId,eggs:0,birds:0,broken:0};
+        (col.entries||[]).forEach(e=>{
+          penMap[col.penId].eggs+=(e.eggs||0);penMap[col.penId].broken+=(e.broken||0);
+          const pdk=`${col.penId}|${col.side}|${e.standId}|${e.tier}|${e.cellNum}|${col.date}`;
+          if(!penDB[pdk]){penDB[pdk]=true;penMap[col.penId].birds+=(e.birds||0);}
+        });});
+      tabContent=`
+        <div class="sec-hdr" style="margin-top:8px">Performance by Pen — ${modeLabel}</div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <table class="ana-table"><tr><th>Pen</th><th>Eggs</th><th>Broken</th><th>Rate</th></tr>
+          ${Object.values(penMap).map(p=>`<tr>
+            <td><b>${p.name}</b></td>
+            <td style="font-weight:800;color:var(--g2)">${p.eggs}</td>
+            <td style="color:var(--red)">${p.broken}</td>
+            <td>${rateBadge(p.birds>0?p.eggs/p.birds*100:null)}</td></tr>`).join('')}
+          </table></div>`;
+    }
+    tabContent=`<div class="inner-tabs" style="background:var(--light)">
+      <button class="inner-tab ${ANA_TAB==='cells'?'active':''}" onclick="ANA_TAB='cells';renderReports()">Cells</button>
+      <button class="inner-tab ${ANA_TAB==='rounds'?'active':''}" onclick="ANA_TAB='rounds';renderReports()">Rounds</button>
+      <button class="inner-tab ${ANA_TAB==='pens'?'active':''}" onclick="ANA_TAB='pens';renderReports()">Pens</button>
+    </div>${tabContent}`;
+
+  } else if(REP_TAB==='flock'){
+    const bRecs=DB.getBirds().sort((a,b)=>a.date.localeCompare(b.date));
+    const last30=bRecs.filter(r=>{const d=new Date(DB.today());d.setDate(d.getDate()-30);return r.date>=d.toISOString().slice(0,10);});
+    const totalDeaths=last30.reduce((s,r)=>s+(r.deaths||0),0);
+    const totalCulls=last30.reduce((s,r)=>s+(r.culls||0),0);
+    const maxDeath=Math.max(...last30.map(r=>r.deaths||0),1);
+    const chartBars=last30.slice(-14).map(r=>{
+      const h=Math.max(2,Math.round((r.deaths||0)/maxDeath*50));
+      const c=(r.deaths||0)===0?'var(--g4)':(r.deaths/r.opening_birds*100)>0.5?'var(--red)':'var(--amber)';
+      return`<div class="bar-col"><div class="bar-fill" style="height:${h}px;background:${c}"></div>
+        <div class="bar-lbl">${(r.deaths||0)}</div></div>`;}).join('');
+    tabContent=`
+      <div class="kpi-row-3">
+        <div class="kpi"><div class="kpi-val" style="color:var(--red)">${totalDeaths}</div><div class="kpi-lbl">Deaths (30d)</div></div>
+        <div class="kpi"><div class="kpi-val" style="color:var(--amber)">${totalCulls}</div><div class="kpi-lbl">Culls (30d)</div></div>
+        <div class="kpi"><div class="kpi-val">${farmBirds}</div><div class="kpi-lbl">Current Birds</div></div>
+      </div>
+      <div class="sec-hdr" style="margin-top:8px">Daily Mortality (Last 14 Days)</div>
+      <div class="card"><div class="bar-chart-row">${chartBars||'<div style="color:var(--gray);font-size:13px">No flock data.</div>'}</div></div>
+      <div class="sec-hdr">Death Log (Last 30 Days)</div>
+      <div class="card" style="padding:0;overflow:hidden">
+        ${last30.filter(r=>(r.deaths||0)>0).reverse().map(r=>{
+          const mortality=r.opening_birds>0?(r.deaths/r.opening_birds*100):0;
+          const bc=mortality>0.5?'badge-red':mortality>0.2?'badge-amber':'badge-gray';
+          return`<div class="list-item"><div>
+            <div style="font-weight:700;font-size:14px">${fmtDate(r.date)}</div>
+            <div style="font-size:12px;color:var(--gray)">${r.deaths} deaths · ${r.culls} culls · Opening: ${r.opening_birds}</div>
+            </div><span class="badge ${bc}">${mortality.toFixed(2)}%</span></div>`;}).join('')||
+          '<div class="empty" style="padding:24px"><p>No deaths recorded in last 30 days.</p></div>'}
+      </div>`;
+
+  } else if(REP_TAB==='feed'){
+    const fRecs=DB.getFeed().sort((a,b)=>a.date.localeCompare(b.date));
+    const last30f=fRecs.filter(r=>{const d=new Date(DB.today());d.setDate(d.getDate()-30);return r.date>=d.toISOString().slice(0,10);});
+    const totalFeed=last30f.reduce((s,r)=>s+(r.feed_kg_used||0),0);
+    const totalReq=last30f.reduce((s,r)=>s+(r.feed_req_kg||0),0);
+    const totalEggsForFCR=DB.getCols().filter(c=>validPenIds.has(c.penId)).reduce((s,c)=>(c.entries||[]).reduce((ss,e)=>ss+(e.eggs||0),s),0);
+    const eggKg=totalEggsForFCR*0.06;
+    const fcr=eggKg>0?(totalFeed/eggKg):null;
+    const gPerEgg=totalEggsForFCR>0?((totalFeed*1000)/totalEggsForFCR):null;
+    const dailyFeed=Object.entries(last30f.reduce((m,r)=>{(m[r.date]=m[r.date]||{kg:0,req:0});m[r.date].kg+=r.feed_kg_used||0;m[r.date].req+=r.feed_req_kg||0;return m;},{}))
+      .sort((a,b)=>a[0].localeCompare(b[0])).slice(-14);
+    const maxFeed=Math.max(...dailyFeed.map(([,v])=>v.kg),1);
+    const feedBars=dailyFeed.map(([date,v])=>{
+      const h=Math.max(2,Math.round(v.kg/maxFeed*50));
+      const variance=v.req>0?(v.kg-v.req)/v.req*100:0;
+      const c=Math.abs(variance)>15?'var(--red)':Math.abs(variance)>10?'var(--amber)':'var(--g3)';
+      return`<div class="bar-col"><div class="bar-fill" style="height:${h}px;background:${c}"></div>
+        <div class="bar-lbl">${v.kg.toFixed(0)}</div></div>`;}).join('');
+    tabContent=`
+      <div class="kpi-row-3">
+        <div class="kpi"><div class="kpi-val">${totalFeed.toFixed(0)}</div><div class="kpi-lbl">kg Used (30d)</div></div>
+        <div class="kpi"><div class="kpi-val" style="color:${fcr&&fcr<8?'var(--g2)':fcr&&fcr<12?'var(--amber)':'var(--red)'}">${fcr?fcr.toFixed(1):'—'}</div><div class="kpi-lbl">FCR</div></div>
+        <div class="kpi"><div class="kpi-val">${gPerEgg?gPerEgg.toFixed(0)+'g':'—'}</div><div class="kpi-lbl">Feed/Egg</div></div>
+      </div>
+      <div class="card" style="background:var(--blueBg);border:1.5px solid var(--blue)">
+        <div style="font-size:12px;color:#1a5fa8;font-weight:700">FCR Benchmark</div>
+        <div style="font-size:13px;color:var(--gray);margin-top:4px">Feed Conversion Ratio (FCR) = kg feed ÷ kg eggs produced. Good layers: <b>FCR &lt; 8</b>. g feed/egg: target <b>110–130g</b>.</div>
+      </div>
+      <div class="sec-hdr">Daily Feed Usage (Last 14 Days)</div>
+      <div class="card"><div class="bar-chart-row">${feedBars||'<div style="color:var(--gray);font-size:13px">No feed data.</div>'}</div>
+        <div style="font-size:11px;color:var(--gray);margin-top:4px">Bar height = kg used. Color: green=on target, amber=10-15% off, red=&gt;15% off</div></div>
+      <div class="sec-hdr">Feed Log (Last 30 Days)</div>
+      <div class="card" style="padding:0;overflow:hidden">
+        ${last30f.reverse().slice(0,20).map(r=>{
+          const vr=r.feed_req_kg>0?((r.feed_kg_used-r.feed_req_kg)/r.feed_req_kg*100):0;
+          const bc=Math.abs(vr)>15?'badge-red':Math.abs(vr)>10?'badge-amber':'badge-green';
+          return`<div class="list-item"><div>
+            <div style="font-weight:700;font-size:14px">${fmtDate(r.date)} — ${r.feed_type}</div>
+            <div style="font-size:12px;color:var(--gray)">${r.feed_kg_used}kg used · Req: ${r.feed_req_kg}kg</div></div>
+            <span class="badge ${bc}">${vr>0?'+':''}${vr.toFixed(0)}%</span></div>`;}).join('')||
+          '<div class="empty" style="padding:24px"><p>No feed records.</p></div>'}
+      </div>`;
+
+  } else if(REP_TAB==='finance'){
+    const expenses=DB.getExpenses(), sales=DB.getSales();
+    const today=DB.today(), thisMonth=today.slice(0,7);
+    const monthExp=expenses.filter(e=>e.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.amount_ngn||0),0);
+    const monthSales=sales.filter(s=>s.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.total_amount_ngn||0),0);
+    const allExp=expenses.reduce((s,e)=>s+(e.amount_ngn||0),0);
+    const allSales=sales.reduce((s,e)=>s+(e.total_amount_ngn||0),0);
+    const totalEggsAll=DB.getCols().filter(c=>validPenIds.has(c.penId)).reduce((s,c)=>(c.entries||[]).reduce((ss,e)=>ss+(e.eggs||0),s),0);
+    const costPerEgg=totalEggsAll>0?(allExp/totalEggsAll):null;
+    const costPerCrate=costPerEgg?costPerEgg*30:null;
+    const catMap={};
+    expenses.forEach(e=>{catMap[e.category]=(catMap[e.category]||0)+(e.amount_ngn||0);});
+    const topCats=Object.entries(catMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
+    const maxCat=topCats[0]?.[1]||1;
+    tabContent=`
+      <div class="kpi-row-3">
+        <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${fmtMoney(monthSales)}</div><div class="kpi-lbl">Sales (Month)</div></div>
+        <div class="kpi"><div class="kpi-val" style="color:var(--red)">${fmtMoney(monthExp)}</div><div class="kpi-lbl">Expenses (Month)</div></div>
+        <div class="kpi"><div class="kpi-val" style="color:${monthSales-monthExp>=0?'var(--g2)':'var(--red)'}">${fmtMoney(monthSales-monthExp)}</div><div class="kpi-lbl">Margin</div></div>
+      </div>
+      <div class="kpi-row-2">
+        <div class="kpi"><div class="kpi-val">${costPerEgg?'₦'+costPerEgg.toFixed(0):'—'}</div><div class="kpi-lbl">Cost/Egg (All-Time)</div></div>
+        <div class="kpi"><div class="kpi-val">${costPerCrate?'₦'+costPerCrate.toFixed(0):'—'}</div><div class="kpi-lbl">Cost/Crate (All-Time)</div></div>
+      </div>
+      <div class="sec-hdr" style="margin-top:8px">Top Expense Categories</div>
+      <div class="card" style="padding:0;overflow:hidden">
+        ${topCats.map(([cat,amt])=>{const pct=Math.round(amt/maxCat*100);
+          return`<div class="list-item"><div><div style="font-weight:700;font-size:14px">${cat}</div>
+            <div style="height:6px;width:${pct}%;background:var(--g3);border-radius:3px;margin-top:4px;min-width:4px"></div></div>
+            <div style="font-weight:800;color:var(--red)">${fmtMoney(amt)}</div></div>`;}).join('')||
+          '<div class="empty" style="padding:24px"><p>No expense data.</p></div>'}
+      </div>
+      <div class="sec-hdr">All-Time Summary</div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5">
+          <span style="font-weight:700">Total Revenue</span><span style="color:var(--g2);font-weight:800">${fmtMoney(allSales)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5">
+          <span style="font-weight:700">Total Expenses</span><span style="color:var(--red);font-weight:800">${fmtMoney(allExp)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:16px">
+          <span style="font-weight:800">Net Profit/Loss</span><span style="color:${allSales-allExp>=0?'var(--g2)':'var(--red)'};font-weight:800">${fmtMoney(allSales-allExp)}</span></div>
+      </div>`;
+  }
+
+  el.innerHTML=`<div class="topbar"><div><h1>Reports</h1><small>${modeLabel}</small></div></div>
+    <div style="background:var(--white);padding:10px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px">
+      <span style="font-size:12px;font-weight:700;color:var(--gray);white-space:nowrap">View:</span>
+      <select style="flex:1;padding:8px 12px;border:1.5px solid #ddd;border-radius:10px;font-size:14px;font-weight:600;background:var(--white)"
+        onchange="ANA_DATE=this.value||null;renderReports()">${dateOpts}</select>
+      ${ANA_DATE?`<button class="btn btn-secondary btn-sm" onclick="ANA_DATE=null;renderReports()">Clear</button>`:''}
+    </div>
+    <div class="inner-tabs">
+      <button class="inner-tab ${REP_TAB==='eggs'?'active':''}" onclick="REP_TAB='eggs';renderReports()">Eggs</button>
+      <button class="inner-tab ${REP_TAB==='flock'?'active':''}" onclick="REP_TAB='flock';renderReports()">Flock</button>
+      <button class="inner-tab ${REP_TAB==='feed'?'active':''}" onclick="REP_TAB='feed';renderReports()">Feed</button>
+      <button class="inner-tab ${REP_TAB==='finance'?'active':''}" onclick="REP_TAB='finance';renderReports()">Finance</button>
+    </div>
+    ${tabContent}
+    <div style="margin:16px 16px 8px">
+      <button class="btn btn-danger btn-sm" onclick="confirmReset()">🗑 Reset Egg Collection Data</button>
+    </div><div style="height:10px"></div>`;
+}
+function confirmReset(){
+  openModal(`<div class="modal-ttl">Reset Data? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">All egg collection records will be deleted. Farm setup and other logs are kept.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();DB.saveCols([]);toast('Egg records cleared');renderReports()">Delete Egg Records</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+
+// ═══════════════════════════════════════════════
+// SETTINGS — FARM SETUP + EXPORT
+// ═══════════════════════════════════════════════
+function renderSettings(){
+  const farm=DB.getFarm()||{name:'',expectedRate:85,warnRate:70,feedRateG:110,marketPricePerCrate:3500,pens:[]};
+  const el=document.getElementById('v-settings');
+  const pensHtml=(farm.pens||[]).map(pen=>`
+    <div class="acc-item" id="acc_${pen.id}">
+      <div class="acc-hdr" onclick="toggleAcc('${pen.id}')">
+        <span>${pen.name} <span style="color:var(--gray);font-size:12px;font-weight:500">(${(pen.lines||[]).length} lines)</span></span>
+        <span class="acc-arr">▾</span>
+      </div>
+      <div class="acc-body">
+        ${(()=>{const st=getPenStage(pen);return st?`<div style="background:${st.bg};border-radius:8px;padding:9px 12px;margin-bottom:10px;font-size:12px;color:${st.color};font-weight:800">${st.emoji} Week ${st.weeks} · ${st.label} — Expected ~${st.expected}% · Warn &lt;${st.warn}%</div>`:''})()}
+        ${(pen.lines||[]).map(line=>`
+          <div style="margin-bottom:10px">
+            <div style="font-size:13px;font-weight:800;color:var(--g1);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
+              ${line.name}
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-secondary btn-sm" onclick="addStand('${pen.id}','${line.id}')">+ Stand</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteLine('${pen.id}','${line.id}')">✕</button>
+              </div>
+            </div>
+            ${(line.stands||[]).map(s=>`
+              <div class="stand-row">
+                <div><div style="font-weight:700;font-size:13px">${s.name}</div>
+                  <div style="font-size:11px;color:var(--gray)">${s.tiers} tiers · ${s.cellsPerTier} cells/tier · ${s.defaultBirds} birds/cell</div></div>
+                <div style="display:flex;gap:5px">
+                  <button class="btn btn-secondary btn-sm" onclick="editStand('${pen.id}','${line.id}','${s.id}')">Edit</button>
+                  <button class="btn btn-danger btn-sm" onclick="deleteStand('${pen.id}','${line.id}','${s.id}')">✕</button>
+                </div></div>`).join('')}
+          </div>`).join('')}
+        <div style="display:flex;flex-direction:column;gap:7px;margin-top:6px">
+          <button class="btn btn-secondary btn-sm" onclick="addLine('${pen.id}')">+ Add Line</button>
+          <button class="btn btn-amber btn-sm" onclick="editPen('${pen.id}')">Edit Pen</button>
+          <button class="btn btn-danger btn-sm" onclick="deletePen('${pen.id}')">Delete Pen</button>
+        </div>
+      </div></div>`).join('');
+
+  el.innerHTML=`<div class="topbar"><div><h1>Settings</h1></div></div>
+    <div class="card">
+      <div class="card-title">Farm Details</div>
+      <div class="field"><label>Farm Name</label><input type="text" id="s_name" value="${farm.name||''}" placeholder="e.g. Green Valley Farms"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label>Expected Rate (%)</label><input type="number" id="s_exp" value="${farm.expectedRate||85}" min="50" max="100"></div>
+        <div class="field"><label>Warn Below (%)</label><input type="number" id="s_warn" value="${farm.warnRate||70}" min="30" max="99"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label>Feed Rate (g/bird/day)</label><input type="number" id="s_feed" value="${farm.feedRateG||110}" min="80" max="200"></div>
+        <div class="field"><label>Market Price/Crate (₦)</label><input type="number" id="s_mkt" value="${farm.marketPricePerCrate||3500}" min="0" step="100"></div>
+      </div>
+      <button class="btn btn-primary" onclick="saveFarm()">Save Farm Details</button>
+    </div>
+    <div class="sec-hdr" style="margin-top:4px">Pens</div>
+    ${pensHtml}
+    <div style="margin:10px 16px"><button class="btn btn-primary" onclick="addPen()">+ Add New Pen</button></div>
+    <div class="card">
+      <div class="card-title">Data Export / Import</div>
+      <p style="font-size:13px;color:var(--gray);margin-bottom:14px">Export all data as a PostgreSQL-compatible JSON file for analytics.</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn btn-primary" onclick="exportData()">Export All Data (JSON)</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Import Data (JSON)</button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)">
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Danger Zone</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn btn-danger btn-sm" onclick="resetModule('cols')">Reset Egg Collection Records</button>
+        <button class="btn btn-danger btn-sm" onclick="resetModule('birds')">Reset Flock Records</button>
+        <button class="btn btn-danger btn-sm" onclick="resetModule('feed')">Reset Feed Records</button>
+        <button class="btn btn-danger btn-sm" onclick="resetModule('health')">Reset Health Records</button>
+        <button class="btn btn-danger btn-sm" onclick="resetModule('finance')">Reset Finance Records</button>
+      </div>
+    </div>
+    <div style="height:20px"></div>`;
+}
+
+function toggleAcc(id){document.getElementById('acc_'+id)?.classList.toggle('open')}
+function saveFarm(){
+  const farm=DB.getFarm()||{pens:[]};
+  farm.name=document.getElementById('s_name').value.trim()||'My Farm';
+  farm.expectedRate=parseInt(document.getElementById('s_exp').value)||85;
+  farm.warnRate=parseInt(document.getElementById('s_warn').value)||70;
+  farm.feedRateG=parseInt(document.getElementById('s_feed').value)||110;
+  farm.marketPricePerCrate=parseInt(document.getElementById('s_mkt').value)||3500;
+  DB.saveFarm(farm);toast('Farm settings saved ✓');
+}
+function addPen(){
+  const today=DB.today();
+  openModal(`<div class="modal-ttl">Add Pen <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="field"><label>Pen Name</label><input type="text" id="m_pname" placeholder="e.g. Pen A / House 1"></div>
+    <div class="field"><label>Date Birds Arrived <span style="color:var(--gray);font-weight:400">— optional</span></label>
+      <input type="date" id="m_fdate" max="${today}"></div>
+    <div class="field"><label>Age of Birds at Arrival (weeks) <span style="color:var(--gray);font-weight:400">— optional</span></label>
+      <input type="number" id="m_farr" placeholder="e.g. 0 for DOC, 16 for POL" min="0" max="100">
+      <div style="font-size:11px;color:var(--gray);margin-top:5px">0 = day-old chicks · 12-14 = started pullets · 16-18 = point-of-lay</div></div>
+    <button class="btn btn-primary" onclick="doAddPen()">Add Pen</button>`);
+}
+function doAddPen(){
+  const name=document.getElementById('m_pname').value.trim();
+  if(!name){toast('Enter pen name');return;}
+  const farm=DB.getFarm()||{name:'My Farm',expectedRate:85,warnRate:70,feedRateG:110,marketPricePerCrate:3500,pens:[]};
+  (farm.pens=farm.pens||[]).push({id:uid(),name,flockStartDate:document.getElementById('m_fdate').value||null,flockAgeAtArrival:parseInt(document.getElementById('m_farr').value)||0,lines:[]});
+  DB.saveFarm(farm);closeModal();toast(`${name} added ✓`);renderSettings();
+}
+function editPen(penId){
+  const farm=DB.getFarm(), pen=farm.pens.find(p=>p.id===penId), today=DB.today(), stage=getPenStage(pen);
+  openModal(`<div class="modal-ttl">Edit ${pen.name} <button class="modal-x" onclick="closeModal()">×</button></div>
+    ${stage?`<div style="background:${stage.bg};border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px;color:${stage.color};font-weight:700;line-height:1.6">
+      ${stage.emoji} <b>Current Age: Week ${stage.weeks}</b> · ${stage.label}<br>
+      <span style="font-weight:500">${stage.ageAtArrival}w arrival + ${stage.weeksSince}w on farm</span><br>
+      Expected ≥${stage.expected}% · Warn &lt;${stage.warn}%</div>`:''}
+    <div class="field"><label>Pen Name</label><input type="text" id="m_pname" value="${pen.name}"></div>
+    <div class="field"><label>Date Birds Arrived</label><input type="date" id="m_fdate" value="${pen.flockStartDate||''}" max="${today}"></div>
+    <div class="field"><label>Age at Arrival (weeks)</label>
+      <input type="number" id="m_farr" value="${pen.flockAgeAtArrival||0}" min="0" max="100"></div>
+    <button class="btn btn-primary" onclick="doEditPen('${penId}')">Save</button>`);
+}
+function doEditPen(penId){
+  const farm=DB.getFarm(), pen=farm.pens.find(p=>p.id===penId);
+  pen.name=document.getElementById('m_pname').value.trim()||pen.name;
+  pen.flockStartDate=document.getElementById('m_fdate').value||null;
+  pen.flockAgeAtArrival=parseInt(document.getElementById('m_farr').value)||0;
+  DB.saveFarm(farm);closeModal();toast('Pen updated ✓');renderSettings();
+}
+function deletePen(penId){
+  openModal(`<div class="modal-ttl">Delete Pen? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">Removes pen and all its lines/stands. Collection records are kept.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();doDeletePen('${penId}')">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+function doDeletePen(penId){const farm=DB.getFarm();farm.pens=farm.pens.filter(p=>p.id!==penId);DB.saveFarm(farm);toast('Pen deleted');renderSettings();}
+function addLine(penId){
+  openModal(`<div class="modal-ttl">Add Line <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="field"><label>Line Name</label><input type="text" id="m_lname" placeholder="e.g. Line 1 / Row A"></div>
+    <button class="btn btn-primary" onclick="doAddLine('${penId}')">Add Line</button>`);
+}
+function doAddLine(penId){
+  const name=document.getElementById('m_lname').value.trim();
+  if(!name){toast('Enter line name');return;}
+  const farm=DB.getFarm(), pen=farm.pens.find(p=>p.id===penId);
+  (pen.lines=pen.lines||[]).push({id:uid(),name,stands:[]});
+  DB.saveFarm(farm);closeModal();toast(`${name} added ✓`);renderSettings();
+}
+function deleteLine(penId,lineId){
+  openModal(`<div class="modal-ttl">Delete Line? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">Removes this line and all its stands.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();doDeleteLine('${penId}','${lineId}')">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+function doDeleteLine(penId,lineId){const farm=DB.getFarm(),pen=farm.pens.find(p=>p.id===penId);pen.lines=pen.lines.filter(l=>l.id!==lineId);DB.saveFarm(farm);toast('Line deleted');renderSettings();}
+function addStand(penId,lineId){
+  openModal(`<div class="modal-ttl">Add Stand <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="field"><label>Stand Name</label><input type="text" id="m_sname" placeholder="e.g. Stand 1"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <div class="field"><label>Tiers</label><select id="m_tiers"><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option></select></div>
+      <div class="field"><label>Cells/Tier</label><input type="number" id="m_cells" value="10" min="2" max="30"></div>
+      <div class="field"><label>Birds/Cell</label><select id="m_birds"><option>1</option><option>2</option><option>3</option><option selected>4</option></select></div>
+    </div>
+    <button class="btn btn-primary" onclick="doAddStand('${penId}','${lineId}')">Add Stand</button>`);
+}
+function doAddStand(penId,lineId){
+  const name=document.getElementById('m_sname').value.trim();
+  if(!name){toast('Enter stand name');return;}
+  const farm=DB.getFarm(), line=farm.pens.find(p=>p.id===penId)?.lines.find(l=>l.id===lineId);
+  if(!line)return;
+  (line.stands=line.stands||[]).push({id:uid(),name,tiers:parseInt(document.getElementById('m_tiers').value),
+    cellsPerTier:parseInt(document.getElementById('m_cells').value),
+    defaultBirds:parseInt(document.getElementById('m_birds').value),cellBirds:{}});
+  DB.saveFarm(farm);closeModal();toast(`${name} added ✓`);renderSettings();
+}
+function editStand(penId,lineId,standId){
+  const farm=DB.getFarm(), line=farm.pens.find(p=>p.id===penId)?.lines.find(l=>l.id===lineId);
+  const s=line?.stands.find(st=>st.id===standId); if(!s)return;
+  openModal(`<div class="modal-ttl">Edit ${s.name} <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="field"><label>Stand Name</label><input type="text" id="m_sname" value="${s.name}"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <div class="field"><label>Tiers</label><select id="m_tiers">${[2,3,4].map(n=>`<option value="${n}" ${s.tiers===n?'selected':''}>${n}</option>`).join('')}</select></div>
+      <div class="field"><label>Cells/Tier</label><input type="number" id="m_cells" value="${s.cellsPerTier}" min="2" max="30"></div>
+      <div class="field"><label>Default Birds</label><select id="m_birds">${[1,2,3,4].map(n=>`<option value="${n}" ${s.defaultBirds===n?'selected':''}>${n}</option>`).join('')}</select></div>
+    </div>
+    <button class="btn btn-primary" onclick="doEditStand('${penId}','${lineId}','${standId}')">Save</button>`);
+}
+function doEditStand(penId,lineId,standId){
+  const farm=DB.getFarm(), line=farm.pens.find(p=>p.id===penId)?.lines.find(l=>l.id===lineId);
+  const s=line?.stands.find(st=>st.id===standId); if(!s)return;
+  s.name=document.getElementById('m_sname').value.trim()||s.name;
+  s.tiers=parseInt(document.getElementById('m_tiers').value);
+  s.cellsPerTier=parseInt(document.getElementById('m_cells').value);
+  s.defaultBirds=parseInt(document.getElementById('m_birds').value);
+  DB.saveFarm(farm);closeModal();toast('Stand updated ✓');renderSettings();
+}
+function deleteStand(penId,lineId,standId){
+  openModal(`<div class="modal-ttl">Delete Stand? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">Collection records for this stand are kept.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();doDeleteStand('${penId}','${lineId}','${standId}')">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+function doDeleteStand(penId,lineId,standId){
+  const farm=DB.getFarm(), line=farm.pens.find(p=>p.id===penId)?.lines.find(l=>l.id===lineId);
+  if(!line)return; line.stands=line.stands.filter(s=>s.id!==standId);
+  DB.saveFarm(farm);toast('Stand deleted');renderSettings();
+}
+function resetModule(mod){
+  openModal(`<div class="modal-ttl">Reset ${mod} data? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">This cannot be undone.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();doResetModule('${mod}')">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+function doResetModule(mod){
+  const keyMap={cols:KEYS.cols,birds:KEYS.birds,feed:KEYS.feed,health:KEYS.health,finance:'__multi__'};
+  if(mod==='finance'){localStorage.removeItem(KEYS.expenses);localStorage.removeItem(KEYS.sales);localStorage.removeItem(KEYS.recv);}
+  else if(keyMap[mod])localStorage.removeItem(keyMap[mod]);
+  toast('Data reset ✓');renderSettings();
+}
+
+// Export Data
+function exportData(){
+  const farm=DB.getFarm(), cols=DB.getCols(), birds=DB.getBirds();
+  const feed=DB.getFeed(), health=DB.getHealth(), expenses=DB.getExpenses();
+  const sales=DB.getSales();
+  const validPenIds=new Set((farm?.pens||[]).map(p=>p.id));
+  // Build daily_egg_production summary
+  const eggDayMap={};
+  cols.filter(c=>validPenIds.has(c.penId)).forEach(c=>{
+    if(!eggDayMap[c.date])eggDayMap[c.date]={date:c.date,age_weeks:null,eggs_collected:0,cracked_eggs:0,eggs_spoiled:0};
+    (c.entries||[]).forEach(e=>{eggDayMap[c.date].eggs_collected+=(e.eggs||0);eggDayMap[c.date].cracked_eggs+=(e.broken||0);});
+  });
+  birds.forEach(b=>{if(eggDayMap[b.date])eggDayMap[b.date].age_weeks=b.age_weeks;});
+  const bundle={
+    exported_at:new Date().toISOString(),source:'LayerTrack',version:'1.0',
+    farm,
+    daily_egg_production:Object.values(eggDayMap).sort((a,b)=>a.date.localeCompare(b.date)),
+    egg_collection_detail:cols,
+    daily_bird_status:birds.map(b=>({date:b.date,opening_birds:b.opening_birds,age_weeks:b.age_weeks,
+      deaths:b.deaths,culls:b.culls,closing_birds:b.closing_birds,notes:b.notes})),
+    daily_feed_usage:feed.map(f=>({date:f.date,age_weeks:f.age_weeks,feed_type:f.feed_type,
+      feed_kg_used:f.feed_kg_used,feed_req_kg:f.feed_req_kg})),
+    health_log:health.map(h=>({date:h.date,water_consumed_liters:h.water_consumed_liters,
+      droppings_observation:h.droppings_observation,vaccination_or_medication:h.vaccination_or_medication,
+      admin_method:h.admin_method,notes:h.notes})),
+    expenses:expenses.map(e=>({date:e.date,category:e.category,amount_usd:e.amount_usd,amount_ngn:e.amount_ngn,notes:e.notes})),
+    sales:sales.map(s=>({date:s.date,product:s.product,quantity:s.quantity,unit_price:s.unit_price_ngn,
+      total_amount:s.total_amount_ngn,payment_type:s.payment_type||'cash',paid:s.paid!==false,
+      due_date:s.due_date||null,customer:s.customer,notes:s.notes})),
+    receivables:sales.filter(s=>s.payment_type==='credit').map(s=>({
+      sale_date:s.date,customer:s.customer,product:s.product,quantity:s.quantity,
+      amount_ngn:s.total_amount_ngn,due_date:s.due_date||null,paid:s.paid||false}))
+  };
+  const blob=new Blob([JSON.stringify(bundle,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;
+  a.download=`LayerTrack_export_${DB.today()}.json`;a.click();
+  URL.revokeObjectURL(url);toast('Export complete ✓');
+}
+function importData(input){
+  const file=input.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      if(data.farm)DB.saveFarm(data.farm);
+      if(data.egg_collection_detail)DB.saveCols(data.egg_collection_detail);
+      if(data.daily_bird_status)localStorage.setItem(KEYS.birds,JSON.stringify(data.daily_bird_status));
+      if(data.daily_feed_usage)localStorage.setItem(KEYS.feed,JSON.stringify(data.daily_feed_usage));
+      if(data.health_log)localStorage.setItem(KEYS.health,JSON.stringify(data.health_log));
+      if(data.expenses)localStorage.setItem(KEYS.expenses,JSON.stringify(data.expenses));
+      if(data.sales)localStorage.setItem(KEYS.sales,JSON.stringify(data.sales));
+      toast('Data imported ✓',3000);renderHome();renderSettings();
+    }catch(err){toast('Import failed — invalid file','3000');}
+  };
+  reader.readAsText(file);input.value='';
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+renderHome();
+</script>
+</body>
+</html>

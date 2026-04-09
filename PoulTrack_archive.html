@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#2d6a4f">
+<title>PoulTrack v2</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --g1:#1b4332;--g2:#2d6a4f;--g3:#40916c;--g4:#74c69d;--g5:#d8f3dc;
+  --amber:#e9a319;--amberBg:#fef3cd;--red:#d62839;--redBg:#fde8ea;
+  --blue:#4895ef;--blueBg:#e8f4fd;
+  --gray:#6c757d;--light:#f0f4f1;--white:#fff;
+  --shadow:0 2px 10px rgba(0,0,0,.1);--radius:14px;--nav-h:64px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--light);color:#1a1a1a;min-height:100vh;padding-bottom:var(--nav-h)}
+#nav{position:fixed;bottom:0;left:0;right:0;height:var(--nav-h);background:var(--white);display:flex;border-top:1px solid #e0e0e0;z-index:100;box-shadow:0 -2px 10px rgba(0,0,0,.08)}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:none;background:none;font-size:10px;color:var(--gray);cursor:pointer;transition:color .2s}
+.nav-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.nav-btn.active{color:var(--g2)}
+.topbar{background:var(--g2);color:var(--white);padding:16px 20px 14px;display:flex;align-items:center;justify-content:space-between}
+.topbar h1{font-size:20px;font-weight:700;letter-spacing:.5px}
+.topbar small{opacity:.8;font-size:12px;display:block;margin-top:2px}
+.view{display:none;min-height:calc(100vh - var(--nav-h));animation:fadeIn .2s ease}
+.view.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.card{background:var(--white);border-radius:var(--radius);padding:18px;margin:14px 16px;box-shadow:var(--shadow)}
+.card-title{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--gray);margin-bottom:12px}
+.kpi-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 16px}
+.kpi-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 16px}
+.kpi-row-5{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin:10px 10px}
+.kpi{background:var(--white);border-radius:var(--radius);padding:14px 10px;box-shadow:var(--shadow);text-align:center}
+.kpi-sm{background:var(--white);border-radius:var(--radius);padding:8px 4px;box-shadow:var(--shadow);text-align:center}
+.kpi-val{font-size:26px;font-weight:800;color:var(--g2)}
+.kpi-val-sm{font-size:18px;font-weight:800;color:var(--g2)}
+.kpi-lbl{font-size:10px;color:var(--gray);margin-top:3px;font-weight:700;text-transform:uppercase}
+.kpi-lbl-sm{font-size:9px;color:var(--gray);margin-top:2px;font-weight:700;text-transform:uppercase;line-height:1.2}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px 20px;border-radius:12px;font-size:15px;font-weight:700;border:none;cursor:pointer;width:100%;transition:all .15s;letter-spacing:.2px}
+.btn-primary{background:var(--g2);color:var(--white)}
+.btn-primary:active{background:var(--g1);transform:scale(.98)}
+.btn-secondary{background:var(--g5);color:var(--g1)}
+.btn-danger{background:var(--redBg);color:var(--red)}
+.btn-amber{background:var(--amberBg);color:#7d4e00}
+.btn-sm{padding:8px 14px;font-size:13px;width:auto;border-radius:8px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;font-weight:700;color:var(--g1);margin-bottom:6px}
+.field input,.field select,.field textarea{width:100%;padding:12px 14px;border:1.5px solid #ddd;border-radius:10px;font-size:15px;background:var(--white);color:#1a1a1a;appearance:none;font-family:inherit}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--g3)}
+.field textarea{resize:vertical;min-height:70px}
+.badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.badge-green{background:var(--g5);color:var(--g1)}
+.badge-amber{background:var(--amberBg);color:#7d4e00}
+.badge-red{background:var(--redBg);color:var(--red)}
+.badge-gray{background:#f0f0f0;color:var(--gray)}
+.badge-blue{background:var(--blueBg);color:#1a5fa8}
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 4px;font-size:12px;font-weight:800;color:var(--g1);text-transform:uppercase;letter-spacing:.4px}
+.list-item{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;background:var(--white);border-bottom:1px solid #f5f5f5}
+.list-item:first-child{border-radius:var(--radius) var(--radius) 0 0}
+.list-item:last-child{border-radius:0 0 var(--radius) var(--radius);border-bottom:none}
+/* COLLECT HEADER */
+.collect-hdr{background:var(--g1);color:var(--white);padding:14px 16px;position:sticky;top:0;z-index:10}
+.collect-hdr h2{font-size:16px;font-weight:700}
+.collect-hdr .sub{font-size:11px;opacity:.7;margin-top:2px}
+.prog-bar{height:4px;background:rgba(255,255,255,.25);border-radius:2px;margin-top:8px;overflow:hidden}
+.prog-fill{height:100%;background:var(--g4);border-radius:2px;transition:width .3s}
+/* ROUND CHIP */
+.round-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:800}
+.round-1{background:#e8f4fd;color:#1a5fa8}
+.round-2{background:var(--amberBg);color:#7d4e00}
+.round-3{background:#f3e8fd;color:#6a0dad}
+/* CELL CARDS */
+.tier-section{margin:0 10px 10px}
+.tier-label{font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;letter-spacing:.5px;padding:8px 4px 4px;display:flex;align-items:center;gap:8px}
+.tier-stats{font-size:10px;font-weight:700;color:var(--g3);margin-left:auto}
+.cell-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:6px}
+.cell-card{background:var(--white);border:2px solid #e8e8e8;border-radius:10px;padding:7px 6px;text-align:center;transition:border-color .2s;position:relative}
+.cell-card.c-good{border-color:var(--g4);background:#f7fff9}
+.cell-card.c-low{border-color:var(--amber);background:#fffdf0}
+.cell-card.c-poor{border-color:var(--red);background:#fff8f8}
+.cell-card.c-over{border-color:#e67e00;background:#fff8ed;box-shadow:0 0 0 2px #f9a82540}
+.cell-id{font-size:9px;font-weight:800;color:var(--gray);margin-bottom:3px;letter-spacing:.3px}
+.cell-birds-row{display:flex;align-items:center;justify-content:center;gap:4px;margin-bottom:4px}
+.birds-val{font-size:12px;font-weight:800;color:var(--g2);cursor:pointer;padding:1px 5px;border-radius:4px;border:1.5px solid var(--g4);background:var(--g5);min-width:22px;text-align:center}
+.birds-val:active{background:var(--g4)}
+.cell-egg-input{width:100%;border:1.5px solid #ddd;border-radius:7px;padding:5px 2px;text-align:center;font-size:20px;font-weight:800;color:var(--g1);background:#fafafa}
+.cell-egg-input:focus{outline:none;border-color:var(--g3);background:var(--white)}
+.cell-broken-row{display:flex;align-items:center;justify-content:center;gap:2px;margin-top:4px}
+.broken-lbl{font-size:9px;color:var(--red);font-weight:700}
+.broken-input{width:40px;border:1px solid #fcc;border-radius:4px;padding:2px 3px;text-align:center;font-size:12px;font-weight:700;color:var(--red);background:#fff8f8}
+.broken-input:focus{outline:none;border-color:var(--red)}
+.cell-prev{font-size:9px;color:var(--gray);margin-top:3px;font-weight:600}
+.cell-rate-lbl{font-size:10px;font-weight:800;margin-top:2px;height:13px}
+/* BOTTOM ACTION BAR */
+.action-bar{position:fixed;bottom:var(--nav-h);left:0;right:0;padding:10px 14px;background:var(--white);border-top:1px solid #eee;display:flex;gap:10px;box-shadow:0 -2px 8px rgba(0,0,0,.08);z-index:5}
+/* SETUP */
+.acc-item{background:var(--white);margin:0 16px 8px;border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.acc-hdr{display:flex;align-items:center;justify-content:space-between;padding:15px 16px;cursor:pointer;font-weight:700}
+.acc-body{display:none;padding:0 14px 14px;border-top:1px solid #f5f5f5}
+.acc-item.open .acc-body{display:block}
+.acc-item.open .acc-arr{transform:rotate(180deg)}
+.acc-arr{transition:transform .2s;font-size:16px;color:var(--gray)}
+.stand-row{background:#f8f9f8;border-radius:10px;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}
+/* ANALYTICS */
+.ana-table{width:100%;border-collapse:collapse;font-size:13px}
+.ana-table th{background:var(--g5);padding:9px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--g1)}
+.ana-table td{padding:10px 10px;border-bottom:1px solid #f3f3f3;vertical-align:middle}
+.ana-table tr:last-child td{border-bottom:none}
+.rate-bar-wrap{display:flex;align-items:center;gap:6px}
+.rate-bar{height:7px;border-radius:4px;min-width:4px;transition:width .3s}
+/* MODAL */
+#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;justify-content:center}
+#overlay.open{display:flex}
+.modal{background:var(--white);border-radius:20px 20px 0 0;padding:22px 18px 34px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;animation:slideUp .22s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-ttl{font-size:17px;font-weight:800;color:var(--g1);margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
+.modal-x{width:30px;height:30px;border-radius:50%;background:#f0f0f0;border:none;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+/* TOAST */
+#toast{position:fixed;bottom:calc(var(--nav-h)+14px);left:50%;transform:translateX(-50%) translateY(16px);background:var(--g1);color:var(--white);padding:11px 18px;border-radius:22px;font-size:14px;font-weight:600;opacity:0;transition:all .28s;z-index:300;white-space:nowrap;pointer-events:none}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+/* EMPTY */
+.empty{text-align:center;padding:44px 24px;color:var(--gray)}
+.empty svg{width:52px;height:52px;stroke:var(--g4);margin-bottom:14px;opacity:.5}
+.empty h3{font-size:16px;font-weight:700;margin-bottom:6px;color:var(--g1)}
+.empty p{font-size:13px;line-height:1.6}
+/* CHIPS */
+.chip-row{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:8px 14px;border-radius:20px;font-size:14px;font-weight:600;border:2px solid #ddd;background:var(--white);cursor:pointer;transition:all .15s;flex-shrink:0}
+.chip.sel{border-color:var(--g2);background:var(--g5);color:var(--g1)}
+/* NOTE BANNER */
+.note-banner{background:var(--amberBg);border-left:4px solid var(--amber);padding:10px 14px;margin:10px 14px;border-radius:0 8px 8px 0;font-size:12px;color:#7d4e00;font-style:italic}
+/* TABS inside views */
+.inner-tabs{display:flex;background:var(--white);border-bottom:2px solid #eee;padding:0 16px}
+.inner-tab{padding:12px 16px;font-size:13px;font-weight:700;color:var(--gray);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s}
+.inner-tab.active{color:var(--g2);border-bottom-color:var(--g2)}
+</style>
+</head>
+<body>
+
+<div id="toast"></div>
+<div id="overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal-body"></div>
+</div>
+
+<div id="v-home"      class="view active"></div>
+<div id="v-collect"   class="view"></div>
+<div id="v-analytics" class="view"></div>
+<div id="v-setup"     class="view"></div>
+
+<nav id="nav">
+  <button class="nav-btn active" data-view="home" onclick="go('home')">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Home
+  </button>
+  <button class="nav-btn" data-view="collect" onclick="go('collect')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>Collect
+  </button>
+  <button class="nav-btn" data-view="analytics" onclick="go('analytics')">
+    <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Analytics
+  </button>
+  <button class="nav-btn" data-view="setup" onclick="go('setup')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Setup
+  </button>
+</nav>
+
+<script>
+// ─────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────
+const ROUNDS = [
+  { id:1, label:'1st Pick', sub:'Morning',   cls:'round-1' },
+  { id:2, label:'2nd Pick', sub:'Afternoon', cls:'round-2' },
+  { id:3, label:'3rd Pick', sub:'Evening',   cls:'round-3' },
+];
+const FARM_KEY = 'pt_farm_v2';
+const COLS_KEY = 'pt_cols_v2';
+
+// Production curve stages — based on commercial layer data
+// Each stage defines: up to what week, display label, expected %, warn-below %
+const FLOCK_STAGES = [
+  { maxWeek:18,  label:'Pre-Lay',     emoji:'🥚', expected:5,  warn:0,  bg:'#f0f0f0', color:'#888' },
+  { maxWeek:22,  label:'Early Lay',   emoji:'🌱', expected:30, warn:10, bg:'#e8f4fd', color:'#1a5fa8' },
+  { maxWeek:27,  label:'Building Up', emoji:'📈', expected:65, warn:35, bg:' #fef3cd', color:'#7d4e00' },
+  { maxWeek:55,  label:'Peak',        emoji:'⭐', expected:87, warn:72, bg:'#d8f3dc', color:'#1b4332' },
+  { maxWeek:65,  label:'Post-Peak',   emoji:'📉', expected:78, warn:60, bg:'#e8f4fd', color:'#1a5fa8' },
+  { maxWeek:75,  label:'Declining',   emoji:'🔻', expected:65, warn:48, bg:'#fef3cd', color:'#7d4e00' },
+  { maxWeek:999, label:'Late Lay',    emoji:'⏳', expected:50, warn:35, bg:'#fde8ea', color:'#d62839' },
+];
+
+function getPenStage(pen) {
+  if (!pen || !pen.flockStartDate) return null;
+  const placed       = new Date(pen.flockStartDate + 'T00:00:00');
+  const weeksSince   = Math.floor((Date.now() - placed.getTime()) / (7*24*60*60*1000));
+  const ageAtArrival = pen.flockAgeAtArrival || 0;
+  const weeks        = weeksSince + ageAtArrival;
+  const stage        = FLOCK_STAGES.find(s => weeks < s.maxWeek) || FLOCK_STAGES[FLOCK_STAGES.length-1];
+  return { weeks, weeksSince, ageAtArrival, ...stage };
+}
+
+// ─────────────────────────────────────────────
+// DATA LAYER
+// ─────────────────────────────────────────────
+const DB = {
+  getFarm()    { return JSON.parse(localStorage.getItem(FARM_KEY)||'null') },
+  saveFarm(f)  { localStorage.setItem(FARM_KEY, JSON.stringify(f)) },
+  getCols()    { return JSON.parse(localStorage.getItem(COLS_KEY)||'[]') },
+  saveCols(c)  { localStorage.setItem(COLS_KEY, JSON.stringify(c)) },
+  today()      { return new Date().toISOString().slice(0,10) },
+  todayCols()  { return this.getCols().filter(c=>c.date===this.today()) },
+  addCol(c)    { const a=this.getCols(); a.push(c); this.saveCols(a) },
+  updateCol(id,upd){ const a=this.getCols(); const i=a.findIndex(c=>c.id===id); if(i>-1){Object.assign(a[i],upd);this.saveCols(a)} },
+  getCol(id)   { return this.getCols().find(c=>c.id===id)||null },
+};
+
+// ─────────────────────────────────────────────
+// SESSION STATE
+// ─────────────────────────────────────────────
+let SES = null;     // active session
+let SES_STAND = 0;  // current stand index in session
+
+// ─────────────────────────────────────────────
+// NAV
+// ─────────────────────────────────────────────
+function go(name) {
+  if (SES && name !== 'collect') {
+    if (!confirm('You have an active collection in progress. Leave anyway?')) return;
+    SES = null; SES_STAND = 0;
+  }
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('v-'+name).classList.add('active');
+  document.querySelector(`[data-view="${name}"]`).classList.add('active');
+  render(name);
+}
+
+function render(name) {
+  if (name==='home')      renderHome();
+  if (name==='collect')   renderCollect();
+  if (name==='analytics') renderAnalytics();
+  if (name==='setup')     renderSetup();
+}
+
+// ─────────────────────────────────────────────
+// UTILS
+// ─────────────────────────────────────────────
+function uid()   { return Date.now().toString(36)+Math.random().toString(36).slice(2,6) }
+function fmtDate(iso){ const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) }
+function toast(msg,dur=2200){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),dur) }
+function openModal(html){ document.getElementById('modal-body').innerHTML=html; document.getElementById('overlay').classList.add('open') }
+function closeModal(){ document.getElementById('overlay').classList.remove('open') }
+
+function rateBadge(rate) {
+  if (rate===null||rate===undefined) return '<span class="badge badge-gray">—</span>';
+  const cls = rate>=85?'badge-green':rate>=70?'badge-amber':'badge-red';
+  return `<span class="badge ${cls}">${rate.toFixed(1)}%</span>`;
+}
+function rateColor(r){ return r===null?'#aaa':r>=85?'var(--g2)':r>=70?'var(--amber)':'var(--red)' }
+
+function getCellBirds(stand, tier, cell) {
+  const k = `${tier}_${cell}`;
+  if (stand.cellBirds && stand.cellBirds[k] !== undefined) return stand.cellBirds[k];
+  return stand.defaultBirds || 4;
+}
+
+function findStandInFarm(farm, standId) {
+  for (const pen of farm.pens||[])
+    for (const line of pen.lines||[])
+      for (const s of line.stands||[])
+        if (s.id===standId) return s;
+  return null;
+}
+
+// ─────────────────────────────────────────────
+// HOME VIEW
+// ─────────────────────────────────────────────
+// Returns the current total bird count across all pens/lines/stands/sides in the farm setup.
+// Using setup data (not collection records) means deleted pens don't inflate the number.
+function getFarmTotalBirds(farm) {
+  let total = 0;
+  for (const pen of (farm.pens||[])) {
+    for (const line of (pen.lines||[])) {
+      for (const stand of (line.stands||[])) {
+        for (let tier=1; tier<=stand.tiers; tier++) {
+          for (let cell=1; cell<=stand.cellsPerTier; cell++) {
+            total += getCellBirds(stand, tier, cell);
+          }
+        }
+      }
+      total *= 1; // Side A counted above; Side B is a mirror
+    }
+  }
+  // Each line has Side A and Side B — double the stand totals
+  let sideTotal = 0;
+  for (const pen of (farm.pens||[])) {
+    for (const line of (pen.lines||[])) {
+      for (const stand of (line.stands||[])) {
+        for (let tier=1; tier<=stand.tiers; tier++) {
+          for (let cell=1; cell<=stand.cellsPerTier; cell++) {
+            sideTotal += getCellBirds(stand, tier, cell);
+          }
+        }
+      }
+    }
+  }
+  return sideTotal * 2; // × 2 for Side A + Side B
+}
+
+function renderHome() {
+  const farm = DB.getFarm();
+  const el = document.getElementById('v-home');
+
+  if (!farm) {
+    el.innerHTML = `
+      <div class="topbar"><div><h1>🐔 PoulTrack</h1><small>Egg Collection Manager</small></div></div>
+      <div class="empty">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 15v-4m0-4v-.01"/></svg>
+        <h3>Welcome to PoulTrack v2</h3>
+        <p>Start by setting up your farm in the <b>Setup</b> tab.<br>Add pens, lines, and stands first.</p>
+      </div>`;
+    return;
+  }
+
+  const today        = DB.today();
+  const todayCols    = DB.todayCols();
+  const farmBirds    = getFarmTotalBirds(farm);
+  let totalEggs=0, totalBroken=0;
+  todayCols.forEach(c=>(c.entries||[]).forEach(e=>{
+    totalEggs   += (e.eggs||0);
+    totalBroken += (e.broken||0);
+  }));
+  const todayRate   = farmBirds > 0 ? totalEggs / farmBirds * 100 : null;
+  const todayCrack  = totalEggs > 0 ? totalBroken / totalEggs * 100 : null;
+  const crackColor  = todayCrack===null?'var(--gray)':todayCrack>3?'var(--red)':todayCrack>=2?'var(--amber)':'var(--g3)';
+  const crackAlert  = todayCrack!==null&&todayCrack>3?' 🚨':todayCrack!==null&&todayCrack>=2?' ⚠️':'';
+  const recent    = getDailySummary(7);
+  const allPass   = getAllPassStatus(farm, todayCols);
+
+  // Group passes by round — only show rounds that have at least one incomplete pass
+  const roundCards = ROUNDS.map(rnd => {
+    const passes   = allPass.filter(p=>p.round===rnd.id);
+    const pending  = passes.filter(p=>!p.complete);
+    const doneAll  = passes.length>0 && pending.length===0;
+    const eggs     = todayCols.filter(c=>c.round===rnd.id)
+                      .reduce((s,c)=>(c.entries||[]).reduce((ss,e)=>ss+(e.eggs||0),s),0);
+    return { rnd, passes, pending, doneAll, eggs };
+  });
+
+  const pendingRoundsHtml = roundCards.map(({rnd, pending, doneAll, eggs}) => {
+    if (doneAll) return `
+      <div class="stand-row" style="margin-bottom:8px;background:#f7fff9;border:1.5px solid var(--g4)">
+        <div>
+          <span class="${rnd.cls} round-chip">${rnd.label} · ${rnd.sub}</span>
+          <div style="font-size:12px;color:var(--g3);font-weight:700;margin-top:5px">✓ All passes done · ${eggs} eggs</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="COLLECT_ROUND=${rnd.id};go('collect')">View</button>
+      </div>`;
+    if (pending.length===0 && !doneAll) return ''; // no passes configured for this round
+    const inProgress = pending.filter(p=>p.started);
+    const statusTxt  = inProgress.length>0
+      ? `${inProgress.length} in progress · ${pending.filter(p=>!p.started).length} not started`
+      : `${pending.length} pass${pending.length>1?'es':''} not started`;
+    return `
+      <div class="stand-row" style="margin-bottom:8px">
+        <div>
+          <span class="${rnd.cls} round-chip">${rnd.label} · ${rnd.sub}</span>
+          <div style="font-size:12px;color:var(--gray);margin-top:5px">${statusTxt}${eggs>0?' · '+eggs+' eggs so far':''}</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="COLLECT_ROUND=${rnd.id};go('collect')">
+          ${inProgress.length>0?'Resume':'Start →'}
+        </button>
+      </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="topbar">
+      <div><h1>🐔 PoulTrack</h1><small>${farm.name||'My Farm'} · ${fmtDate(today)}</small></div>
+    </div>
+    <div class="kpi-row-5">
+      <div class="kpi-sm"><div class="kpi-val-sm">${totalEggs}</div><div class="kpi-lbl-sm">Eggs Today</div></div>
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(todayRate)}">${todayRate!==null?todayRate.toFixed(0)+'%':'—'}</div><div class="kpi-lbl-sm">Prod Rate</div></div>
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g1)">${farmBirds}</div><div class="kpi-lbl-sm">Total Birds</div></div>
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--red)">${totalBroken}</div><div class="kpi-lbl-sm">Broken</div></div>
+      <div class="kpi-sm" style="${todayCrack!==null&&todayCrack>3?'border:2px solid var(--red);':todayCrack!==null&&todayCrack>=2?'border:2px solid var(--amber);':''}">
+        <div class="kpi-val-sm" style="color:${crackColor}">${todayCrack!==null?todayCrack.toFixed(1)+'%'+crackAlert:'—'}</div>
+        <div class="kpi-lbl-sm">Crack Rate</div>
+      </div>
+    </div>
+
+    <div class="sec-hdr">Today's Collections</div>
+    <div style="margin:0 16px 10px">${pendingRoundsHtml||'<div style="color:var(--gray);font-size:13px;padding:8px 0">No farm passes configured yet.</div>'}</div>
+
+    <div class="sec-hdr">Last 7 Days</div>
+    <div class="card" style="padding:0;overflow:hidden">
+      ${recent.length===0?'<div class="empty" style="padding:20px"><p>No data yet.</p></div>':
+        recent.map(r=>`
+          <div class="list-item">
+            <div>
+              <div style="font-weight:700;font-size:14px">${fmtDate(r.date)}</div>
+              <div style="font-size:12px;color:var(--gray);margin-top:2px">${r.eggs} eggs · ${r.broken} broken</div>
+            </div>
+            ${rateBadge(r.rate)}
+          </div>`).join('')}
+    </div>
+    <div style="height:12px"></div>`;
+}
+
+// Returns status of EVERY pen/line/side/round combination for today
+function getAllPassStatus(farm, todayCols) {
+  const res = [];
+  (farm.pens||[]).forEach(pen => {
+    (pen.lines||[]).forEach(line => {
+      ['A','B'].forEach(side => {
+        ROUNDS.forEach(rnd => {
+          const col      = todayCols.find(c=>c.penId===pen.id&&c.lineId===line.id&&c.side===side&&c.round===rnd.id);
+          const total    = (line.stands||[]).length;
+          const done     = col ? (col.completedStands||[]).length : 0;
+          const complete = total > 0 && done >= total;
+          const started  = done > 0;
+          res.push({ penId:pen.id, penName:pen.name, lineId:line.id, lineName:line.name,
+                     side, round:rnd.id, done, total, complete, started });
+        });
+      });
+    });
+  });
+  return res;
+}
+
+function getDailySummary(days) {
+  const farm    = DB.getFarm();
+  const birds   = farm ? getFarmTotalBirds(farm) : 0;
+  const validIds= new Set((farm?.pens||[]).map(p=>p.id));
+  const cols    = DB.getCols().filter(c=>validIds.has(c.penId));
+  const map     = {};
+  cols.forEach(c=>{
+    if (!map[c.date]) map[c.date]={eggs:0,broken:0};
+    (c.entries||[]).forEach(e=>{
+      map[c.date].eggs   += (e.eggs||0);
+      map[c.date].broken += (e.broken||0);
+    });
+  });
+  return Object.entries(map)
+    .sort((a,b)=>b[0].localeCompare(a[0])).slice(0,days)
+    .map(([date,v])=>({date,eggs:v.eggs,broken:v.broken,rate:birds>0?v.eggs/birds*100:null}));
+}
+
+// ─────────────────────────────────────────────
+// COLLECT VIEW
+// ─────────────────────────────────────────────
+let COLLECT_ROUND = null; // which round accordion is open (null = auto)
+
+function toggleCollectRound(id) {
+  COLLECT_ROUND = (COLLECT_ROUND === id) ? null : id;
+  renderCollect();
+}
+
+function renderCollect() {
+  if (SES) { renderSession(); return; }
+  const farm = DB.getFarm();
+  const el   = document.getElementById('v-collect');
+  if (!farm||(farm.pens||[]).length===0) {
+    el.innerHTML=`<div class="topbar"><div><h1>Collect</h1></div></div><div class="empty"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg><h3>No farm set up</h3><p>Go to Setup to add pens and lines first.</p></div>`;
+    return;
+  }
+
+  const today     = DB.today();
+  const todayCols = DB.todayCols();
+  const allPass   = getAllPassStatus(farm, todayCols);
+
+  // Auto-open the first round that has any incomplete pass (unless user explicitly chose one)
+  let openRound = COLLECT_ROUND;
+  if (openRound === null) {
+    const firstPending = ROUNDS.find(r => allPass.some(p=>p.round===r.id && !p.complete));
+    openRound = firstPending ? firstPending.id : ROUNDS[0].id;
+  }
+
+  const roundSections = ROUNDS.map(rnd => {
+    const passes    = allPass.filter(p=>p.round===rnd.id);
+    const totalPass = passes.length;
+    const donePass  = passes.filter(p=>p.complete).length;
+    const eggs      = todayCols.filter(c=>c.round===rnd.id)
+                       .reduce((s,c)=>(c.entries||[]).reduce((ss,e)=>ss+(e.eggs||0),s),0);
+    const allDone   = totalPass>0 && donePass===totalPass;
+    const isOpen    = openRound === rnd.id;
+
+    // Status badge for the round header
+    const rndBadge  = allDone
+      ? `<span class="badge badge-green">✓ Done · ${eggs} eggs</span>`
+      : donePass>0
+        ? `<span class="badge badge-amber">${donePass}/${totalPass} passes · ${eggs} eggs</span>`
+        : `<span class="badge badge-gray">Not started</span>`;
+
+    // Pass rows inside the accordion
+    const passRows = passes.map(p => {
+      const badgeCls = p.complete?'badge-green':p.started?'badge-amber':'badge-gray';
+      const badgeTxt = p.complete?'✓ Done':p.started?`${p.done}/${p.total} stands`:'New';
+      const btnLbl   = p.complete?'Re-do':p.started?'Resume':'Start';
+      const btnCls   = p.complete?'btn-secondary':p.started?'btn-amber':'btn-primary';
+      return `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5">
+          <div>
+            <div style="font-weight:700;font-size:13px">${p.penName} · ${p.lineName}</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+              <span class="badge badge-gray" style="font-size:10px">Side ${p.side}</span>
+              <span class="badge ${badgeCls}">${badgeTxt}</span>
+            </div>
+          </div>
+          <button class="btn ${btnCls} btn-sm" style="flex-shrink:0;margin-left:10px"
+            onclick="beginSession('${p.penId}','${p.lineId}','${p.side}',${rnd.id})">
+            ${btnLbl}
+          </button>
+        </div>`;
+    }).join('');
+
+    return `
+      <div style="background:var(--white);border-radius:var(--radius);margin:0 16px 10px;box-shadow:var(--shadow);overflow:hidden">
+        <!-- Round header (always visible) -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;${isOpen?'border-bottom:2px solid var(--g5)':''}"
+          onclick="toggleCollectRound(${rnd.id})">
+          <div>
+            <span class="${rnd.cls} round-chip" style="font-size:13px;padding:5px 12px">${rnd.label} · ${rnd.sub}</span>
+            <div style="margin-top:6px">${rndBadge}</div>
+          </div>
+          <span style="font-size:20px;color:var(--gray);transition:transform .2s;${isOpen?'transform:rotate(180deg)':''}">▾</span>
+        </div>
+        <!-- Pass list (visible when open) -->
+        ${isOpen ? `<div style="padding:0 16px 6px">${passRows||'<div style="padding:14px 0;color:var(--gray);font-size:13px">No passes configured.</div>'}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="topbar"><div><h1>Egg Collection</h1><small>${fmtDate(today)}</small></div></div>
+    <div style="background:var(--g5);padding:10px 18px;font-size:12px;color:var(--g1);line-height:1.7">
+      <b>Side A</b> = Right side, walking forward &nbsp;·&nbsp; <b>Side B</b> = Left side, walking back
+    </div>
+    <div style="padding-top:12px;padding-bottom:24px">${roundSections}</div>`;
+}
+
+function beginSession(penId, lineId, side, round) {
+  const farm = DB.getFarm();
+  const pen  = (farm.pens||[]).find(p=>p.id===penId);
+  const line = (pen?.lines||[]).find(l=>l.id===lineId);
+  if (!line) return;
+
+  const today = DB.today();
+  const todayCols = DB.todayCols();
+  let col = todayCols.find(c=>c.penId===penId&&c.lineId===lineId&&c.side===side&&c.round===round);
+
+  if (!col) {
+    // Snapshot the applicable expected/warn rates at the time of this collection.
+    // This ensures analytics always evaluates against the thresholds that were
+    // in effect when the data was recorded, not whatever the user sets later.
+    const stage    = getPenStage(pen);
+    const snapExp  = stage ? stage.expected : (farm?.expectedRate  || 85);
+    const snapWarn = stage ? stage.warn     : (farm?.warnRate      || 70);
+
+    col = { id:uid(), date:today, penId, lineId, side, round,
+            roundLabel: ROUNDS.find(r=>r.id===round)?.label||`Round ${round}`,
+            penName:pen.name, lineName:line.name,
+            exp: snapExp, warn: snapWarn,
+            completedStands:[], entries:[], notes:'' };
+    DB.addCol(col);
+  }
+
+  // Side B walks stands in reverse
+  const stands = side==='B' ? [...line.stands].reverse() : [...line.stands];
+  const nextIdx = stands.findIndex(s=>!(col.completedStands||[]).includes(s.id));
+  SES = { ...col, stands, farm };
+  SES_STAND = nextIdx>=0?nextIdx:0;
+  renderSession();
+}
+
+function renderSession() {
+  const el = document.getElementById('v-collect');
+  const { stands, penName, lineName, side, round, roundLabel, completedStands, id } = SES;
+  const stand = stands[SES_STAND];
+  const standConfig = findStandInFarm(SES.farm, stand.id);
+  const total = stands.length;
+  const pct   = Math.round(completedStands.length/total*100);
+  const rndInfo = ROUNDS.find(r=>r.id===round)||ROUNDS[0];
+
+  // Get pen stage for age-adjusted thresholds
+  const pen   = (SES.farm.pens||[]).find(p=>p.id===SES.penId);
+  const stage = getPenStage(pen);
+  const EXP   = stage ? stage.expected : (DB.getFarm()?.expectedRate||85);
+  const WARN  = stage ? stage.warn     : (DB.getFarm()?.warnRate||70);
+
+  // Previous rounds' entries for this stand today (all rounds except current)
+  const otherCols = DB.todayCols().filter(c=>c.penId===SES.penId&&c.lineId===SES.lineId&&c.side===side&&c.round!==round);
+  const prevByCell = {};
+  otherCols.forEach(c=>{
+    (c.entries||[]).filter(e=>e.standId===stand.id).forEach(e=>{
+      const k=`${e.tier}_${e.cellNum}`;
+      if (!prevByCell[k]) prevByCell[k]={eggs:0};
+      prevByCell[k].eggs += e.eggs||0;
+    });
+  });
+
+  // Current round's saved entries for this stand
+  const saved = (DB.getCol(id)?.entries||[]).filter(e=>e.standId===stand.id);
+
+  // Build tiers
+  let tiersHtml='';
+  for (let tier=standConfig.tiers; tier>=1; tier--) {
+    let tierEggs=0, tierBirds=0, cellsHtml='';
+    for (let cell=1; cell<=standConfig.cellsPerTier; cell++) {
+      const k         = `${tier}_${cell}`;
+      const birds     = getCellBirds(standConfig, tier, cell);
+      const savedE    = saved.find(e=>e.tier===tier&&e.cellNum===cell);
+      const eggs      = savedE ? savedE.eggs : '';
+      const broken    = savedE ? savedE.broken : '';
+      const prevEggs  = prevByCell[k]?.eggs || 0;          // eggs collected in other rounds today
+      const remaining = Math.max(0, birds - prevEggs);     // max allowed this round
+      const thisEggs  = parseInt(eggs) || 0;
+      const dailyTotal= prevEggs + thisEggs;
+      const overQuota = dailyTotal > birds;                 // rolled egg or data error
+
+      // Rate is based on this round's contribution vs birds
+      const rate      = (savedE && birds > 0) ? (thisEggs / birds * 100) : null;
+      // Card colour: over-quota overrides normal colouring
+      let cardCls = '';
+      if (savedE) {
+        cardCls = overQuota ? 'c-over' : (rate>=EXP?'c-good':rate>=WARN?'c-low':'c-poor');
+      }
+      const rateClr = rate===null?'':overQuota?'color:var(--amber)':rate>=EXP?'color:var(--g3)':rate>=WARN?'color:var(--amber)':'color:var(--red)';
+      tierEggs  += thisEggs;
+      tierBirds += birds;
+
+      // Quota info line (only show on round 2/3 or if something was picked in other rounds)
+      const quotaHtml = prevEggs > 0
+        ? `<div class="cell-prev" id="quota_${k}" style="${overQuota?'color:var(--amber);font-weight:800':''}">
+            ${prevEggs} prev · ${remaining>0?remaining+' left':'full'}${overQuota?' ⚠':''}
+           </div>`
+        : '';
+
+      cellsHtml+=`
+        <div class="cell-card ${cardCls}" id="cc_${k}" data-exp="${EXP}" data-warn="${WARN}">
+          <div class="cell-id">T${tier}·C${cell}</div>
+          <div class="cell-birds-row">
+            <span class="birds-val" title="Tap to change bird count"
+              onclick="editCellBirds('${stand.id}',${tier},${cell},${birds})">${birds}</span>🐔
+          </div>
+          <input class="cell-egg-input" type="number" min="0"
+            inputmode="numeric" pattern="[0-9]*" placeholder="0"
+            value="${eggs}" id="ei_${k}"
+            data-stand="${stand.id}" data-tier="${tier}" data-cell="${cell}"
+            data-birds="${birds}" data-prev="${prevEggs}"
+            data-exp="${EXP}" data-warn="${WARN}"
+            oninput="onEggInput(this)">
+          <div class="cell-broken-row">
+            <span class="broken-lbl">💔</span>
+            <input class="broken-input" type="number" min="0" max="${eggs!==''?eggs:0}"
+              inputmode="numeric" placeholder="0" value="${broken}" id="bi_${k}"
+              data-tier="${tier}" data-cell="${cell}"
+              oninput="onBrokenInput(this,'${k}')">
+          </div>
+          ${quotaHtml}
+          <div class="cell-rate-lbl" id="rl_${k}" style="${rateClr}">${rate!==null?rate.toFixed(0)+'%':''}</div>
+        </div>`;
+    }
+    const tierRate = tierBirds>0?tierEggs/tierBirds*100:null;
+    tiersHtml+=`
+      <div class="tier-section">
+        <div class="tier-label">
+          Tier ${tier} ${tier===standConfig.tiers?'(Top)':tier===1?'(Bottom)':''}
+          <span class="tier-stats">${tierEggs}/${tierBirds} ${tierRate!==null?tierRate.toFixed(0)+'%':''}</span>
+        </div>
+        <div class="cell-grid">${cellsHtml}</div>
+      </div>`;
+  }
+
+  const stageBanner = stage
+    ? `<div style="background:${stage.bg};padding:8px 14px;display:flex;align-items:center;gap:8px;font-size:12px;color:${stage.color};font-weight:800;border-bottom:1px solid rgba(0,0,0,.06)">
+        ${stage.emoji} Week ${stage.weeks} · ${stage.label} · Expect ≥${stage.expected}% · Warn &lt;${stage.warn}%
+       </div>`
+    : '';
+
+  el.innerHTML = `
+    <div class="collect-hdr">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div>
+          <h2>${penName} · ${lineName} · Side ${side} · ${stand.name}</h2>
+          <div class="sub">Stand ${SES_STAND+1}/${total} · ${standConfig.tiers}T × ${standConfig.cellsPerTier}C</div>
+        </div>
+        <span class="${rndInfo.cls} round-chip" style="flex-shrink:0;margin-left:6px">${roundLabel}</span>
+      </div>
+      <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
+    </div>
+    ${stageBanner}
+    <div style="padding:8px 10px 0;display:flex;flex-wrap:wrap;gap:5px">
+      <span class="badge badge-green">≥${EXP}% Good</span>
+      <span class="badge badge-amber">${WARN}–${EXP-1}% Low</span>
+      <span class="badge badge-red">&lt;${WARN}% Poor</span>
+      <span class="badge badge-gray">Tap 🐔 to edit birds</span>
+    </div>
+
+    <div style="padding-bottom:100px">${tiersHtml}</div>
+
+    <div class="action-bar">
+      <button class="btn btn-secondary" style="width:auto;padding:14px 16px;flex-shrink:0" onclick="exitSession()">✕</button>
+      <button class="btn btn-amber" style="flex:0 0 auto;width:auto;padding:14px 16px" onclick="addNoteModal()">📝</button>
+      <button class="btn btn-primary" onclick="saveStand()">
+        ${SES_STAND<total-1?'Save & Next →':'Complete Pass ✓'}
+      </button>
+    </div>`;
+}
+
+function onEggInput(inp) {
+  const birds    = parseInt(inp.dataset.birds);
+  const prevEggs = parseInt(inp.dataset.prev) || 0;   // eggs from other rounds today
+  const remaining= Math.max(0, birds - prevEggs);     // quota left for this round
+  const EXP      = parseInt(inp.dataset.exp)  || 85;
+  const WARN     = parseInt(inp.dataset.warn) || 70;
+
+  let eggs = parseInt(inp.value) || 0;
+  // Hard cap: a single round can never exceed the bird count in this cell
+  if (eggs > birds) { eggs = birds; inp.value = birds; }
+  if (eggs < 0)     { eggs = 0;     inp.value = 0; }
+  // Soft cap: cross-round daily total warns when it exceeds bird count
+  const overQuota   = eggs > remaining;
+  const dailyTotal  = prevEggs + eggs;
+  const overBirds   = dailyTotal > birds;             // biologically impossible
+
+  const k    = `${inp.dataset.tier}_${inp.dataset.cell}`;
+  const bi   = document.getElementById('bi_' + k);
+  const card = document.getElementById('cc_'  + k);
+  const rl   = document.getElementById('rl_'  + k);
+  const quot = document.getElementById('quota_' + k);
+
+  // Keep broken ≤ eggs collected — update its max and clamp its value
+  if (bi) {
+    bi.max = eggs;
+    if ((parseInt(bi.value)||0) > eggs) bi.value = eggs;
+  }
+
+  // Update quota label if it exists (round 2/3)
+  if (quot) {
+    quot.textContent = `${prevEggs} prev · ${Math.max(0,remaining-eggs)} left${overBirds?' ⚠':''}`;
+    quot.style.color  = overBirds ? 'var(--amber)' : '';
+    quot.style.fontWeight = overBirds ? '800' : '';
+  }
+
+  const rate = birds > 0 ? eggs / birds * 100 : null;
+  if (rl) {
+    rl.textContent = rate !== null ? rate.toFixed(0) + '%' : '';
+    rl.style.color = rate===null?'':overBirds?'var(--amber)':rate>=EXP?'var(--g3)':rate>=WARN?'var(--amber)':'var(--red)';
+  }
+  if (card) {
+    if (overBirds) {
+      card.className = 'cell-card c-over';
+    } else {
+      card.className = 'cell-card ' + (rate>=EXP?'c-good':rate>=WARN?'c-low':eggs>0?'c-poor':'');
+    }
+  }
+}
+
+function onBrokenInput(inp, k) {
+  // Broken eggs must not exceed collected eggs for this cell
+  const ei  = document.getElementById('ei_' + k);
+  const maxEggs = parseInt(ei?.value) || 0;
+  let val = parseInt(inp.value) || 0;
+  if (val < 0)        { val = 0;        inp.value = 0; }
+  if (val > maxEggs)  { val = maxEggs;  inp.value = maxEggs; }
+}
+
+function editCellBirds(standId, tier, cell, current) {
+  openModal(`
+    <div class="modal-ttl">Edit Bird Count <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:13px;color:var(--gray);margin-bottom:16px">
+      Stand <b>${standId}</b> · Tier ${tier} · Cell ${cell}<br>
+      Change will be saved permanently for this cell.
+    </p>
+    <div class="field"><label>Number of Birds</label>
+      <select id="m_birds">
+        ${[0,1,2,3,4,5,6].map(n=>`<option value="${n}" ${n===current?'selected':''}>${n===0?'0 (empty)':n}</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-primary" onclick="saveCellBirds('${standId}',${tier},${cell})">Save</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+
+function saveCellBirds(standId, tier, cell) {
+  const n = parseInt(document.getElementById('m_birds').value);
+  const farm = DB.getFarm();
+  // find and update
+  for (const pen of farm.pens||[])
+    for (const line of pen.lines||[])
+      for (const s of line.stands||[])
+        if (s.id===standId) {
+          if (!s.cellBirds) s.cellBirds={};
+          s.cellBirds[`${tier}_${cell}`]=n;
+        }
+  DB.saveFarm(farm);
+  // update SES.farm
+  SES.farm = farm;
+  closeModal();
+  toast(`Cell T${tier}·C${cell} updated to ${n} bird${n!==1?'s':''}  ✓`);
+  renderSession();
+}
+
+function addNoteModal() {
+  const col = DB.getCol(SES.id);
+  openModal(`
+    <div class="modal-ttl">Session Note <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:13px;color:var(--gray);margin-bottom:12px">Add a note for this collection pass (e.g. water issue, sick bird, equipment problem).</p>
+    <div class="field">
+      <textarea id="m_note" placeholder="e.g. Water line blocked in Stand 3. Dead bird found T2·C5.">${col?.notes||''}</textarea>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-primary" onclick="saveNote()">Save Note</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+
+function saveNote() {
+  const note = document.getElementById('m_note').value.trim();
+  DB.updateCol(SES.id, {notes:note});
+  closeModal();
+  toast('Note saved ✓');
+}
+
+function saveStand() {
+  const stand = SES.stands[SES_STAND];
+  const standConfig = findStandInFarm(SES.farm, stand.id);
+  const entries=[];
+
+  for (let tier=1; tier<=standConfig.tiers; tier++) {
+    for (let cell=1; cell<=standConfig.cellsPerTier; cell++) {
+      const k=`${tier}_${cell}`;
+      const ei=document.getElementById('ei_'+k);
+      const bi=document.getElementById('bi_'+k);
+      if (ei) {
+        const birds=getCellBirds(standConfig,tier,cell);
+        entries.push({ standId:stand.id, tier, cellNum:cell, birds,
+          eggs:parseInt(ei.value)||0, broken:parseInt(bi?.value)||0, ts:new Date().toISOString() });
+      }
+    }
+  }
+
+  const col=DB.getCols().find(c=>c.id===SES.id);
+  if (col) {
+    col.entries=[(col.entries||[]).filter(e=>e.standId!==stand.id),...entries].flat();
+    if (!col.completedStands.includes(stand.id)) col.completedStands.push(stand.id);
+    DB.saveCols(DB.getCols().map(c=>c.id===SES.id?col:c));
+    SES.completedStands=col.completedStands;
+  }
+
+  if (SES_STAND<SES.stands.length-1) {
+    SES_STAND++;
+    toast(`Stand ${SES_STAND} saved ✓`);
+    renderSession();
+    window.scrollTo(0,0);
+  } else {
+    toast('Pass complete! 🎉',3000);
+    SES=null; SES_STAND=0;
+    go('collect');
+  }
+}
+
+function exitSession() {
+  openModal(`
+    <div class="modal-ttl">Exit Collection? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">Completed stands are already saved. You can resume this pass later from the Collect tab.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();SES=null;SES_STAND=0;go('collect')">Exit</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Continue Collecting</button>
+    </div>`);
+}
+
+// ─────────────────────────────────────────────
+// ANALYTICS VIEW
+// ─────────────────────────────────────────────
+let ANA_TAB  = 'cells';
+let ANA_DATE = null; // null=all-time | 'last7' | 'last30' | 'YYYY-MM-DD'
+
+function filterColsByAnaDate(allCols) {
+  if (!ANA_DATE) return allCols;
+  if (ANA_DATE === 'last7' || ANA_DATE === 'last30') {
+    const days   = ANA_DATE === 'last7' ? 7 : 30;
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
+    const cutStr = cutoff.toISOString().slice(0,10);
+    return allCols.filter(c => c.date >= cutStr);
+  }
+  return allCols.filter(c => c.date === ANA_DATE);
+}
+
+function anaModeLabel() {
+  if (!ANA_DATE)            return 'All Time';
+  if (ANA_DATE === 'last7')  return 'Last 7 Days';
+  if (ANA_DATE === 'last30') return 'Last 30 Days';
+  return fmtDate(ANA_DATE);
+}
+
+function renderAnalytics() {
+  const farm = DB.getFarm();
+  const allCols = DB.getCols();
+  const el   = document.getElementById('v-analytics');
+
+  if (!farm || allCols.length === 0) {
+    el.innerHTML = `<div class="topbar"><div><h1>Analytics</h1></div></div><div class="empty"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><h3>No data yet</h3><p>Complete at least one collection pass.</p></div>`;
+    return;
+  }
+
+  // All dates that have data — for the date picker
+  const allDates = [...new Set(allCols.map(c=>c.date))].sort((a,b)=>b.localeCompare(a));
+
+  // Current farm birds (from setup, not records — immune to deleted-pen inflation)
+  const farmBirds = getFarmTotalBirds(farm);
+
+  // Valid pen IDs in the current farm setup — filter out records from deleted pens
+  const validPenIds = new Set((farm.pens||[]).map(p=>p.id));
+
+  // Filter collections by selected mode, excluding deleted-pen records
+  const cols       = filterColsByAnaDate(allCols).filter(c => validPenIds.has(c.penId));
+  const isFiltered = !!ANA_DATE;
+  const isSingleDay= isFiltered && ANA_DATE !== 'last7' && ANA_DATE !== 'last30';
+  const modeLabel  = anaModeLabel();
+  // Column label: single-day shows "Rounds"; range/all-time shows "Sessions"
+  const sessionCol = isSingleDay ? 'Rounds' : 'Sessions';
+
+  // Aggregate cell data from filtered cols.
+  // KEY RULE: a hen lays at most once per day regardless of how many rounds are run.
+  // Birds must be counted once per (cell, date), not once per round, to keep the
+  // production rate denominator accurate.
+  const cellMap      = {};
+  const cellDayBirds = {}; // tracks which (cell+date) combos have already been counted
+
+  cols.forEach(col => {
+    const colExp  = col.exp  ?? (farm.expectedRate || 85);
+    const colWarn = col.warn ?? (farm.warnRate      || 70);
+    (col.entries||[]).forEach(e => {
+      const k      = `${col.penId}|${col.side}|${e.standId}|${e.tier}|${e.cellNum}`;
+      const dayKey = `${k}|${col.date}`;
+
+      if (!cellMap[k]) cellMap[k] = {
+        totalEggs:0, totalBirds:0, totalBroken:0, sessions:0,
+        sumExp:0, sumWarn:0,
+        penId:col.penId, side:col.side, standId:e.standId, tier:e.tier, cellNum:e.cellNum
+      };
+
+      cellMap[k].totalEggs   += (e.eggs||0);
+      cellMap[k].totalBroken += (e.broken||0);
+      cellMap[k].sessions++;
+      cellMap[k].sumExp  += colExp;
+      cellMap[k].sumWarn += colWarn;
+
+      // Only add birds for this cell once per calendar day
+      if (!cellDayBirds[dayKey]) {
+        cellDayBirds[dayKey] = true;
+        cellMap[k].totalBirds += (e.birds||0);
+      }
+    });
+  });
+
+  const cells = Object.values(cellMap).map(c => ({
+    ...c,
+    days:    c.sessions, // kept for display compatibility
+    rate:    c.totalBirds > 0 ? c.totalEggs / c.totalBirds * 100 : null,
+    avgExp:  c.sessions > 0 ? c.sumExp  / c.sessions : (farm.expectedRate || 85),
+    avgWarn: c.sessions > 0 ? c.sumWarn / c.sessions : (farm.warnRate     || 70),
+  }));
+
+  // Use current farm rates only for the legend labels in the header
+  const warnRate = farm.warnRate || 70;
+  const expRate  = farm.expectedRate || 85;
+
+  // Each cell is evaluated against its OWN historical average thresholds
+  const poor = cells
+    .filter(c => c.rate !== null && c.rate < c.avgWarn)
+    .sort((a, b) => a.rate - b.rate);
+
+  // Detect daily over-quota anomalies: cells where total eggs in one day exceed bird count
+  // Build per-cell-per-day totals across all rounds
+  const dailyCellTotals = {}; // key: "penId|side|standId|tier|cellNum|date" -> { eggs, birds }
+  allCols.forEach(col => {
+    (col.entries||[]).forEach(e => {
+      const dk = `${col.penId}|${col.side}|${e.standId}|${e.tier}|${e.cellNum}|${col.date}`;
+      if (!dailyCellTotals[dk]) dailyCellTotals[dk] = { eggs:0, birds: e.birds||0, date:col.date, penId:col.penId, side:col.side, standId:e.standId, tier:e.tier, cellNum:e.cellNum };
+      dailyCellTotals[dk].eggs += (e.eggs||0);
+    });
+  });
+  const overQuotaDays = Object.values(dailyCellTotals).filter(d => d.eggs > d.birds)
+    .sort((a,b)=>b.date.localeCompare(a.date)).slice(0, 20);
+
+  // Round distribution for filtered cols
+  const roundMap = {};
+  cols.forEach(c => {
+    if (!roundMap[c.round]) roundMap[c.round] = { label:c.roundLabel, eggs:0 };
+    (c.entries||[]).forEach(e => { roundMap[c.round].eggs += (e.eggs||0); });
+  });
+  const totalRndEggs = Object.values(roundMap).reduce((s,v)=>s+v.eggs, 0);
+
+  // Pen summary for filtered cols — birds counted once per (cell, date) per pen
+  const penMap     = {};
+  const penDayBirds= {};
+  cols.forEach(col => {
+    if (!penMap[col.penId]) penMap[col.penId] = { name:col.penName||col.penId, eggs:0, birds:0, broken:0 };
+    (col.entries||[]).forEach(e => {
+      penMap[col.penId].eggs   += (e.eggs||0);
+      penMap[col.penId].broken += (e.broken||0);
+      const pdk = `${col.penId}|${col.side}|${e.standId}|${e.tier}|${e.cellNum}|${col.date}`;
+      if (!penDayBirds[pdk]) { penDayBirds[pdk]=true; penMap[col.penId].birds += (e.birds||0); }
+    });
+  });
+
+  // Totals for KPIs — use farmBirds (current setup) as the denominator so that
+  // deleted pens and multi-round inflation don't skew the production rate.
+  let totalEggs = 0, totalBroken = 0;
+  cols.forEach(col => {
+    (col.entries||[]).forEach(e => {
+      totalEggs   += (e.eggs||0);
+      totalBroken += (e.broken||0);
+    });
+  });
+  const overallRate  = farmBirds > 0 ? totalEggs / farmBirds * 100 : null;
+  const crackRate    = totalEggs > 0 ? totalBroken / totalEggs * 100 : null;
+  const crackColor   = crackRate === null ? 'var(--gray)'
+                     : crackRate > 3  ? 'var(--red)'
+                     : crackRate >= 2 ? 'var(--amber)'
+                     : 'var(--g3)';
+  const crackAlert   = crackRate !== null && crackRate > 3  ? ' 🚨'
+                     : crackRate !== null && crackRate >= 2 ? ' ⚠️'
+                     : '';
+
+  // Daily summary (for rounds tab — always all-time for context)
+  const daily = getDailySummary(14);
+
+  // Date selector options
+  const dateOpts =
+    `<option value="" ${!ANA_DATE?'selected':''}>All Time</option>` +
+    `<optgroup label="─── Quick Range ───">` +
+    `<option value="last7"  ${ANA_DATE==='last7' ?'selected':''}>Last 7 Days</option>` +
+    `<option value="last30" ${ANA_DATE==='last30'?'selected':''}>Last 30 Days</option>` +
+    `</optgroup>` +
+    `<optgroup label="─── Specific Day ───">` +
+    allDates.map(d=>`<option value="${d}" ${d===ANA_DATE?'selected':''}>${fmtDate(d)}</option>`).join('') +
+    `</optgroup>`;
+
+  let tabContent = '';
+
+  if (ANA_TAB === 'cells') {
+    tabContent = `
+      <div class="sec-hdr" style="margin-top:8px">⭐ Top Performing Cells</div>
+      <div style="font-size:11px;color:var(--gray);margin:-4px 0 8px">
+        Cells meeting or exceeding the expected rate that was set at the time of each collection.
+        Side A and Side B are opposite sides of the same cage line and tracked separately.
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        ${cells.filter(c=>c.rate!==null&&c.rate>=c.avgExp).length===0
+          ? `<div class="empty" style="padding:20px 16px"><p style="margin:0;font-size:13px">${isFiltered?`No top-performing cells for ${modeLabel}.`:'No cells at target rate yet — keep collecting data.'}</p></div>`
+          : `<table class="ana-table">
+              <tr><th>Cell</th><th>Side</th><th>${sessionCol}</th><th>Broken</th><th>Avg Rate</th><th>Crack Rate</th></tr>
+              ${cells.filter(c=>c.rate!==null&&c.rate>=c.avgExp).sort((a,b)=>b.rate-a.rate).slice(0,10).map(c => {
+                const stand    = findStandInFarm(farm, c.standId);
+                const pen      = (farm.pens||[]).find(p=>p.id===c.penId);
+                const cRate    = c.totalEggs > 0 ? c.totalBroken / c.totalEggs * 100 : null;
+                const cColor   = cRate===null?'var(--gray)':cRate>3?'var(--red)':cRate>=2?'var(--amber)':'var(--g3)';
+                return `<tr>
+                  <td><b>T${c.tier}·C${c.cellNum}</b><br><small style="color:var(--gray)">${pen?.name||''} · ${stand?.name||c.standId}</small></td>
+                  <td><span class="badge badge-gray">Side ${c.side}</span></td>
+                  <td style="color:var(--gray)">${c.days}</td>
+                  <td style="color:var(--red);font-weight:700">${c.totalBroken}</td>
+                  <td><div class="rate-bar-wrap">
+                    <div class="rate-bar" style="width:${Math.min(c.rate||0,100)}px;background:${rateColor(c.rate)}"></div>
+                    ${rateBadge(c.rate)}
+                  </div></td>
+                  <td style="font-weight:700;color:${cColor}">${cRate!==null?cRate.toFixed(1)+'%':'—'}</td>
+                </tr>`;
+              }).join('')}
+            </table>`}
+      </div>
+
+      <div class="sec-hdr" style="margin-top:16px">⚠️ Underperforming Cells</div>
+      <div style="font-size:11px;color:var(--gray);margin:-4px 0 8px">
+        Cells falling below the warn threshold that was recorded at collection time — flagged for closer attention or bird removal.
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        ${poor.length===0
+          ? `<div class="empty" style="padding:20px 16px"><p style="margin:0;font-size:13px">${isFiltered?`No underperforming cells for ${modeLabel} 🎉`:'No underperforming cells overall 🎉'}</p></div>`
+          : `<table class="ana-table">
+              <tr><th>Cell</th><th>Side</th><th>${sessionCol}</th><th>Broken</th><th>Avg Rate</th><th>Crack Rate</th></tr>
+              ${poor.map(c => {
+                const stand  = findStandInFarm(farm, c.standId);
+                const pen    = (farm.pens||[]).find(p=>p.id===c.penId);
+                const cRate  = c.totalEggs > 0 ? c.totalBroken / c.totalEggs * 100 : null;
+                const cColor = cRate===null?'var(--gray)':cRate>3?'var(--red)':cRate>=2?'var(--amber)':'var(--g3)';
+                return `<tr>
+                  <td><b>T${c.tier}·C${c.cellNum}</b><br><small style="color:var(--gray)">${pen?.name||''} · ${stand?.name||c.standId}</small></td>
+                  <td><span class="badge badge-gray">Side ${c.side}</span></td>
+                  <td style="color:var(--gray)">${c.days}</td>
+                  <td style="color:var(--red);font-weight:700">${c.totalBroken}</td>
+                  <td><div class="rate-bar-wrap">
+                    <div class="rate-bar" style="width:${Math.min(c.rate||0,100)}px;background:${rateColor(c.rate)}"></div>
+                    ${rateBadge(c.rate)}
+                  </div></td>
+                  <td style="font-weight:700;color:${cColor}">${cRate!==null?cRate.toFixed(1)+'%':'—'}</td>
+                </tr>`;
+              }).join('')}
+            </table>`}
+      </div>
+
+      ${overQuotaDays.length > 0 ? `
+      <div class="sec-hdr" style="margin-top:16px;color:var(--amber)">⚠ Daily Over-Quota Cells</div>
+      <div style="font-size:11px;color:var(--gray);margin:-4px 0 8px">Cells where total eggs across all rounds exceeded bird count on a given day.</div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <table class="ana-table">
+          <tr><th>Date</th><th>Cell</th><th>Side</th><th>Birds</th><th>Total Eggs</th><th>Over By</th></tr>
+          ${overQuotaDays.map(d => {
+            const stand = findStandInFarm(farm, d.standId);
+            const pen   = (farm.pens||[]).find(p=>p.id===d.penId);
+            return `<tr>
+              <td style="font-size:11px">${fmtDate(d.date)}</td>
+              <td><b>T${d.tier}·C${d.cellNum}</b><br><small style="color:var(--gray)">${pen?.name||''} · ${stand?.name||d.standId}</small></td>
+              <td><span class="badge badge-gray">Side ${d.side}</span></td>
+              <td>${d.birds}</td>
+              <td style="color:var(--amber);font-weight:800">${d.eggs}</td>
+              <td style="color:var(--red);font-weight:800">+${d.eggs-d.birds}</td>
+            </tr>`;
+          }).join('')}
+        </table>
+      </div>` : ''}`;
+
+  } else if (ANA_TAB === 'rounds') {
+    tabContent = `
+      <div class="sec-hdr" style="margin-top:8px">Round Distribution — ${modeLabel}</div>
+      <div class="card" style="padding:0;overflow:hidden">
+        ${Object.keys(roundMap).length===0
+          ? `<div style="padding:16px;color:var(--gray);font-size:13px">No data for this date.</div>`
+          : Object.entries(roundMap).map(([r,v]) => {
+              const pct   = totalRndEggs>0 ? Math.round(v.eggs/totalRndEggs*100) : 0;
+              const rInfo = ROUNDS.find(ri=>ri.id===parseInt(r)) || { cls:'', label:`Round ${r}` };
+              return `<div class="list-item">
+                <div><span class="${rInfo.cls} round-chip">${v.label||rInfo.label}</span>
+                  <div style="font-size:11px;color:var(--gray);margin-top:4px">${v.eggs} eggs</div>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-size:18px;font-weight:800">${pct}%</div>
+                  <div style="height:6px;width:80px;background:#eee;border-radius:3px;margin-top:4px;overflow:hidden">
+                    <div style="height:100%;width:${pct}%;background:var(--g3);border-radius:3px"></div>
+                  </div>
+                </div>
+              </div>`;
+            }).join('')}
+      </div>
+      <div class="sec-hdr">Daily Production (Last 14 Days)</div>
+      <div class="card" style="padding:0;overflow:hidden">
+        ${daily.map(d=>`
+          <div class="list-item" style="cursor:pointer" onclick="ANA_DATE='${d.date}';ANA_TAB='cells';renderAnalytics()">
+            <div>
+              <div style="font-weight:700;font-size:14px">${fmtDate(d.date)}${d.date===DB.today()?'<span style="font-size:10px;color:var(--g3);margin-left:6px">Today</span>':''}</div>
+              <div style="font-size:12px;color:var(--gray);margin-top:2px">${d.eggs} eggs · ${d.broken} broken · tap to drill in</div>
+            </div>
+            ${rateBadge(d.rate)}
+          </div>`).join('')}
+      </div>`;
+
+  } else if (ANA_TAB === 'pens') {
+    tabContent = `
+      <div class="sec-hdr" style="margin-top:8px">Performance by Pen — ${modeLabel}</div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <table class="ana-table">
+          <tr><th>Pen</th><th>Eggs</th><th>Broken</th><th>Rate</th></tr>
+          ${Object.values(penMap).map(p=>`
+            <tr>
+              <td><b>${p.name}</b></td>
+              <td style="font-weight:800;color:var(--g2)">${p.eggs}</td>
+              <td style="color:var(--red)">${p.broken}</td>
+              <td>${rateBadge(p.birds>0 ? p.eggs/p.birds*100 : null)}</td>
+            </tr>`).join('')}
+        </table>
+      </div>`;
+  }
+
+  el.innerHTML = `
+    <div class="topbar">
+      <div><h1>Analytics</h1><small>${modeLabel} · Warn &lt;${warnRate}%</small></div>
+    </div>
+
+    <!-- Date picker bar -->
+    <div style="background:var(--white);padding:10px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px">
+      <span style="font-size:12px;font-weight:700;color:var(--gray);white-space:nowrap">View:</span>
+      <select style="flex:1;padding:8px 12px;border:1.5px solid #ddd;border-radius:10px;font-size:14px;font-weight:600;background:var(--white)"
+        onchange="ANA_DATE=this.value||null;renderAnalytics()">
+        ${dateOpts}
+      </select>
+      ${isFiltered?`<button class="btn btn-secondary btn-sm" onclick="ANA_DATE=null;renderAnalytics()">Clear</button>`:''}
+    </div>
+
+    <div class="kpi-row-5">
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g2)">${totalEggs}</div><div class="kpi-lbl-sm">Eggs</div></div>
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(overallRate)}">${overallRate!==null?overallRate.toFixed(0)+'%':'—'}</div><div class="kpi-lbl-sm">Prod Rate</div></div>
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g1)">${farmBirds}</div><div class="kpi-lbl-sm">Total Birds</div></div>
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--red)">${totalBroken}</div><div class="kpi-lbl-sm">Broken</div></div>
+      <div class="kpi-sm" style="${crackRate!==null&&crackRate>3?'border:2px solid var(--red);':crackRate!==null&&crackRate>=2?'border:2px solid var(--amber);':''}">
+        <div class="kpi-val-sm" style="color:${crackColor}">${crackRate!==null?crackRate.toFixed(1)+'%'+crackAlert:'—'}</div>
+        <div class="kpi-lbl-sm">Crack Rate</div>
+      </div>
+    </div>
+
+    <div class="inner-tabs">
+      <button class="inner-tab ${ANA_TAB==='cells'?'active':''}"  onclick="ANA_TAB='cells';renderAnalytics()">Cells</button>
+      <button class="inner-tab ${ANA_TAB==='rounds'?'active':''}" onclick="ANA_TAB='rounds';renderAnalytics()">Rounds</button>
+      <button class="inner-tab ${ANA_TAB==='pens'?'active':''}"   onclick="ANA_TAB='pens';renderAnalytics()">Pens</button>
+    </div>
+    ${tabContent}
+    <div style="margin:16px 16px 8px">
+      <button class="btn btn-danger btn-sm" onclick="confirmReset()">🗑 Reset All Data</button>
+    </div><div style="height:10px"></div>`;
+}
+
+function confirmReset() {
+  openModal(`<div class="modal-ttl">Reset Data? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">All collection records will be deleted. Farm setup is kept. This cannot be undone.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();DB.saveCols([]);toast('Data cleared');renderAnalytics()">Delete All Records</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+
+// ─────────────────────────────────────────────
+// SETUP VIEW
+// ─────────────────────────────────────────────
+function renderSetup() {
+  const farm = DB.getFarm()||{name:'',expectedRate:85,warnRate:70,pens:[]};
+  const el   = document.getElementById('v-setup');
+
+  const pensHtml = (farm.pens||[]).map(pen=>`
+    <div class="acc-item" id="acc_${pen.id}">
+      <div class="acc-hdr" onclick="toggleAcc('${pen.id}')">
+        <span>${pen.name} <span style="color:var(--gray);font-size:12px;font-weight:500">(${(pen.lines||[]).length} lines)</span></span>
+        <span class="acc-arr">▾</span>
+      </div>
+      <div class="acc-body">
+        ${(()=>{ const st=getPenStage(pen); return st?`<div style="background:${st.bg};border-radius:8px;padding:9px 12px;margin-bottom:10px;font-size:12px;color:${st.color};font-weight:800">${st.emoji} Week ${st.weeks} · ${st.label} — Expected ~${st.expected}% · Warn &lt;${st.warn}%</div>`:''; })()}
+        ${(pen.lines||[]).map(line=>`
+          <div style="margin-bottom:10px">
+            <div style="font-size:13px;font-weight:800;color:var(--g1);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
+              ${line.name}
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-secondary btn-sm" onclick="addStand('${pen.id}','${line.id}')">+ Stand</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteLine('${pen.id}','${line.id}')">✕</button>
+              </div>
+            </div>
+            ${(line.stands||[]).map(s=>`
+              <div class="stand-row">
+                <div>
+                  <div style="font-weight:700;font-size:13px">${s.name}</div>
+                  <div style="font-size:11px;color:var(--gray)">${s.tiers} tiers · ${s.cellsPerTier} cells/tier · ${s.defaultBirds} birds/cell default</div>
+                </div>
+                <div style="display:flex;gap:5px">
+                  <button class="btn btn-secondary btn-sm" onclick="editStand('${pen.id}','${line.id}','${s.id}')">Edit</button>
+                  <button class="btn btn-danger btn-sm" onclick="deleteStand('${pen.id}','${line.id}','${s.id}')">✕</button>
+                </div>
+              </div>`).join('')}
+          </div>`).join('')}
+        <div style="display:flex;flex-direction:column;gap:7px;margin-top:6px">
+          <button class="btn btn-secondary btn-sm" onclick="addLine('${pen.id}')">+ Add Line</button>
+          <button class="btn btn-amber btn-sm" onclick="editPen('${pen.id}')">Edit Pen</button>
+          <button class="btn btn-danger btn-sm" onclick="deletePen('${pen.id}')">Delete Pen</button>
+        </div>
+      </div>
+    </div>`).join('');
+
+  el.innerHTML=`
+    <div class="topbar"><div><h1>Farm Setup</h1></div></div>
+    <div class="card">
+      <div class="card-title">Farm Details</div>
+      <div class="field"><label>Farm Name</label>
+        <input type="text" id="s_name" value="${farm.name||''}" placeholder="e.g. Green Valley Farms">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label>Expected Rate (%)</label>
+          <input type="number" id="s_exp" value="${farm.expectedRate||85}" min="50" max="100">
+        </div>
+        <div class="field"><label>Warn Below (%)</label>
+          <input type="number" id="s_warn" value="${farm.warnRate||70}" min="30" max="99">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveFarm()">Save Farm Details</button>
+    </div>
+    <div class="sec-hdr" style="margin-top:4px">Pens</div>
+    ${pensHtml}
+    <div style="margin:10px 16px 24px">
+      <button class="btn btn-primary" onclick="addPen()">+ Add New Pen</button>
+    </div>`;
+}
+
+function toggleAcc(id){ document.getElementById('acc_'+id)?.classList.toggle('open') }
+
+function saveFarm() {
+  const farm = DB.getFarm()||{pens:[]};
+  farm.name=document.getElementById('s_name').value.trim()||'My Farm';
+  farm.expectedRate=parseInt(document.getElementById('s_exp').value)||85;
+  farm.warnRate=parseInt(document.getElementById('s_warn').value)||70;
+  DB.saveFarm(farm); toast('Farm details saved ✓');
+}
+
+function addPen() {
+  const today = DB.today();
+  openModal(`
+    <div class="modal-ttl">Add Pen <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="field"><label>Pen Name</label>
+      <input type="text" id="m_pname" placeholder="e.g. Pen A / House 1">
+    </div>
+    <div class="field">
+      <label>Date Birds Arrived <span style="color:var(--gray);font-weight:400">— optional</span></label>
+      <input type="date" id="m_fdate" max="${today}">
+    </div>
+    <div class="field">
+      <label>Age of Birds at Arrival (weeks) <span style="color:var(--gray);font-weight:400">— optional</span></label>
+      <input type="number" id="m_farr" placeholder="e.g. 0 for DOC, 16 for point-of-lay" min="0" max="100">
+      <div style="font-size:11px;color:var(--gray);margin-top:5px;line-height:1.5">
+        How old were the birds <b>when they arrived</b>? e.g. day-old chicks = 0, 
+        started pullets = 12–14, point-of-lay = 16–18. The app adds this to the 
+        time elapsed since arrival to get the correct current age — and adjusts 
+        the expected production rate automatically every day.
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="doAddPen()">Add Pen</button>`);
+}
+
+function doAddPen() {
+  const name       = document.getElementById('m_pname').value.trim();
+  const fdate      = document.getElementById('m_fdate').value || null;
+  const ageArrival = parseInt(document.getElementById('m_farr').value) || 0;
+  if (!name){toast('Enter pen name');return;}
+  const farm=DB.getFarm()||{name:'My Farm',expectedRate:85,warnRate:70,pens:[]};
+  (farm.pens=farm.pens||[]).push({id:uid(),name,flockStartDate:fdate,flockAgeAtArrival:ageArrival,lines:[]});
+  DB.saveFarm(farm); closeModal(); toast(`${name} added ✓`); renderSetup();
+}
+
+function editPen(penId) {
+  const farm  = DB.getFarm();
+  const pen   = farm.pens.find(p=>p.id===penId);
+  const today = DB.today();
+  const stage = getPenStage(pen);
+  openModal(`
+    <div class="modal-ttl">Edit ${pen.name} <button class="modal-x" onclick="closeModal()">×</button></div>
+    ${stage ? `
+    <div style="background:${stage.bg};border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px;color:${stage.color};font-weight:700;line-height:1.6">
+      ${stage.emoji} <b>Current Age: Week ${stage.weeks}</b> · ${stage.label}<br>
+      <span style="font-weight:500">${stage.ageAtArrival}w at arrival + ${stage.weeksSince}w on farm = Week ${stage.weeks}</span><br>
+      Expected ≥${stage.expected}% · Warn &lt;${stage.warn}%
+    </div>` : ''}
+    <div class="field"><label>Pen Name</label>
+      <input type="text" id="m_pname" value="${pen.name}">
+    </div>
+    <div class="field">
+      <label>Date Birds Arrived</label>
+      <input type="date" id="m_fdate" value="${pen.flockStartDate||''}" max="${today}">
+    </div>
+    <div class="field">
+      <label>Age of Birds at Arrival (weeks)</label>
+      <input type="number" id="m_farr" value="${pen.flockAgeAtArrival||0}" min="0" max="100">
+      <div style="font-size:11px;color:var(--gray);margin-top:5px;line-height:1.5">
+        e.g. 0 = day-old chicks · 12–14 = started pullets · 16–18 = point-of-lay
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="doEditPen('${penId}')">Save</button>`);
+}
+
+function doEditPen(penId) {
+  const farm = DB.getFarm();
+  const pen  = farm.pens.find(p=>p.id===penId);
+  pen.name              = document.getElementById('m_pname').value.trim() || pen.name;
+  pen.flockStartDate    = document.getElementById('m_fdate').value || null;
+  pen.flockAgeAtArrival = parseInt(document.getElementById('m_farr').value) || 0;
+  DB.saveFarm(farm); closeModal(); toast('Pen updated ✓'); renderSetup();
+}
+
+function deletePen(penId) {
+  openModal(`<div class="modal-ttl">Delete Pen? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">Removes this pen and all its lines/stands. Collection records are kept.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();doDeletePen('${penId}')">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+
+function doDeletePen(penId) {
+  const farm=DB.getFarm(); farm.pens=farm.pens.filter(p=>p.id!==penId);
+  DB.saveFarm(farm); toast('Pen deleted'); renderSetup();
+}
+
+function addLine(penId) {
+  openModal(`
+    <div class="modal-ttl">Add Line <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="field"><label>Line Name</label>
+      <input type="text" id="m_lname" placeholder="e.g. Line 1 / Row A">
+    </div>
+    <button class="btn btn-primary" onclick="doAddLine('${penId}')">Add Line</button>`);
+}
+
+function doAddLine(penId) {
+  const name=document.getElementById('m_lname').value.trim();
+  if (!name){toast('Enter line name');return;}
+  const farm=DB.getFarm(); const pen=farm.pens.find(p=>p.id===penId);
+  (pen.lines=pen.lines||[]).push({id:uid(),name,stands:[]});
+  DB.saveFarm(farm); closeModal(); toast(`${name} added ✓`); renderSetup();
+}
+
+function deleteLine(penId, lineId) {
+  openModal(`<div class="modal-ttl">Delete Line? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">Removes this line and all its stands.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();doDeleteLine('${penId}','${lineId}')">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+
+function doDeleteLine(penId,lineId) {
+  const farm=DB.getFarm(); const pen=farm.pens.find(p=>p.id===penId);
+  pen.lines=pen.lines.filter(l=>l.id!==lineId);
+  DB.saveFarm(farm); toast('Line deleted'); renderSetup();
+}
+
+function addStand(penId, lineId) {
+  openModal(`
+    <div class="modal-ttl">Add Stand <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="field"><label>Stand Name</label>
+      <input type="text" id="m_sname" placeholder="e.g. Stand 1">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <div class="field"><label>Tiers</label>
+        <select id="m_tiers"><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option></select>
+      </div>
+      <div class="field"><label>Cells/Tier</label>
+        <input type="number" id="m_cells" value="10" min="2" max="30">
+      </div>
+      <div class="field"><label>Birds/Cell</label>
+        <select id="m_birds">
+          <option value="1">1</option><option value="2">2</option>
+          <option value="3">3</option><option value="4" selected>4</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="doAddStand('${penId}','${lineId}')">Add Stand</button>`);
+}
+
+function doAddStand(penId, lineId) {
+  const name=document.getElementById('m_sname').value.trim();
+  if (!name){toast('Enter stand name');return;}
+  const farm=DB.getFarm(); const line=farm.pens.find(p=>p.id===penId)?.lines.find(l=>l.id===lineId);
+  if (!line) return;
+  (line.stands=line.stands||[]).push({
+    id:uid(), name,
+    tiers:parseInt(document.getElementById('m_tiers').value),
+    cellsPerTier:parseInt(document.getElementById('m_cells').value),
+    defaultBirds:parseInt(document.getElementById('m_birds').value),
+    cellBirds:{}
+  });
+  DB.saveFarm(farm); closeModal(); toast(`${name} added ✓`); renderSetup();
+}
+
+function editStand(penId, lineId, standId) {
+  const farm=DB.getFarm(); const line=farm.pens.find(p=>p.id===penId)?.lines.find(l=>l.id===lineId);
+  const s=line?.stands.find(st=>st.id===standId); if (!s) return;
+  openModal(`
+    <div class="modal-ttl">Edit ${s.name} <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="field"><label>Stand Name</label>
+      <input type="text" id="m_sname" value="${s.name}">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      <div class="field"><label>Tiers</label>
+        <select id="m_tiers">
+          ${[2,3,4].map(n=>`<option value="${n}" ${s.tiers===n?'selected':''}>${n}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>Cells/Tier</label>
+        <input type="number" id="m_cells" value="${s.cellsPerTier}" min="2" max="30">
+      </div>
+      <div class="field"><label>Default Birds</label>
+        <select id="m_birds">
+          ${[1,2,3,4].map(n=>`<option value="${n}" ${s.defaultBirds===n?'selected':''}>${n}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="doEditStand('${penId}','${lineId}','${standId}')">Save</button>`);
+}
+
+function doEditStand(penId, lineId, standId) {
+  const farm=DB.getFarm(); const line=farm.pens.find(p=>p.id===penId)?.lines.find(l=>l.id===lineId);
+  const s=line?.stands.find(st=>st.id===standId); if (!s) return;
+  s.name=document.getElementById('m_sname').value.trim()||s.name;
+  s.tiers=parseInt(document.getElementById('m_tiers').value);
+  s.cellsPerTier=parseInt(document.getElementById('m_cells').value);
+  s.defaultBirds=parseInt(document.getElementById('m_birds').value);
+  DB.saveFarm(farm); closeModal(); toast('Stand updated ✓'); renderSetup();
+}
+
+function deleteStand(penId, lineId, standId) {
+  openModal(`<div class="modal-ttl">Delete Stand? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">Collection records for this stand are kept.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();doDeleteStand('${penId}','${lineId}','${standId}')">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+
+function doDeleteStand(penId, lineId, standId) {
+  const farm=DB.getFarm(); const line=farm.pens.find(p=>p.id===penId)?.lines.find(l=>l.id===lineId);
+  if (!line) return;
+  line.stands=line.stands.filter(s=>s.id!==standId);
+  DB.saveFarm(farm); toast('Stand deleted'); renderSetup();
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+renderHome();
+</script>
+</body>
+</html>
