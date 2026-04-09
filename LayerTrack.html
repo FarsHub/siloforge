@@ -179,7 +179,67 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   </button>
 </nav>
 
+<!-- Firebase Compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<!-- Login Screen -->
+<div id="login-screen" style="position:fixed;inset:0;background:var(--g1);display:flex;align-items:center;justify-content:center;z-index:9999">
+  <div style="background:var(--white);border-radius:var(--radius);padding:32px;width:90%;max-width:340px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.25)">
+    <div style="font-size:48px;margin-bottom:8px">🌿</div>
+    <h2 style="color:var(--g1);font-size:22px;margin-bottom:4px">LayerTrack</h2>
+    <p style="color:var(--gray);font-size:13px;margin-bottom:24px">SiloForge Farm Apps</p>
+    <input id="farm-code-input" type="text" placeholder="FARM CODE" autocomplete="off" autocapitalize="characters" style="width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:20px;text-align:center;letter-spacing:3px;text-transform:uppercase;margin-bottom:12px" oninput="this.value=this.value.toUpperCase().replace(/\s/g,'')" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="btn btn-primary" style="width:100%;padding:14px;font-size:16px" onclick="doLogin()">Enter Farm</button>
+    <p id="login-err" style="color:var(--red);font-size:13px;margin-top:10px;min-height:18px"></p>
+  </div>
+</div>
+
 <script>
+// ═══════════════════════════════════════════════
+// FIREBASE & SYNC
+// ═══════════════════════════════════════════════
+const firebaseConfig={apiKey:"AIzaSyCg7LCTpghu7mkKvHdqWdRmZGfJWkjYH98",authDomain:"siloforgeagro.firebaseapp.com",projectId:"siloforgeagro",storageBucket:"siloforgeagro.firebasestorage.app",messagingSenderId:"65830087779",appId:"1:65830087779:web:2b29a420b49a8662745c56"};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.firestore();
+db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
+
+let FARM_CODE='';
+const CACHE={};
+function farmRef(col){return db.collection('farms').doc(FARM_CODE).collection(col);}
+function farmDoc(col,id){return farmRef(col).doc(id);}
+async function _batchWrite(k,arr){
+  try{
+    const snap=await farmRef(k).get();
+    const ops=[...snap.docs.map(d=>({t:'del',r:d.ref})),...arr.map(i=>({t:'set',r:farmRef(k).doc(i.id),d:i}))];
+    for(let i=0;i<ops.length;i+=490){const b=db.batch();ops.slice(i,i+490).forEach(o=>o.t==='del'?b.delete(o.r):b.set(o.r,o.d));await b.commit();}
+  }catch(e){toast('Sync error ⚠');}
+}
+async function _deleteCol(k){
+  CACHE[k]=[];
+  try{const snap=await farmRef(k).get();if(!snap.empty){const b=db.batch();snap.docs.forEach(d=>b.delete(d.ref));await b.commit();}}catch(e){toast('Sync error ⚠');}
+}
+async function loadFromFirestore(){
+  for(const[name,k]of Object.entries(KEYS)){
+    if(name==='farm'){const doc=await farmDoc(k,'config').get();CACHE[k]=doc.exists?doc.data().data:null;}
+    else{const snap=await farmRef(k).get();CACHE[k]=snap.docs.map(d=>d.data());}
+  }
+}
+function showLoginErr(msg){document.getElementById('login-err').textContent=msg;}
+async function doLogin(){
+  const code=document.getElementById('farm-code-input').value.trim().toUpperCase();
+  if(!code){showLoginErr('Please enter a farm code');return;}
+  FARM_CODE=code;
+  const ls=document.getElementById('login-screen');
+  ls.innerHTML='<div style="color:#fff;font-size:18px;font-weight:600">Loading farm data\u2026</div>';
+  try{await loadFromFirestore();ls.style.display='none';localStorage.setItem('sf_farm_code',code);renderHome();}
+  catch(err){FARM_CODE='';location.reload();}
+}
+function initApp(){
+  const saved=localStorage.getItem('sf_farm_code');
+  if(saved)document.getElementById('farm-code-input').value=saved;
+}
+
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
@@ -214,12 +274,12 @@ const KEYS = {
 };
 const DB = {
   today(){ return new Date().toISOString().slice(0,10) },
-  _get(k){ return JSON.parse(localStorage.getItem(k)||'null') },
-  _set(k,v){ localStorage.setItem(k,JSON.stringify(v)) },
-  _arr(k){ return JSON.parse(localStorage.getItem(k)||'[]') },
-  _push(k,item){ const a=this._arr(k); a.push(item); this._set(k,a) },
-  _del(k,id){ this._set(k,this._arr(k).filter(x=>x.id!==id)) },
-  _upd(k,id,upd){ this._set(k,this._arr(k).map(x=>x.id===id?{...x,...upd}:x)) },
+  _get(k){ return CACHE[k]??null },
+  _set(k,v){ CACHE[k]=v; if(Array.isArray(v))_batchWrite(k,v); else farmDoc(k,'config').set({data:v}).catch(()=>toast('Sync error ⚠')); },
+  _arr(k){ return CACHE[k]||[] },
+  _push(k,item){ if(!CACHE[k])CACHE[k]=[]; CACHE[k].push(item); farmDoc(k,item.id).set(item).catch(()=>toast('Sync error ⚠')); },
+  _del(k,id){ CACHE[k]=(CACHE[k]||[]).filter(x=>x.id!==id); farmDoc(k,id).delete().catch(()=>toast('Sync error ⚠')); },
+  _upd(k,id,upd){ CACHE[k]=(CACHE[k]||[]).map(x=>x.id===id?{...x,...upd}:x); farmDoc(k,id).set(upd,{merge:true}).catch(()=>toast('Sync error ⚠')); },
   getFarm(){ return this._get(KEYS.farm) },
   saveFarm(f){ this._set(KEYS.farm,f) },
   getCols(){ return this._arr(KEYS.cols) },
@@ -1715,8 +1775,8 @@ function resetModule(mod){
 }
 function doResetModule(mod){
   const keyMap={cols:KEYS.cols,birds:KEYS.birds,feed:KEYS.feed,health:KEYS.health,finance:'__multi__'};
-  if(mod==='finance'){localStorage.removeItem(KEYS.expenses);localStorage.removeItem(KEYS.sales);localStorage.removeItem(KEYS.recv);}
-  else if(keyMap[mod])localStorage.removeItem(keyMap[mod]);
+  if(mod==='finance'){_deleteCol(KEYS.expenses);_deleteCol(KEYS.sales);_deleteCol(KEYS.recv);}
+  else if(keyMap[mod])_deleteCol(keyMap[mod]);
   toast('Data reset ✓');renderSettings();
 }
 
@@ -1767,11 +1827,11 @@ function importData(input){
       const data=JSON.parse(e.target.result);
       if(data.farm)DB.saveFarm(data.farm);
       if(data.egg_collection_detail)DB.saveCols(data.egg_collection_detail);
-      if(data.daily_bird_status)localStorage.setItem(KEYS.birds,JSON.stringify(data.daily_bird_status));
-      if(data.daily_feed_usage)localStorage.setItem(KEYS.feed,JSON.stringify(data.daily_feed_usage));
-      if(data.health_log)localStorage.setItem(KEYS.health,JSON.stringify(data.health_log));
-      if(data.expenses)localStorage.setItem(KEYS.expenses,JSON.stringify(data.expenses));
-      if(data.sales)localStorage.setItem(KEYS.sales,JSON.stringify(data.sales));
+      if(data.daily_bird_status)DB._set(KEYS.birds,data.daily_bird_status);
+      if(data.daily_feed_usage)DB._set(KEYS.feed,data.daily_feed_usage);
+      if(data.health_log)DB._set(KEYS.health,data.health_log);
+      if(data.expenses)DB._set(KEYS.expenses,data.expenses);
+      if(data.sales)DB._set(KEYS.sales,data.sales);
       toast('Data imported ✓',3000);renderHome();renderSettings();
     }catch(err){toast('Import failed — invalid file','3000');}
   };
@@ -1781,7 +1841,7 @@ function importData(input){
 // ═══════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════
-renderHome();
+initApp();
 </script>
 </body>
 </html>

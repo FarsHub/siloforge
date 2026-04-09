@@ -140,7 +140,67 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   </button>
 </nav>
 
+<!-- Firebase Compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<!-- Login Screen -->
+<div id="login-screen" style="position:fixed;inset:0;background:var(--p1);display:flex;align-items:center;justify-content:center;z-index:9999">
+  <div style="background:var(--white);border-radius:var(--radius);padding:32px;width:90%;max-width:340px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.25)">
+    <div style="font-size:48px;margin-bottom:8px">🐣</div>
+    <h2 style="color:var(--p2);font-size:22px;margin-bottom:4px">BroodTrack</h2>
+    <p style="color:var(--gray);font-size:13px;margin-bottom:24px">SiloForge Farm Apps</p>
+    <input id="farm-code-input" type="text" placeholder="FARM CODE" autocomplete="off" autocapitalize="characters" style="width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:20px;text-align:center;letter-spacing:3px;text-transform:uppercase;margin-bottom:12px" oninput="this.value=this.value.toUpperCase().replace(/\s/g,'')" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="btn btn-primary" style="width:100%;padding:14px;font-size:16px" onclick="doLogin()">Enter Farm</button>
+    <p id="login-err" style="color:var(--red);font-size:13px;margin-top:10px;min-height:18px"></p>
+  </div>
+</div>
+
 <script>
+// ═══════════════════════════════════════════════
+// FIREBASE & SYNC
+// ═══════════════════════════════════════════════
+const firebaseConfig={apiKey:"AIzaSyCg7LCTpghu7mkKvHdqWdRmZGfJWkjYH98",authDomain:"siloforgeagro.firebaseapp.com",projectId:"siloforgeagro",storageBucket:"siloforgeagro.firebasestorage.app",messagingSenderId:"65830087779",appId:"1:65830087779:web:2b29a420b49a8662745c56"};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.firestore();
+db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
+
+let FARM_CODE='';
+const CACHE={};
+function farmRef(col){return db.collection('farms').doc(FARM_CODE).collection(col);}
+function farmDoc(col,id){return farmRef(col).doc(id);}
+async function _batchWrite(k,arr){
+  try{
+    const snap=await farmRef(k).get();
+    const ops=[...snap.docs.map(d=>({t:'del',r:d.ref})),...arr.map(i=>({t:'set',r:farmRef(k).doc(i.id),d:i}))];
+    for(let i=0;i<ops.length;i+=490){const b=db.batch();ops.slice(i,i+490).forEach(o=>o.t==='del'?b.delete(o.r):b.set(o.r,o.d));await b.commit();}
+  }catch(e){toast('Sync error ⚠');}
+}
+async function _deleteCol(k){
+  CACHE[k]=[];
+  try{const snap=await farmRef(k).get();if(!snap.empty){const b=db.batch();snap.docs.forEach(d=>b.delete(d.ref));await b.commit();}}catch(e){toast('Sync error ⚠');}
+}
+async function loadFromFirestore(){
+  for(const[name,k]of Object.entries(KEYS)){
+    if(name==='farm'){const doc=await farmDoc(k,'config').get();CACHE[k]=doc.exists?doc.data().data:null;}
+    else{const snap=await farmRef(k).get();CACHE[k]=snap.docs.map(d=>d.data());}
+  }
+}
+function showLoginErr(msg){document.getElementById('login-err').textContent=msg;}
+async function doLogin(){
+  const code=document.getElementById('farm-code-input').value.trim().toUpperCase();
+  if(!code){showLoginErr('Please enter a farm code');return;}
+  FARM_CODE=code;
+  const ls=document.getElementById('login-screen');
+  ls.innerHTML='<div style="color:#fff;font-size:18px;font-weight:600">Loading farm data\u2026</div>';
+  try{await loadFromFirestore();ls.style.display='none';localStorage.setItem('sf_farm_code',code);renderHome();}
+  catch(err){FARM_CODE='';location.reload();}
+}
+function initApp(){
+  const saved=localStorage.getItem('sf_farm_code');
+  if(saved)document.getElementById('farm-code-input').value=saved;
+}
+
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
@@ -185,13 +245,14 @@ const KEYS={farm:'bt_farm_v1',batches:'bt_batches_v1',daily:'bt_daily_v1',
   weight:'bt_weight_v1',health:'bt_health_v1',expenses:'bt_expenses_v1',sales:'bt_sales_v1'};
 const DB={
   today(){return new Date().toISOString().slice(0,10)},
-  _arr(k){return JSON.parse(localStorage.getItem(k)||'[]')},
-  _set(k,v){localStorage.setItem(k,JSON.stringify(v))},
-  _push(k,i){const a=this._arr(k);a.push(i);this._set(k,a)},
-  _del(k,id){this._set(k,this._arr(k).filter(x=>x.id!==id))},
-  _upd(k,id,u){this._set(k,this._arr(k).map(x=>x.id===id?{...x,...u}:x))},
-  getFarm(){return JSON.parse(localStorage.getItem(KEYS.farm)||'null')},
-  saveFarm(f){localStorage.setItem(KEYS.farm,JSON.stringify(f))},
+  _get(k){return CACHE[k]??null},
+  _set(k,v){CACHE[k]=v;if(Array.isArray(v))_batchWrite(k,v);else farmDoc(k,'config').set({data:v}).catch(()=>toast('Sync error ⚠'));},
+  _arr(k){return CACHE[k]||[]},
+  _push(k,i){if(!CACHE[k])CACHE[k]=[];CACHE[k].push(i);farmDoc(k,i.id).set(i).catch(()=>toast('Sync error ⚠'));},
+  _del(k,id){CACHE[k]=(CACHE[k]||[]).filter(x=>x.id!==id);farmDoc(k,id).delete().catch(()=>toast('Sync error ⚠'));},
+  _upd(k,id,u){CACHE[k]=(CACHE[k]||[]).map(x=>x.id===id?{...x,...u}:x);farmDoc(k,id).set(u,{merge:true}).catch(()=>toast('Sync error ⚠'));},
+  getFarm(){return this._get(KEYS.farm)},
+  saveFarm(f){this._set(KEYS.farm,f)},
   getBatches(){return this._arr(KEYS.batches)},
   addBatch(b){this._push(KEYS.batches,b)},
   updBatch(id,u){this._upd(KEYS.batches,id,u)},
@@ -1297,12 +1358,12 @@ function importData(input){
     try{
       const data=JSON.parse(e.target.result);
       if(data.farm)DB.saveFarm(data.farm);
-      if(data.batches)localStorage.setItem(KEYS.batches,JSON.stringify(data.batches));
-      if(data.brooding_daily_log)localStorage.setItem(KEYS.daily,JSON.stringify(data.brooding_daily_log));
-      if(data.brooding_weight_log)localStorage.setItem(KEYS.weight,JSON.stringify(data.brooding_weight_log));
-      if(data.brooding_health_log)localStorage.setItem(KEYS.health,JSON.stringify(data.brooding_health_log));
-      if(data.expenses)localStorage.setItem(KEYS.expenses,JSON.stringify(data.expenses));
-      if(data.sales)localStorage.setItem(KEYS.sales,JSON.stringify(data.sales));
+      if(data.batches)DB._set(KEYS.batches,data.batches);
+      if(data.brooding_daily_log)DB._set(KEYS.daily,data.brooding_daily_log);
+      if(data.brooding_weight_log)DB._set(KEYS.weight,data.brooding_weight_log);
+      if(data.brooding_health_log)DB._set(KEYS.health,data.brooding_health_log);
+      if(data.expenses)DB._set(KEYS.expenses,data.expenses);
+      if(data.sales)DB._set(KEYS.sales,data.sales);
       toast('Data imported ✓',3000);renderHome();
     }catch(err){toast('Import failed — invalid file');}
   };
@@ -1312,14 +1373,22 @@ function resetAll(){
   openModal(`<div class="modal-ttl">Reset ALL Data? <button class="modal-x" onclick="closeModal()">×</button></div>
     <p style="font-size:14px;color:var(--red);font-weight:700;margin-bottom:18px">⚠ This will permanently delete all batches, logs, and financial records. Cannot be undone.</p>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn btn-danger" onclick="closeModal();Object.values(KEYS).forEach(k=>localStorage.removeItem(k));toast('All data reset');renderHome()">Delete Everything</button>
+      <button class="btn btn-danger" onclick="closeModal();doDeleteEverything()">Delete Everything</button>
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+
+async function doDeleteEverything(){
+  for(const k of Object.values(KEYS)){
+    if(k===KEYS.farm){CACHE[k]=null;await farmDoc(k,'config').delete().catch(()=>{});}
+    else{await _deleteCol(k);}
+  }
+  toast('All data reset');renderHome();
 }
 
 // ═══════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════
-renderHome();
+initApp();
 </script>
 </body>
 </html>
