@@ -949,9 +949,10 @@ function openFeedForm(editId){
   const closingBirds=lastBird?.closing_birds||getFarmTotalBirds(farm)||0;
   const feedRate=(farm?.feedRateG||110)/1000;
   const defReq=(closingBirds*feedRate).toFixed(1);
+  const rateLabel=rec?.feed_rate_g?`Rate locked at <b>${rec.feed_rate_g} g/bird/day</b> (current: ${farm?.feedRateG||110} g)`:`Rate: <b>${farm?.feedRateG||110} g/bird/day</b>`;
   openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Feed Entry <button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
-      📅 Logging yesterday's feed? Change the date — e.g. weigh leftover feed in the morning, then record it as <b>yesterday's</b> consumption.
+      📅 Logging yesterday's feed? Change the date — e.g. weigh leftover feed in the morning, then record it as <b>yesterday's</b> consumption.<br><span style="margin-top:4px;display:block">⚖️ ${rateLabel}</span>
     </div>
     <div class="field"><label>Date</label><input type="date" id="ff_date" value="${rec?rec.date:today}" max="${today}"></div>
     <div class="field"><label>Feed Type</label>
@@ -968,7 +969,11 @@ function saveFeedLog(editId){
   const feed_kg_used=parseFloat(document.getElementById('ff_used').value)||0;
   const feed_req_kg=parseFloat(document.getElementById('ff_req').value)||0;
   const ageWeeks=getFarmAgeWeeks(DB.getFarm())||0;
-  const rec={id:editId||uid(),date,feed_type,feed_kg_used,feed_req_kg,age_weeks:ageWeeks};
+  const farm=DB.getFarm();
+  const existing=editId?DB.getFeed().find(r=>r.id===editId):null;
+  // Snapshot feed_rate_g at time of save; preserve existing snapshot on edit
+  const feed_rate_g=existing?.feed_rate_g||(farm?.feedRateG||110);
+  const rec={id:editId||uid(),date,feed_type,feed_kg_used,feed_req_kg,age_weeks:ageWeeks,feed_rate_g};
   if(editId)DB.updFeed(editId,rec);else DB.addFeed(rec);
   closeModal();toast('Feed log saved ✓');renderFeed();
 }
@@ -991,10 +996,12 @@ function renderHealth(){
   const logHtml=`<div class="card">
     <div class="card-title">${todayRec?'Today\'s Health Log ✓':'Log Health'}</div>
     ${todayRec?`
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-        <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--blue)">${todayRec.water_consumed_liters||'—'}</div><div class="kpi-lbl-sm">Water (L)</div></div>
+      ${(()=>{const consumed=todayRec.water_consumed_liters||0;const req=todayRec.water_req_liters||0;const wv=req>0?((consumed-req)/req*100):null;const wvc=wv===null?'var(--gray)':Math.abs(wv)>20?'var(--red)':Math.abs(wv)>10?'var(--amber)':'var(--g2)';return`<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+        <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--blue)">${consumed||'—'}</div><div class="kpi-lbl-sm">Water Used (L)</div></div>
+        <div class="kpi-sm"><div class="kpi-val-sm">${req||'—'}</div><div class="kpi-lbl-sm">Water Req (L)</div></div>
+        <div class="kpi-sm"><div class="kpi-val-sm" style="color:${wvc}">${wv!==null?(wv>0?'+':'')+wv.toFixed(0)+'%':'—'}</div><div class="kpi-lbl-sm">Water Var</div></div>
         <div class="kpi-sm"><div class="kpi-val-sm" style="font-size:13px;color:${todayRec.droppings_observation==='Normal'?'var(--g2)':'var(--amber)'}">${todayRec.droppings_observation||'—'}</div><div class="kpi-lbl-sm">Droppings</div></div>
-      </div>
+      </div>`;})()}
       ${todayRec.vaccination_or_medication?`<div style="font-size:13px;font-weight:700;margin-bottom:4px">💊 ${todayRec.vaccination_or_medication}</div>
         <div style="font-size:12px;color:var(--gray);margin-bottom:10px">via ${todayRec.admin_method||'—'}</div>`:''}
       ${todayRec.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-bottom:10px">"${todayRec.notes}"</div>`:''}
@@ -1007,7 +1014,7 @@ function renderHealth(){
     const dropCls=r.droppings_observation==='Normal'?'badge-green':r.droppings_observation?'badge-red':'badge-gray';
     return`<div class="list-item">
       <div><div style="font-weight:700;font-size:14px">${fmtDate(r.date)}</div>
-        <div style="font-size:12px;color:var(--gray);margin-top:2px">Water: ${r.water_consumed_liters||'—'}L · ${r.vaccination_or_medication||'No meds'}</div>
+        <div style="font-size:12px;color:var(--gray);margin-top:2px">${(()=>{const c=r.water_consumed_liters||0;const q=r.water_req_liters||0;const wv=q>0?((c-q)/q*100):null;const wvc=wv===null?'var(--gray)':Math.abs(wv)>20?'var(--red)':Math.abs(wv)>10?'var(--amber)':'var(--g2)';return`Water: ${c||'—'}L / Req: ${q||'—'}L${wv!==null?` <span style="color:${wvc};font-weight:700">(${wv>0?'+':''}${wv.toFixed(0)}%)</span>`:''}`;})()} · ${r.vaccination_or_medication||'No meds'}</div>
         <span class="badge ${dropCls}" style="margin-top:4px">${r.droppings_observation||'—'} droppings</span></div>
       <div style="display:flex;gap:5px">
         <button class="btn btn-secondary btn-sm" onclick="openHealthForm('${r.id}')">Edit</button>
@@ -1016,7 +1023,7 @@ function renderHealth(){
   }).join('');
   el.innerHTML=`<div class="topbar"><div><h1>Health Log</h1><small>Water, droppings, medication</small></div></div>
     <div class="kpi-row-3">
-      <div class="kpi"><div class="kpi-val" style="color:var(--blue)">${recs[0]?.water_consumed_liters||'—'}</div><div class="kpi-lbl">Last Water (L)</div></div>
+      <div class="kpi">${(()=>{const c=recs[0]?.water_consumed_liters;const q=recs[0]?.water_req_liters;const wv=(c&&q)?((c-q)/q*100):null;const wvc=wv===null?'var(--blue)':Math.abs(wv)>20?'var(--red)':Math.abs(wv)>10?'var(--amber)':'var(--g2)';return`<div class="kpi-val" style="color:${wvc}">${c||'—'}</div><div class="kpi-lbl">Last Water (L)${q?` / Req ${q}`:''}</div>`;})()}</div>
       <div class="kpi"><div class="kpi-val">${recs.length}</div><div class="kpi-lbl">Total Logs</div></div>
       <div class="kpi"><div class="kpi-val" style="color:${abnormal>0?'var(--amber)':'var(--g2)'}">${abnormal}</div><div class="kpi-lbl">Abnormal (7d)</div></div>
     </div>
@@ -1027,13 +1034,21 @@ function renderHealth(){
 }
 function openHealthForm(editId){
   const rec=editId?DB.getHealth().find(r=>r.id===editId):null, today=DB.today();
+  const farm=DB.getFarm();
+  const lastBird=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date))[0];
+  const closingBirds=lastBird?.closing_birds||getFarmTotalBirds(farm)||0;
+  const waterRateMl=farm?.waterRateMlPerBird||250;
+  const defWaterReq=(closingBirds*waterRateMl/1000).toFixed(1);
   const medOpts=MED_SUGGESTIONS.map(m=>`<option value="${m}">${m}</option>`).join('');
   openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Health Record <button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
-      📅 Water measured in the morning? Log it as <b>yesterday's</b> record by changing the date below.
+      📅 Water measured in the morning? Log it as <b>yesterday's</b> record by changing the date below.<br><span style="margin-top:4px;display:block">💧 Rate: <b>${waterRateMl} ml/bird/day</b> · Expected for ${closingBirds} birds: <b>${defWaterReq} L</b></span>
     </div>
     <div class="field"><label>Date</label><input type="date" id="hf_date" value="${rec?rec.date:today}" max="${today}"></div>
-    <div class="field"><label>Water Consumed (litres)</label><input type="number" id="hf_water" value="${rec?.water_consumed_liters||''}" min="0" step="0.5" placeholder="e.g. 200"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Water Consumed (L)</label><input type="number" id="hf_water" value="${rec?.water_consumed_liters||''}" min="0" step="0.5" placeholder="e.g. ${defWaterReq}"></div>
+      <div class="field"><label>Water Required (L)</label><input type="number" id="hf_water_req" value="${rec?.water_req_liters||defWaterReq}" min="0" step="0.1" placeholder="${defWaterReq}"></div>
+    </div>
     <div class="field"><label>Droppings Observation</label>
       <select id="hf_drop">${DROP_OPTIONS.map(d=>`<option value="${d}" ${rec?.droppings_observation===d?'selected':''}>${d}</option>`).join('')}</select></div>
     <div class="field"><label>Vaccination / Medication <span style="color:var(--gray);font-weight:400">— optional</span></label>
@@ -1045,8 +1060,14 @@ function openHealthForm(editId){
     <button class="btn btn-primary" onclick="saveHealthLog('${editId||''}')">Save</button>`);
 }
 function saveHealthLog(editId){
+  const farm=DB.getFarm();
+  const existing=editId?DB.getHealth().find(r=>r.id===editId):null;
+  // Snapshot water_rate_ml at time of save; preserve existing snapshot on edit
+  const water_rate_ml=existing?.water_rate_ml||(farm?.waterRateMlPerBird||250);
   const rec={id:editId||uid(),date:document.getElementById('hf_date').value,
     water_consumed_liters:parseFloat(document.getElementById('hf_water').value)||0,
+    water_req_liters:parseFloat(document.getElementById('hf_water_req').value)||0,
+    water_rate_ml,
     droppings_observation:document.getElementById('hf_drop').value,
     vaccination_or_medication:document.getElementById('hf_med').value.trim(),
     admin_method:document.getElementById('hf_admin').value,
@@ -1598,7 +1619,7 @@ function confirmReset(){
 // SETTINGS — FARM SETUP + EXPORT
 // ═══════════════════════════════════════════════
 function renderSettings(){
-  const farm=DB.getFarm()||{name:'',expectedRate:85,warnRate:70,feedRateG:110,marketPricePerCrate:3500,pens:[]};
+  const farm=DB.getFarm()||{name:'',expectedRate:85,warnRate:70,feedRateG:110,waterRateMlPerBird:250,marketPricePerCrate:3500,pens:[]};
   const el=document.getElementById('v-settings');
   const pensHtml=(farm.pens||[]).map(pen=>`
     <div class="acc-item" id="acc_${pen.id}">
@@ -1641,8 +1662,9 @@ function renderSettings(){
         <div class="field"><label>Expected Rate (%)</label><input type="number" id="s_exp" value="${farm.expectedRate||85}" min="50" max="100"></div>
         <div class="field"><label>Warn Below (%)</label><input type="number" id="s_warn" value="${farm.warnRate||70}" min="30" max="99"></div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
         <div class="field"><label>Feed Rate (g/bird/day)</label><input type="number" id="s_feed" value="${farm.feedRateG||110}" min="80" max="200"></div>
+        <div class="field"><label>Water Rate (ml/bird/day)</label><input type="number" id="s_water" value="${farm.waterRateMlPerBird||250}" min="100" max="600"></div>
         <div class="field"><label>Market Price/Crate (₦)</label><input type="number" id="s_mkt" value="${farm.marketPricePerCrate||3500}" min="0" step="100"></div>
       </div>
       <button class="btn btn-primary" onclick="saveFarm()">Save Farm Details</button>
@@ -1679,6 +1701,7 @@ function saveFarm(){
   farm.expectedRate=parseInt(document.getElementById('s_exp').value)||85;
   farm.warnRate=parseInt(document.getElementById('s_warn').value)||70;
   farm.feedRateG=parseInt(document.getElementById('s_feed').value)||110;
+  farm.waterRateMlPerBird=parseInt(document.getElementById('s_water').value)||250;
   farm.marketPricePerCrate=parseInt(document.getElementById('s_mkt').value)||3500;
   DB.saveFarm(farm);toast('Farm settings saved ✓');
 }
