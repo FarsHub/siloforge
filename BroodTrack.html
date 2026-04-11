@@ -647,6 +647,7 @@ function renderDaily(){
           ${r.temperature_c?`<span class="${tempCls}" style="font-size:11px">${r.temperature_c}°C</span>`:''}
           ${r.humidity_pct?`<span style="font-size:11px;color:var(--blue)">${r.humidity_pct}% RH</span>`:''}
         </div>
+        ${r.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:4px">"${r.notes}"</div>`:''}
       </div>
       <div style="display:flex;gap:4px">
         <button class="btn btn-secondary btn-sm" onclick="openDailyForm('${r.batch_id}','${r.id}')">Edit</button>
@@ -899,7 +900,8 @@ function renderHealth(){
         return`<div class="list-item">
           <div><div style="font-weight:700;font-size:14px">${fmtDate(r.date)} ${r.batch_name?`<span style="font-size:11px;color:var(--gray)">— ${r.batch_name}</span>`:''}</div>
             <div style="font-size:12px;color:var(--gray)">${(()=>{const c=r.water_liters||0;const q=r.water_req_liters||0;const wv=q>0?((c-q)/q*100):null;const wvc=wv===null?'var(--gray)':Math.abs(wv)>20?'var(--red)':Math.abs(wv)>10?'var(--amber)':'var(--g2)';return`Water: ${c||'—'}L${q?` / Req: ${q}L`:''} ${wv!==null?`<span style="color:${wvc};font-weight:700">(${wv>0?'+':''}${wv.toFixed(0)}%)</span>`:''} · ${r.medication||'No meds'}`;})()}</div>
-            <span class="badge ${dropCls}" style="margin-top:4px">${r.droppings||'—'} droppings</span></div>
+            <span class="badge ${dropCls}" style="margin-top:4px">${r.droppings||'—'} droppings</span>
+            ${r.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:4px">"${r.notes}"</div>`:''}</div>
           <div style="display:flex;gap:4px">
             <button class="btn btn-secondary btn-sm" onclick="openHealthForm('${r.id}')">Edit</button>
             <button class="btn btn-danger btn-sm" onclick="delHealth('${r.id}')">✕</button>
@@ -1023,6 +1025,7 @@ function renderFinance(){
                 <div style="font-weight:700;font-size:14px">${s.batch_name||'—'} — ${s.quantity} birds @ Wk ${s.age_weeks_at_sale||'—'}</div>
                 <div style="font-size:12px;color:var(--gray);margin-top:2px">${fmtDate(s.date)}${s.buyer?' · '+s.buyer:''}</div>
                 <div style="margin-top:4px">${payBadge}${isCredit&&s.due_date?`<span style="font-size:11px;color:var(--gray);margin-left:6px">Due ${fmtDate(s.due_date)}</span>`:''}</div>
+                ${s.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:4px">"${s.notes}"</div>`:''}
               </div>
               <div style="text-align:right;flex-shrink:0;margin-left:10px">
                 <div style="font-weight:800;color:var(--g2)">${fmtMoney(s.total_amount_ngn)}</div>
@@ -1242,6 +1245,16 @@ function delSale(id){openModal(`<div class="modal-ttl">Delete? <button class="mo
 // REPORTS
 // ═══════════════════════════════════════════════
 let REP_TAB='batches';
+let GRW_SORT={field:null,dir:'desc'};
+function setGrwSort(field){GRW_SORT=GRW_SORT.field===field?{field,dir:GRW_SORT.dir==='desc'?'asc':'desc'}:{field,dir:'desc'};renderReports();}
+function sortGrowth(arr){
+  if(!GRW_SORT.field)return arr;
+  return [...arr].sort((a,b)=>{
+    const av=GRW_SORT.field==='actual'?a.avg_weight_g:(a.benchmark_g?a.avg_weight_g/a.benchmark_g*100:-1);
+    const bv=GRW_SORT.field==='actual'?b.avg_weight_g:(b.benchmark_g?b.avg_weight_g/b.benchmark_g*100:-1);
+    return GRW_SORT.dir==='desc'?bv-av:av-bv;
+  });
+}
 function renderReports(){
   const el=document.getElementById('v-reports');
   const batches=DB.getBatches();
@@ -1325,6 +1338,35 @@ function renderReports(){
         '<div class="empty" style="padding:24px"><p>No death events in last 30 days.</p></div>'}
     </div>`;
 
+  } else if(REP_TAB==='journal'){
+    const allNotes=[];
+    DB.getDaily().forEach(r=>{if(r.notes?.trim()){allNotes.push({date:r.date,icon:'📋',source:'Daily Log',meta:`${r.batch_name||r.batch_id||'—'} · Day ${r.age_days}`,note:r.notes});}});
+    DB.getHealth().forEach(r=>{if(r.notes?.trim()){allNotes.push({date:r.date,icon:'🩺',source:'Health',meta:r.batch_name||'All batches',note:r.notes});}});
+    DB.getExpenses().forEach(r=>{if(r.notes?.trim()){allNotes.push({date:r.date,icon:'💸',source:'Expense',meta:`${r.category}${r.batch_name?' · '+r.batch_name:''}`,note:r.notes});}});
+    DB.getSales().forEach(r=>{if(r.notes?.trim()){allNotes.push({date:r.date,icon:'🐔',source:'Sale',meta:`${r.batch_name||'—'} · ${r.quantity} birds`,note:r.notes});}});
+    DB.getWeight().forEach(r=>{if(r.notes?.trim()){allNotes.push({date:r.date,icon:'⚖️',source:'Weight',meta:`${r.batch_name||'—'} · Wk ${r.week_num}`,note:r.notes});}});
+    allNotes.sort((a,b)=>b.date.localeCompare(a.date));
+    if(allNotes.length===0){
+      tabContent=`<div class="empty" style="padding:40px 24px"><p>No notes recorded yet.</p><p style="font-size:12px;margin-top:6px">Add notes when logging daily data, health, expenses, sales, or weights.</p></div>`;
+    } else {
+      const grouped={};
+      allNotes.forEach(n=>{(grouped[n.date]=grouped[n.date]||[]).push(n);});
+      tabContent=Object.entries(grouped).map(([date,entries])=>`
+        <div class="sec-hdr" style="margin-top:8px">${fmtDate(date)}</div>
+        <div class="card" style="padding:0;overflow:hidden">
+          ${entries.map(n=>`<div class="list-item" style="align-items:flex-start">
+            <div style="font-size:20px;margin-right:4px;flex-shrink:0">${n.icon}</div>
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <span style="font-size:11px;font-weight:800;background:var(--p5);color:var(--p1);padding:2px 7px;border-radius:20px">${n.source}</span>
+                <span style="font-size:11px;color:var(--gray)">${n.meta}</span>
+              </div>
+              <div style="font-size:13px;font-style:italic;color:var(--p1);margin-top:4px">"${n.note}"</div>
+            </div>
+          </div>`).join('')}
+        </div>`).join('');
+    }
+
   } else if(REP_TAB==='growth'){
     const batchSelect=batches[0]?.id;
     const bWeight=weight.filter(r=>batchSelect&&r.batch_id===batchSelect).sort((a,b)=>a.week_num-b.week_num);
@@ -1334,12 +1376,21 @@ function renderReports(){
         ${batchOpts}</select></div>
       <div class="card" style="padding:0;overflow:hidden">
         <table style="width:100%;border-collapse:collapse;font-size:13px">
-          <tr style="background:var(--p5)"><th style="padding:9px 12px;text-align:left">Week</th><th style="padding:9px 12px">Actual (g)</th><th style="padding:9px 12px">Target (g)</th><th style="padding:9px 12px">Status</th></tr>
-          ${bWeight.map(w=>{const bm=getWeightBenchmark(batches.find(b=>b.id===w.batch_id)?.breed||'Isa Brown',w.week_num);
-            const pct=bm?Math.round(w.avg_weight_g/bm*100):null;
+          <tr style="background:var(--p5)">
+            <th style="padding:9px 12px;text-align:left">Week</th>
+            <th style="padding:9px 12px;cursor:pointer;user-select:none" onclick="setGrwSort('actual')">
+              Actual (g) <span style="color:${GRW_SORT.field==='actual'?'var(--p2)':'var(--gray)'}">${GRW_SORT.field==='actual'?(GRW_SORT.dir==='desc'?'↓':'↑'):'↕'}</span>
+            </th>
+            <th style="padding:9px 12px">Target (g)</th>
+            <th style="padding:9px 12px;cursor:pointer;user-select:none" onclick="setGrwSort('pct')">
+              % Target <span style="color:${GRW_SORT.field==='pct'?'var(--p2)':'var(--gray)'}">${GRW_SORT.field==='pct'?(GRW_SORT.dir==='desc'?'↓':'↑'):'↕'}</span>
+            </th>
+          </tr>
+          ${sortGrowth(bWeight.map(w=>{const bm=getWeightBenchmark(batches.find(b=>b.id===w.batch_id)?.breed||'Isa Brown',w.week_num);return{...w,benchmark_g:bm};})).map(w=>{
+            const pct=w.benchmark_g?Math.round(w.avg_weight_g/w.benchmark_g*100):null;
             return`<tr><td style="padding:9px 12px;font-weight:700">Wk ${w.week_num}</td>
               <td style="padding:9px 12px;text-align:center;font-weight:800;color:var(--p2)">${w.avg_weight_g}g</td>
-              <td style="padding:9px 12px;text-align:center;color:var(--gray)">${bm?bm+'g':'—'}</td>
+              <td style="padding:9px 12px;text-align:center;color:var(--gray)">${w.benchmark_g?w.benchmark_g+'g':'—'}</td>
               <td style="padding:9px 12px;text-align:center">
                 <span class="badge ${pct===null?'badge-gray':pct>=95?'badge-green':pct>=85?'badge-amber':'badge-red'}">${pct!==null?pct+'%':'—'}</span>
               </td></tr>`;}).join('')||'<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--gray)">No weight records for this batch.</td></tr>'}
@@ -1352,6 +1403,7 @@ function renderReports(){
       <button class="inner-tab ${REP_TAB==='batches'?'active':''}" onclick="REP_TAB='batches';renderReports()">Batches</button>
       <button class="inner-tab ${REP_TAB==='mortality'?'active':''}" onclick="REP_TAB='mortality';renderReports()">Mortality</button>
       <button class="inner-tab ${REP_TAB==='growth'?'active':''}" onclick="REP_TAB='growth';renderReports()">Growth</button>
+      <button class="inner-tab ${REP_TAB==='journal'?'active':''}" onclick="REP_TAB='journal';renderReports()">📓 Journal</button>
     </div>
     ${tabContent}
     <div style="height:12px"></div>`;

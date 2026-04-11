@@ -389,7 +389,9 @@ function rateBadge(rate){
   return `<span class="badge ${cls}">${rate.toFixed(1)}%</span>`;
 }
 function rateColor(r){ return r===null?'#aaa':r>=85?'var(--g2)':r>=70?'var(--amber)':'var(--red)' }
-function getCellBirds(stand,tier,cell){
+function getCellBirds(stand,tier,cell,side){
+  // Side-specific key takes priority; fall back to legacy side-agnostic key, then default
+  if(side){const k=`${tier}_${cell}_${side}`;if(stand.cellBirds&&stand.cellBirds[k]!==undefined)return stand.cellBirds[k];}
   const k=`${tier}_${cell}`;
   if(stand.cellBirds&&stand.cellBirds[k]!==undefined)return stand.cellBirds[k];
   return stand.defaultBirds||4;
@@ -408,8 +410,9 @@ function getFarmTotalBirds(farm){
       for(const stand of line.stands||[])
         for(let t=1;t<=stand.tiers;t++)
           for(let c=1;c<=stand.cellsPerTier;c++)
-            total+=getCellBirds(stand,t,c);
-  return total*2;
+            // Sum Side A and Side B independently — each physical compartment tracked separately
+            total+=getCellBirds(stand,t,c,'A')+getCellBirds(stand,t,c,'B');
+  return total;
 }
 function getPenStage(pen){
   if(!pen||!pen.flockStartDate)return null;
@@ -608,11 +611,14 @@ function renderEggs(){
       const bt=p.complete?'✓ Done':p.started?`${p.done}/${p.total} stands`:'New';
       const bl=p.complete?'Re-do':p.started?'Resume':'Start';
       const bcl=p.complete?'btn-secondary':p.started?'btn-amber':'btn-primary';
-      return`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f5f5f5">
-        <div><div style="font-weight:700;font-size:13px">${p.penName} · ${p.lineName}</div>
-          <div style="display:flex;gap:6px;margin-top:4px"><span class="badge badge-gray" style="font-size:10px">Side ${p.side}</span><span class="badge ${bc}">${bt}</span></div></div>
-        <button class="btn ${bcl} btn-sm" style="flex-shrink:0;margin-left:10px"
-          onclick="beginSession('${p.penId}','${p.lineId}','${p.side}',${rnd.id})">${bl}</button></div>`;
+      const passCol=todayCols.find(c=>c.penId===p.penId&&c.lineId===p.lineId&&c.side===p.side&&c.round===rnd.id);
+      return`<div style="padding:10px 0;border-bottom:1px solid #f5f5f5">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div><div style="font-weight:700;font-size:13px">${p.penName} · ${p.lineName}</div>
+            <div style="display:flex;gap:6px;margin-top:4px"><span class="badge badge-gray" style="font-size:10px">Side ${p.side}</span><span class="badge ${bc}">${bt}</span></div></div>
+          <button class="btn ${bcl} btn-sm" style="flex-shrink:0;margin-left:10px"
+            onclick="beginSession('${p.penId}','${p.lineId}','${p.side}',${rnd.id})">${bl}</button></div>
+        ${passCol?.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:6px;padding-left:2px">📝 "${passCol.notes}"</div>`:''}</div>`;
     }).join('');
     return`<div style="background:var(--white);border-radius:var(--radius);margin:0 16px 10px;box-shadow:var(--shadow);overflow:hidden">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;${isOpen?'border-bottom:2px solid var(--g5)':''}"
@@ -672,7 +678,7 @@ function renderSession(){
   for(let tier=standConfig.tiers;tier>=1;tier--){
     let tierEggs=0,tierBirds=0,cellsHtml='';
     for(let cell=1;cell<=standConfig.cellsPerTier;cell++){
-      const k=`${tier}_${cell}`, birds=getCellBirds(standConfig,tier,cell);
+      const k=`${tier}_${cell}`, birds=getCellBirds(standConfig,tier,cell,side);
       const savedE=saved.find(e=>e.tier===tier&&e.cellNum===cell);
       const eggs=savedE?savedE.eggs:'', broken=savedE?savedE.broken:'';
       const prevEggs=prevByCell[k]?.eggs||0, remaining=Math.max(0,birds-prevEggs);
@@ -686,7 +692,7 @@ function renderSession(){
         ${prevEggs} prev · ${remaining>0?remaining+' left':'full'}${overQuota?' ⚠':''}</div>`:'';
       cellsHtml+=`<div class="cell-card ${cardCls}" id="cc_${k}" data-exp="${EXP}" data-warn="${WARN}">
         <div class="cell-id">T${tier}·C${cell}</div>
-        <div class="cell-birds-row"><span class="birds-val" onclick="editCellBirds('${stand.id}',${tier},${cell},${birds})">${birds}</span>🐔</div>
+        <div class="cell-birds-row"><span class="birds-val" onclick="editCellBirds('${stand.id}',${tier},${cell},${birds},'${side}')">${birds}</span>🐔</div>
         <input class="cell-egg-input" type="number" min="0" inputmode="numeric" pattern="[0-9]*" placeholder="0"
           value="${eggs}" id="ei_${k}" data-stand="${stand.id}" data-tier="${tier}" data-cell="${cell}"
           data-birds="${birds}" data-prev="${prevEggs}" data-exp="${EXP}" data-warn="${WARN}" oninput="onEggInput(this)">
@@ -744,20 +750,20 @@ function onBrokenInput(inp,k){
   let val=parseInt(inp.value)||0;
   if(val<0){val=0;inp.value=0;}if(val>maxEggs){val=maxEggs;inp.value=maxEggs;}
 }
-function editCellBirds(standId,tier,cell,current){
+function editCellBirds(standId,tier,cell,current,side){
   openModal(`<div class="modal-ttl">Edit Bird Count <button class="modal-x" onclick="closeModal()">×</button></div>
-    <p style="font-size:13px;color:var(--gray);margin-bottom:16px">Stand <b>${standId}</b> · Tier ${tier} · Cell ${cell}</p>
+    <p style="font-size:13px;color:var(--gray);margin-bottom:16px">Tier ${tier} · Cell ${cell} · <b>Side ${side}</b></p>
     <div class="field"><label>Number of Birds</label>
       <select id="m_birds">${[0,1,2,3,4,5,6].map(n=>`<option value="${n}" ${n===current?'selected':''}>${n===0?'0 (empty)':n}</option>`).join('')}</select></div>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn btn-primary" onclick="saveCellBirds('${standId}',${tier},${cell})">Save</button>
+      <button class="btn btn-primary" onclick="saveCellBirds('${standId}',${tier},${cell},'${side}')">Save</button>
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
 }
-function saveCellBirds(standId,tier,cell){
+function saveCellBirds(standId,tier,cell,side){
   const n=parseInt(document.getElementById('m_birds').value), farm=DB.getFarm();
   for(const pen of farm.pens||[])for(const line of pen.lines||[])for(const s of line.stands||[])
-    if(s.id===standId){if(!s.cellBirds)s.cellBirds={};s.cellBirds[`${tier}_${cell}`]=n;}
-  DB.saveFarm(farm);SES.farm=farm;closeModal();toast(`Cell updated to ${n} bird${n!==1?'s':''} ✓`);renderSession();
+    if(s.id===standId){if(!s.cellBirds)s.cellBirds={};s.cellBirds[`${tier}_${cell}_${side}`]=n;}
+  DB.saveFarm(farm);SES.farm=farm;closeModal();toast(`Side ${side} · Cell updated to ${n} bird${n!==1?'s':''} ✓`);renderSession();
 }
 function addNoteModal(){
   const col=DB.getCol(SES.id);
@@ -770,7 +776,7 @@ function saveStand(){
   const stand=SES.stands[SES_STAND], standConfig=findStandInFarm(SES.farm,stand.id), entries=[];
   for(let tier=1;tier<=standConfig.tiers;tier++)for(let cell=1;cell<=standConfig.cellsPerTier;cell++){
     const k=`${tier}_${cell}`, ei=document.getElementById('ei_'+k), bi=document.getElementById('bi_'+k);
-    if(ei){const birds=getCellBirds(standConfig,tier,cell);
+    if(ei){const birds=getCellBirds(standConfig,tier,cell,SES.side);
       entries.push({standId:stand.id,tier,cellNum:cell,birds,eggs:parseInt(ei.value)||0,broken:parseInt(bi?.value)||0,ts:new Date().toISOString()});}
   }
   const col=DB.getCols().find(c=>c.id===SES.id);
@@ -823,7 +829,8 @@ function renderFlock(){
     return`<div class="list-item">
       <div><div style="font-weight:700;font-size:14px">${fmtDate(r.date)} <span style="font-size:11px;color:var(--gray)">Wk ${r.age_weeks||'—'}</span></div>
         <div style="font-size:12px;color:var(--gray);margin-top:2px">${r.opening_birds}→${r.closing_birds} birds · ${r.deaths} deaths · ${r.culls} culls</div>
-        ${mBadge}</div>
+        ${mBadge}
+        ${r.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:4px">"${r.notes}"</div>`:''}</div>
       <div style="display:flex;gap:5px">
         <button class="btn btn-secondary btn-sm" onclick="openBirdForm('${r.id}')">Edit</button>
         <button class="btn btn-danger btn-sm" onclick="delBirdLog('${r.id}')">✕</button>
@@ -961,6 +968,7 @@ function openFeedForm(editId){
       <div class="field"><label>kg Used</label><input type="number" id="ff_used" value="${rec?.feed_kg_used||''}" min="0" step="0.5" placeholder="e.g. 73"></div>
       <div class="field"><label>kg Required</label><input type="number" id="ff_req" value="${rec?.feed_req_kg||defReq}" min="0" step="0.1" placeholder="${defReq}"></div>
     </div>
+    <div class="field"><label>Notes <span style="color:var(--gray);font-weight:400">— optional</span></label><textarea id="ff_notes" placeholder="e.g. Switched to new bag, birds eating well">${rec?.notes||''}</textarea></div>
     <button class="btn btn-primary" onclick="saveFeedLog('${editId||''}')">Save</button>`);
 }
 function saveFeedLog(editId){
@@ -973,7 +981,8 @@ function saveFeedLog(editId){
   const existing=editId?DB.getFeed().find(r=>r.id===editId):null;
   // Snapshot feed_rate_g at time of save; preserve existing snapshot on edit
   const feed_rate_g=existing?.feed_rate_g||(farm?.feedRateG||110);
-  const rec={id:editId||uid(),date,feed_type,feed_kg_used,feed_req_kg,age_weeks:ageWeeks,feed_rate_g};
+  const notes=document.getElementById('ff_notes').value.trim();
+  const rec={id:editId||uid(),date,feed_type,feed_kg_used,feed_req_kg,age_weeks:ageWeeks,feed_rate_g,notes};
   if(editId)DB.updFeed(editId,rec);else DB.addFeed(rec);
   closeModal();toast('Feed log saved ✓');renderFeed();
 }
@@ -1015,7 +1024,8 @@ function renderHealth(){
     return`<div class="list-item">
       <div><div style="font-weight:700;font-size:14px">${fmtDate(r.date)}</div>
         <div style="font-size:12px;color:var(--gray);margin-top:2px">${(()=>{const c=r.water_consumed_liters||0;const q=r.water_req_liters||0;const wv=q>0?((c-q)/q*100):null;const wvc=wv===null?'var(--gray)':Math.abs(wv)>20?'var(--red)':Math.abs(wv)>10?'var(--amber)':'var(--g2)';return`Water: ${c||'—'}L / Req: ${q||'—'}L${wv!==null?` <span style="color:${wvc};font-weight:700">(${wv>0?'+':''}${wv.toFixed(0)}%)</span>`:''}`;})()} · ${r.vaccination_or_medication||'No meds'}</div>
-        <span class="badge ${dropCls}" style="margin-top:4px">${r.droppings_observation||'—'} droppings</span></div>
+        <span class="badge ${dropCls}" style="margin-top:4px">${r.droppings_observation||'—'} droppings</span>
+        ${r.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:4px">"${r.notes}"</div>`:''}</div>
       <div style="display:flex;gap:5px">
         <button class="btn btn-secondary btn-sm" onclick="openHealthForm('${r.id}')">Edit</button>
         <button class="btn btn-danger btn-sm" onclick="delHealth('${r.id}')">✕</button>
@@ -1146,6 +1156,7 @@ function renderFinance(){
                 <div style="font-weight:700;font-size:14px">${s.product}</div>
                 <div style="font-size:12px;color:var(--gray);margin-top:2px">${fmtDate(s.date)} · ${s.quantity} × ${fmtMoney(s.unit_price_ngn)}${s.customer?' · '+s.customer:''}</div>
                 <div style="margin-top:4px">${payBadge}${isCredit&&s.due_date?`<span style="font-size:11px;color:var(--gray);margin-left:6px">Due ${fmtDate(s.due_date)}</span>`:''}</div>
+                ${s.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:4px">"${s.notes}"</div>`:''}
               </div>
               <div style="text-align:right;flex-shrink:0;margin-left:10px">
                 <div style="font-weight:800;color:var(--g2)">${fmtMoney(s.total_amount_ngn)}</div>
@@ -1323,6 +1334,16 @@ function delSale(id){openModal(`<div class="modal-ttl">Delete Sale? <button clas
 // REPORTS — MULTI-MODULE ANALYTICS
 // ═══════════════════════════════════════════════
 let REP_TAB='eggs', ANA_TAB='cells', ANA_DATE=null;
+let CELL_SORT={field:null,dir:'desc'};
+function setCellSort(field){CELL_SORT=CELL_SORT.field===field?{field,dir:CELL_SORT.dir==='desc'?'asc':'desc'}:{field,dir:'desc'};renderReports();}
+function sortCells(arr){
+  if(!CELL_SORT.field)return arr;
+  return [...arr].sort((a,b)=>{
+    const av=CELL_SORT.field==='rate'?(a.rate??-1):(a.totalEggs>0?a.totalBroken/a.totalEggs*100:-1);
+    const bv=CELL_SORT.field==='rate'?(b.rate??-1):(b.totalEggs>0?b.totalBroken/b.totalEggs*100:-1);
+    return CELL_SORT.dir==='desc'?bv-av:av-bv;
+  });
+}
 function filterColsByDate(allCols){
   if(!ANA_DATE)return allCols;
   if(ANA_DATE==='last7'||ANA_DATE==='last30'){
@@ -1411,20 +1432,28 @@ function renderReports(){
             <div class="kpi-val-sm" style="color:${crackColor}">${crackRate!==null?crackRate.toFixed(1)+'%':'—'}</div>
             <div class="kpi-lbl-sm">Crack Rate</div></div>
         </div>
-        <div class="sec-hdr" style="margin-top:8px">⭐ Top Performing Cells</div>
-        <div style="font-size:11px;color:var(--gray);margin:-4px 16px 8px">Meeting or exceeding target rate at time of collection.</div>
-        <div class="card" style="padding:0;overflow:hidden">
-          ${top.length===0?'<div class="empty" style="padding:20px 16px"><p style="margin:0;font-size:13px">No top-performing cells yet.</p></div>':
-            `<table class="ana-table"><tr><th>Cell</th><th>Side</th><th>${sessionCol}</th><th>Broken</th><th>Avg Rate</th><th>Crack Rate</th></tr>
-            ${top.map(cellRow).join('')}</table>`}
-        </div>
-        <div class="sec-hdr" style="margin-top:16px">⚠️ Underperforming Cells</div>
-        <div style="font-size:11px;color:var(--gray);margin:-4px 16px 8px">Below warn threshold — flagged for action.</div>
-        <div class="card" style="padding:0;overflow:hidden">
-          ${poor.length===0?'<div class="empty" style="padding:20px 16px"><p style="margin:0;font-size:13px">No underperforming cells 🎉</p></div>':
-            `<table class="ana-table"><tr><th>Cell</th><th>Side</th><th>${sessionCol}</th><th>Broken</th><th>Avg Rate</th><th>Crack Rate</th></tr>
-            ${poor.map(cellRow).join('')}</table>`}
-        </div>`;
+        ${(()=>{
+          const rateArrow=CELL_SORT.field==='rate'?(CELL_SORT.dir==='desc'?' ↓':' ↑'):' ↕';
+          const crackArrow=CELL_SORT.field==='crackRate'?(CELL_SORT.dir==='desc'?' ↓':' ↑'):' ↕';
+          const rateStyle=`cursor:pointer;user-select:none;white-space:nowrap${CELL_SORT.field==='rate'?';color:var(--g2)':''}`;
+          const crackStyle=`cursor:pointer;user-select:none;white-space:nowrap${CELL_SORT.field==='crackRate'?';color:var(--red)':''}`;
+          const hdr=`<tr><th>Cell</th><th>Side</th><th>${sessionCol}</th><th>Broken</th>
+            <th style="${rateStyle}" onclick="setCellSort('rate')">Avg Rate<span style="font-size:10px">${rateArrow}</span></th>
+            <th style="${crackStyle}" onclick="setCellSort('crackRate')">Crack Rate<span style="font-size:10px">${crackArrow}</span></th></tr>`;
+          const sortedTop=sortCells(top), sortedPoor=sortCells(poor);
+          return`<div class="sec-hdr" style="margin-top:8px">⭐ Top Performing Cells</div>
+          <div style="font-size:11px;color:var(--gray);margin:-4px 16px 8px">Meeting or exceeding target rate at time of collection.</div>
+          <div class="card" style="padding:0;overflow:hidden">
+            ${sortedTop.length===0?'<div class="empty" style="padding:20px 16px"><p style="margin:0;font-size:13px">No top-performing cells yet.</p></div>':
+              `<table class="ana-table">${hdr}${sortedTop.map(cellRow).join('')}</table>`}
+          </div>
+          <div class="sec-hdr" style="margin-top:16px">⚠️ Underperforming Cells</div>
+          <div style="font-size:11px;color:var(--gray);margin:-4px 16px 8px">Below warn threshold — flagged for action.</div>
+          <div class="card" style="padding:0;overflow:hidden">
+            ${sortedPoor.length===0?'<div class="empty" style="padding:20px 16px"><p style="margin:0;font-size:13px">No underperforming cells 🎉</p></div>':
+              `<table class="ana-table">${hdr}${sortedPoor.map(cellRow).join('')}</table>`}
+          </div>`;
+        })()}`;
     } else if(ANA_TAB==='rounds'){
       const daily=getDailySummary(14);
       tabContent=`
@@ -1546,6 +1575,33 @@ function renderReports(){
           '<div class="empty" style="padding:24px"><p>No feed records.</p></div>'}
       </div>`;
 
+  } else if(REP_TAB==='journal'){
+    // Aggregate all notes from every module, sorted newest-first
+    const journalEntries=[];
+    DB.getBirds().forEach(r=>{if(r.notes)journalEntries.push({date:r.date,src:'Flock',srcCls:'badge-purple',icon:'🐔',note:r.notes,meta:`${r.opening_birds}→${r.closing_birds} birds · ${r.deaths} deaths`});});
+    DB.getHealth().forEach(r=>{if(r.notes)journalEntries.push({date:r.date,src:'Health',srcCls:'badge-green',icon:'💊',note:r.notes,meta:`${r.droppings_observation||'—'} droppings${r.vaccination_or_medication?' · '+r.vaccination_or_medication:''}`});});
+    DB.getFeed().forEach(r=>{if(r.notes)journalEntries.push({date:r.date,src:'Feed',srcCls:'badge-blue',icon:'🌾',note:r.notes,meta:`${r.feed_kg_used}kg used · ${r.feed_type}`});});
+    DB.getExpenses().forEach(r=>{if(r.notes)journalEntries.push({date:r.date,src:'Expense',srcCls:'badge-red',icon:'💸',note:r.notes,meta:`${r.category} · ${fmtMoney(r.amount_ngn)}`});});
+    DB.getSales().forEach(r=>{if(r.notes)journalEntries.push({date:r.date,src:'Sale',srcCls:'badge-green',icon:'🥚',note:r.notes,meta:`${r.product} · ${fmtMoney(r.total_amount_ngn)}`});});
+    DB.getCols().filter(c=>c.notes).forEach(c=>{journalEntries.push({date:c.date,src:'Eggs',srcCls:'badge-amber',icon:'📝',note:c.notes,meta:`${c.penName} · ${c.lineName} · Side ${c.side} · ${c.roundLabel}`});});
+    journalEntries.sort((a,b)=>b.date.localeCompare(a.date)||b.src.localeCompare(a.src));
+    tabContent=journalEntries.length===0
+      ?`<div class="empty" style="padding:48px 24px"><svg viewBox="0 0 24 24" style="width:44px;height:44px;stroke:var(--gray);fill:none;stroke-width:1.5;margin-bottom:12px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg><h3>No notes yet</h3><p>Add notes when logging flock, health, feed, or sales records — they'll all appear here in one place.</p></div>`
+      :`<div style="margin:12px 16px 4px;font-size:12px;color:var(--gray)">${journalEntries.length} note${journalEntries.length!==1?'s':''} across all modules</div>
+        <div class="card" style="padding:0;overflow:hidden">
+          ${journalEntries.map((e,i)=>{
+            const showDate=i===0||e.date!==journalEntries[i-1].date;
+            const dateHdr=showDate?`<div style="padding:8px 16px 4px;font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;background:var(--light);border-bottom:1px solid #eee">${fmtDate(e.date)}</div>`:'';
+            return`${dateHdr}<div style="padding:12px 16px;border-bottom:1px solid #f5f5f5">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <span style="font-size:15px">${e.icon}</span>
+                <span class="badge ${e.srcCls}" style="font-size:10px">${e.src}</span>
+                <span style="font-size:11px;color:var(--gray)">${e.meta}</span>
+              </div>
+              <div style="font-size:14px;color:#1a1a1a;font-style:italic;line-height:1.5">"${e.note}"</div>
+            </div>`;}).join('')}
+        </div>`;
+
   } else if(REP_TAB==='finance'){
     const expenses=DB.getExpenses(), sales=DB.getSales();
     const today=DB.today(), thisMonth=today.slice(0,7);
@@ -1601,6 +1657,7 @@ function renderReports(){
       <button class="inner-tab ${REP_TAB==='flock'?'active':''}" onclick="REP_TAB='flock';renderReports()">Flock</button>
       <button class="inner-tab ${REP_TAB==='feed'?'active':''}" onclick="REP_TAB='feed';renderReports()">Feed</button>
       <button class="inner-tab ${REP_TAB==='finance'?'active':''}" onclick="REP_TAB='finance';renderReports()">Finance</button>
+      <button class="inner-tab ${REP_TAB==='journal'?'active':''}" onclick="REP_TAB='journal';renderReports()">📓 Journal</button>
     </div>
     ${tabContent}
     <div style="margin:16px 16px 8px">
