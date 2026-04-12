@@ -380,6 +380,8 @@ function go(name){
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6) }
 function fmtDate(iso){ const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) }
 function fmtMoney(n){ return '₦'+Number(n||0).toLocaleString('en-NG',{minimumFractionDigits:0}) }
+function isLocked(dateStr){ if(!dateStr)return false; const diff=(new Date(DB.today())-new Date(dateStr+'T00:00:00'))/(864e5); return diff>7; }
+const LOCK_BADGE=`<span style="font-size:11px;color:var(--gray);padding:2px 6px;border:1px solid #ddd;border-radius:6px;user-select:none">🔒 Locked</span>`;
 function toast(msg,dur=2200){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),dur) }
 function openModal(html){ document.getElementById('modal-body').innerHTML=html; document.getElementById('overlay').classList.add('open') }
 function closeModal(){ document.getElementById('overlay').classList.remove('open') }
@@ -832,8 +834,8 @@ function renderFlock(){
         ${mBadge}
         ${r.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:4px">"${r.notes}"</div>`:''}</div>
       <div style="display:flex;gap:5px">
-        <button class="btn btn-secondary btn-sm" onclick="openBirdForm('${r.id}')">Edit</button>
-        <button class="btn btn-danger btn-sm" onclick="delBirdLog('${r.id}')">✕</button>
+        ${isLocked(r.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openBirdForm('${r.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="delBirdLog('${r.id}')">✕</button>`}
       </div></div>`;
   }).join('');
 
@@ -865,10 +867,11 @@ function openBirdForm(editId){
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Deaths Today</label><input type="number" id="bf_deaths" value="${rec?.deaths||0}" min="0" oninput="calcClosing()"></div>
-      <div class="field"><label>Culls Today</label><input type="number" id="bf_culls" value="${rec?.culls||0}" min="0" oninput="calcClosing()"></div>
+      <div class="field"><label>Culls Today <span style="font-size:10px;color:var(--gray);font-weight:400">isolated, still alive</span></label><input type="number" id="bf_culls" value="${rec?.culls||0}" min="0" oninput="calcClosing()"></div>
     </div>
     <div class="field"><label>Closing Birds (auto)</label>
-      <input type="number" id="bf_close" value="${rec?.closing_birds??defOpen}" readonly style="background:#f5f5f5;color:var(--g1);font-weight:700"></div>
+      <input type="number" id="bf_close" value="${rec?(rec.opening_birds-(rec.deaths||0)):defOpen}" readonly style="background:#f5f5f5;color:var(--g1);font-weight:700">
+      <div id="bf_cull_note" style="font-size:11px;color:var(--amber);margin-top:4px;display:${(rec?.culls||0)>0?'block':'none'}">⚠ ${rec?.culls||0} culled bird${(rec?.culls||1)>1?'s':''} in isolation — not deducted from closing count. Log their fate (death or return) in a future daily entry.</div></div>
     <div class="field"><label>Notes</label><textarea id="bf_notes" placeholder="e.g. Birds are stable. Found dead bird in T2·C3.">${rec?.notes||''}</textarea></div>
     <button class="btn btn-primary" onclick="saveBirdLog('${editId||''}')">Save</button>`);
 }
@@ -876,7 +879,9 @@ function calcClosing(){
   const o=parseInt(document.getElementById('bf_open')?.value)||0;
   const d=parseInt(document.getElementById('bf_deaths')?.value)||0;
   const c=parseInt(document.getElementById('bf_culls')?.value)||0;
-  const cl=document.getElementById('bf_close'); if(cl)cl.value=Math.max(0,o-d-c);
+  const cl=document.getElementById('bf_close'); if(cl)cl.value=Math.max(0,o-d);
+  const note=document.getElementById('bf_cull_note');
+  if(note){note.style.display=c>0?'block':'none';note.textContent=`⚠ ${c} culled bird${c>1?'s':''} in isolation — not deducted from closing count. Log their fate (death or return) in a future daily entry.`;}
 }
 function saveBirdLog(editId){
   const date=document.getElementById('bf_date').value;
@@ -886,7 +891,7 @@ function saveBirdLog(editId){
   const age_weeks=parseInt(document.getElementById('bf_age').value)||0;
   const notes=document.getElementById('bf_notes').value.trim();
   const rec={id:editId||uid(),date,opening_birds:opening,deaths,culls,
-    closing_birds:Math.max(0,opening-deaths-culls),age_weeks,notes};
+    closing_birds:Math.max(0,opening-deaths),age_weeks,notes};
   if(editId)DB.updBird(editId,rec); else DB.addBird(rec);
   closeModal();toast('Bird status saved ✓');renderFlock();
 }
@@ -1027,8 +1032,8 @@ function renderHealth(){
         <span class="badge ${dropCls}" style="margin-top:4px">${r.droppings_observation||'—'} droppings</span>
         ${r.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:4px">"${r.notes}"</div>`:''}</div>
       <div style="display:flex;gap:5px">
-        <button class="btn btn-secondary btn-sm" onclick="openHealthForm('${r.id}')">Edit</button>
-        <button class="btn btn-danger btn-sm" onclick="delHealth('${r.id}')">✕</button>
+        ${isLocked(r.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openHealthForm('${r.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="delHealth('${r.id}')">✕</button>`}
       </div></div>`;
   }).join('');
   el.innerHTML=`<div class="topbar"><div><h1>Health Log</h1><small>Water, droppings, medication</small></div></div>
@@ -1127,8 +1132,8 @@ function renderFinance(){
               <div style="font-weight:800;color:var(--red)">${fmtMoney(e.amount_ngn)}</div>
               ${e.amount_usd?`<div style="font-size:11px;color:var(--gray)">$${e.amount_usd}</div>`:''}
               <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
-                <button class="btn btn-secondary btn-sm" onclick="openExpenseForm('${e.id}')">Edit</button>
-                <button class="btn btn-danger btn-sm" onclick="delExpense('${e.id}')">✕</button>
+                ${isLocked(e.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openExpenseForm('${e.id}')">Edit</button>
+                <button class="btn btn-danger btn-sm" onclick="delExpense('${e.id}')">✕</button>`}
               </div></div></div>`).join('')}
       </div>`;
 
@@ -1162,8 +1167,8 @@ function renderFinance(){
                 <div style="font-weight:800;color:var(--g2)">${fmtMoney(s.total_amount_ngn)}</div>
                 <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
                   ${isCredit&&!s.paid?`<button class="btn btn-primary btn-sm" onclick="markSalePaid('${s.id}')">Paid ✓</button>`:''}
-                  <button class="btn btn-secondary btn-sm" onclick="openSaleForm('${s.id}')">Edit</button>
-                  <button class="btn btn-danger btn-sm" onclick="delSale('${s.id}')">✕</button>
+                  ${isLocked(s.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openSaleForm('${s.id}')">Edit</button>
+                  <button class="btn btn-danger btn-sm" onclick="delSale('${s.id}')">✕</button>`}
                 </div>
               </div></div>`;
           }).join('')}
@@ -1195,7 +1200,7 @@ function renderFinance(){
                 <div style="font-weight:800;color:${s.paid?'var(--gray)':overdue?'var(--red)':'var(--amber)'}">${fmtMoney(s.total_amount_ngn)}</div>
                 <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
                   ${!s.paid?`<button class="btn btn-primary btn-sm" onclick="markSalePaid('${s.id}')">Paid ✓</button>`:''}
-                  <button class="btn btn-secondary btn-sm" onclick="openSaleForm('${s.id}')">Edit</button>
+                  ${isLocked(s.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openSaleForm('${s.id}')">Edit</button>`}
                 </div>
               </div></div>`;
           }).join('')}
@@ -1660,9 +1665,7 @@ function renderReports(){
       <button class="inner-tab ${REP_TAB==='journal'?'active':''}" onclick="REP_TAB='journal';renderReports()">📓 Journal</button>
     </div>
     ${tabContent}
-    <div style="margin:16px 16px 8px">
-      <button class="btn btn-danger btn-sm" onclick="confirmReset()">🗑 Reset Egg Collection Data</button>
-    </div><div style="height:10px"></div>`;
+    <div style="height:12px"></div>`;
 }
 function confirmReset(){
   openModal(`<div class="modal-ttl">Reset Data? <button class="modal-x" onclick="closeModal()">×</button></div>
@@ -1938,19 +1941,42 @@ function importData(input){
   const file=input.files[0]; if(!file)return;
   const reader=new FileReader();
   reader.onload=e=>{
-    try{
-      const data=JSON.parse(e.target.result);
-      if(data.farm)DB.saveFarm(data.farm);
-      if(data.egg_collection_detail)DB.saveCols(data.egg_collection_detail);
-      if(data.daily_bird_status)DB._set(KEYS.birds,data.daily_bird_status);
-      if(data.daily_feed_usage)DB._set(KEYS.feed,data.daily_feed_usage);
-      if(data.health_log)DB._set(KEYS.health,data.health_log);
-      if(data.expenses)DB._set(KEYS.expenses,data.expenses);
-      if(data.sales)DB._set(KEYS.sales,data.sales);
-      toast('Data imported ✓',3000);renderHome();renderSettings();
-    }catch(err){toast('Import failed — invalid file','3000');}
+    let data;
+    try{ data=JSON.parse(e.target.result); }
+    catch(err){
+      openModal(`<div class="modal-ttl">Import Failed <button class="modal-x" onclick="closeModal()">×</button></div>
+        <div style="background:#fee2e2;border-left:3px solid var(--red);padding:10px 14px;border-radius:0 8px 8px 0;font-size:13px;color:#7f1d1d;margin-bottom:12px">
+          The file could not be parsed as JSON.<br><b>Error:</b> ${err.message}
+        </div>
+        <button class="btn btn-secondary" onclick="closeModal()">OK</button>`);
+      input.value=''; return;
+    }
+    const counts={};
+    if(data.farm){ DB.saveFarm(data.farm); counts.farm='1 farm config'; }
+    if(data.egg_collection_detail?.length){ DB.saveCols(data.egg_collection_detail); counts.eggs=data.egg_collection_detail.length+' egg sessions'; }
+    if(data.daily_bird_status?.length){ DB._set(KEYS.birds,data.daily_bird_status); counts.birds=data.daily_bird_status.length+' bird records'; }
+    if(data.daily_feed_usage?.length){ DB._set(KEYS.feed,data.daily_feed_usage); counts.feed=data.daily_feed_usage.length+' feed records'; }
+    if(data.health_log?.length){ DB._set(KEYS.health,data.health_log); counts.health=data.health_log.length+' health records'; }
+    if(data.expenses?.length){ DB._set(KEYS.expenses,data.expenses); counts.expenses=data.expenses.length+' expenses'; }
+    if(data.sales?.length){ DB._set(KEYS.sales,data.sales); counts.sales=data.sales.length+' sales'; }
+    // Re-render all tabs so data is visible everywhere
+    renderHome(); renderFlock(); renderFeed(); renderHealth(); renderFinance(); renderReports(); renderSettings();
+    const lines=Object.values(counts);
+    if(lines.length===0){
+      openModal(`<div class="modal-ttl">Nothing Imported <button class="modal-x" onclick="closeModal()">×</button></div>
+        <div style="font-size:13px;color:var(--gray);margin-bottom:12px">The file was valid JSON but contained no recognisable data arrays. Check that the file came from the LayerTrack converter.</div>
+        <button class="btn btn-secondary" onclick="closeModal()">OK</button>`);
+    } else {
+      openModal(`<div class="modal-ttl">Import Complete ✓ <button class="modal-x" onclick="closeModal()">×</button></div>
+        <div style="background:#d1fae5;border-left:3px solid var(--g2);padding:10px 14px;border-radius:0 8px 8px 0;font-size:13px;color:#065f46;margin-bottom:12px">
+          ${lines.map(l=>`✓ ${l}`).join('<br>')}
+        </div>
+        <div style="font-size:12px;color:var(--gray);margin-bottom:12px">Navigate to each tab (Flock, Feed, Health, Finance) to verify the data looks correct.</div>
+        <button class="btn btn-primary" onclick="closeModal()">Done</button>`);
+    }
+    input.value='';
   };
-  reader.readAsText(file);input.value='';
+  reader.readAsText(file);
 }
 
 // ═══════════════════════════════════════════════

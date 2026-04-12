@@ -3,3 +3,8 @@ node_modules/
 package.json
 package-lock.json
 .claude/
+csv-to-layertrack.html
+daily_bird_status.csv
+daily_feed_usage.csv
+health_log.csv
+raw_expenses.csv

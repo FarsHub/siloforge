@@ -332,6 +332,8 @@ function go(name){
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 function fmtDate(iso){const d=new Date(iso+'T00:00:00');return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}
 function fmtMoney(n){return '₦'+Number(n||0).toLocaleString('en-NG',{minimumFractionDigits:0})}
+function isLocked(dateStr){if(!dateStr)return false;const diff=(new Date(DB.today())-new Date(dateStr+'T00:00:00'))/(864e5);return diff>7;}
+const LOCK_BADGE=`<span style="font-size:11px;color:var(--gray);padding:2px 6px;border:1px solid #ddd;border-radius:6px;user-select:none">🔒 Locked</span>`;
 function toast(msg,dur=2200){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur)}
 function openModal(html){document.getElementById('modal-body').innerHTML=html;document.getElementById('overlay').classList.add('open')}
 function closeModal(){document.getElementById('overlay').classList.remove('open')}
@@ -650,8 +652,8 @@ function renderDaily(){
         ${r.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:4px">"${r.notes}"</div>`:''}
       </div>
       <div style="display:flex;gap:4px">
-        <button class="btn btn-secondary btn-sm" onclick="openDailyForm('${r.batch_id}','${r.id}')">Edit</button>
-        <button class="btn btn-danger btn-sm" onclick="delDaily('${r.id}')">✕</button>
+        ${isLocked(r.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openDailyForm('${r.batch_id}','${r.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="delDaily('${r.id}')">✕</button>`}
       </div></div>`;
   }).join('');
   el.innerHTML=`<div class="topbar"><div><h1>Daily Log</h1><small>Mortality · Feed · Water · Temp</small></div></div>
@@ -698,10 +700,11 @@ function openDailyForm(batchId,editId){
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
       <div class="field"><label>Opening Birds</label><input type="number" id="dl_open" value="${defOpen}" min="0" oninput="calcDailyClose()"></div>
       <div class="field"><label>Deaths</label><input type="number" id="dl_deaths" value="${rec?.deaths||0}" min="0" oninput="calcDailyClose()"></div>
-      <div class="field"><label>Culls</label><input type="number" id="dl_culls" value="${rec?.culls||0}" min="0" oninput="calcDailyClose()"></div>
+      <div class="field"><label>Culls <span style="font-size:10px;color:var(--gray);font-weight:400">isolated, still alive</span></label><input type="number" id="dl_culls" value="${rec?.culls||0}" min="0" oninput="calcDailyClose()"></div>
     </div>
     <div class="field"><label>Closing Birds (auto)</label>
-      <input type="number" id="dl_close" value="${rec?.closing_birds??defOpen}" readonly style="background:#f5f5f5;font-weight:700"></div>
+      <input type="number" id="dl_close" value="${rec?(rec.opening_birds-(rec.deaths||0)):defOpen}" readonly style="background:#f5f5f5;font-weight:700">
+      <div id="dl_cull_note" style="font-size:11px;color:var(--amber);margin-top:4px;display:${(rec?.culls||0)>0?'block':'none'}">⚠ ${rec?.culls||0} culled bird${(rec?.culls||1)>1?'s':''} in isolation — not deducted from closing count. Log their fate (death or return) in a future daily entry.</div></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Feed Used (kg)</label><input type="number" id="dl_feed" value="${rec?.feed_kg_used||''}" min="0" step="0.5" placeholder="${defFeedReq}"></div>
       <div class="field"><label>Feed Required (kg)</label><input type="number" id="dl_feed_req" value="${rec?.feed_req_kg||defFeedReq}" min="0" step="0.1" placeholder="${defFeedReq}"></div>
@@ -724,7 +727,9 @@ function calcDailyClose(){
   const o=parseInt(document.getElementById('dl_open')?.value)||0;
   const d=parseInt(document.getElementById('dl_deaths')?.value)||0;
   const c=parseInt(document.getElementById('dl_culls')?.value)||0;
-  const cl=document.getElementById('dl_close'); if(cl)cl.value=Math.max(0,o-d-c);
+  const cl=document.getElementById('dl_close'); if(cl)cl.value=Math.max(0,o-d);
+  const note=document.getElementById('dl_cull_note');
+  if(note){note.style.display=c>0?'block':'none';note.textContent=`⚠ ${c} culled bird${c>1?'s':''} in isolation — not deducted from closing count. Log their fate (death or return) in a future daily entry.`;}
 }
 function checkTemp(min,max){
   const v=parseFloat(document.getElementById('dl_temp')?.value);
@@ -750,7 +755,7 @@ function saveDailyLog(batchId,editId){
   const water_rate_ml=existing?.water_rate_ml||getWaterRateMl(ageDays,farm);
   const rec={id:editId||uid(),batch_id:batchId,batch_name:batch.name,
     date:document.getElementById('dl_date').value,age_days:ageDays,
-    opening_birds:opening,deaths,culls,closing_birds:Math.max(0,opening-deaths-culls),
+    opening_birds:opening,deaths,culls,closing_birds:Math.max(0,opening-deaths),
     feed_kg_used:parseFloat(document.getElementById('dl_feed').value)||0,
     feed_req_kg:parseFloat(document.getElementById('dl_feed_req').value)||0,
     feed_rate_g,
@@ -903,8 +908,8 @@ function renderHealth(){
             <span class="badge ${dropCls}" style="margin-top:4px">${r.droppings||'—'} droppings</span>
             ${r.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:4px">"${r.notes}"</div>`:''}</div>
           <div style="display:flex;gap:4px">
-            <button class="btn btn-secondary btn-sm" onclick="openHealthForm('${r.id}')">Edit</button>
-            <button class="btn btn-danger btn-sm" onclick="delHealth('${r.id}')">✕</button>
+            ${isLocked(r.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openHealthForm('${r.id}')">Edit</button>
+            <button class="btn btn-danger btn-sm" onclick="delHealth('${r.id}')">✕</button>`}
           </div></div>`;}).join('')||'<div class="empty" style="padding:24px"><p>No health records yet.</p></div>'}
     </div>
     <div style="height:12px"></div>`;
@@ -997,8 +1002,8 @@ function renderFinance(){
           <div style="text-align:right">
             <div style="font-weight:800;color:var(--red)">${fmtMoney(e.amount_ngn)}</div>
             <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
-              <button class="btn btn-secondary btn-sm" onclick="openExpenseForm('${e.id}')">Edit</button>
-              <button class="btn btn-danger btn-sm" onclick="delExpense('${e.id}')">✕</button>
+              ${isLocked(e.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openExpenseForm('${e.id}')">Edit</button>
+              <button class="btn btn-danger btn-sm" onclick="delExpense('${e.id}')">✕</button>`}
             </div></div></div>`).join('')||'<div class="empty" style="padding:24px"><p>No expenses logged yet.</p></div>'}
       </div>`;
 
@@ -1031,8 +1036,8 @@ function renderFinance(){
                 <div style="font-weight:800;color:var(--g2)">${fmtMoney(s.total_amount_ngn)}</div>
                 <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
                   ${isCredit&&!s.paid?`<button class="btn btn-primary btn-sm" onclick="markSalePaid('${s.id}')">Paid ✓</button>`:''}
-                  <button class="btn btn-secondary btn-sm" onclick="openSaleForm('${s.id}')">Edit</button>
-                  <button class="btn btn-danger btn-sm" onclick="delSale('${s.id}')">✕</button>
+                  ${isLocked(s.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openSaleForm('${s.id}')">Edit</button>
+                  <button class="btn btn-danger btn-sm" onclick="delSale('${s.id}')">✕</button>`}
                 </div>
               </div></div>`;
           }).join('')}
@@ -1064,7 +1069,7 @@ function renderFinance(){
                 <div style="font-weight:800;color:${s.paid?'var(--gray)':overdue?'var(--red)':'var(--amber)'}">${fmtMoney(s.total_amount_ngn)}</div>
                 <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
                   ${!s.paid?`<button class="btn btn-primary btn-sm" onclick="markSalePaid('${s.id}')">Paid ✓</button>`:''}
-                  <button class="btn btn-secondary btn-sm" onclick="openSaleForm('${s.id}')">Edit</button>
+                  ${isLocked(s.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openSaleForm('${s.id}')">Edit</button>`}
                 </div>
               </div></div>`;
           }).join('')}
@@ -1509,19 +1514,41 @@ function importData(input){
   const file=input.files[0]; if(!file)return;
   const reader=new FileReader();
   reader.onload=e=>{
-    try{
-      const data=JSON.parse(e.target.result);
-      if(data.farm)DB.saveFarm(data.farm);
-      if(data.batches)DB._set(KEYS.batches,data.batches);
-      if(data.brooding_daily_log)DB._set(KEYS.daily,data.brooding_daily_log);
-      if(data.brooding_weight_log)DB._set(KEYS.weight,data.brooding_weight_log);
-      if(data.brooding_health_log)DB._set(KEYS.health,data.brooding_health_log);
-      if(data.expenses)DB._set(KEYS.expenses,data.expenses);
-      if(data.sales)DB._set(KEYS.sales,data.sales);
-      toast('Data imported ✓',3000);renderHome();
-    }catch(err){toast('Import failed — invalid file');}
+    let data;
+    try{data=JSON.parse(e.target.result);}
+    catch(err){
+      openModal(`<div class="modal-ttl">Import Failed <button class="modal-x" onclick="closeModal()">×</button></div>
+        <div style="background:#fee2e2;border-left:3px solid var(--red);padding:10px 14px;border-radius:0 8px 8px 0;font-size:13px;color:#7f1d1d;margin-bottom:12px">
+          The file could not be parsed as JSON.<br><b>Error:</b> ${err.message}
+        </div>
+        <button class="btn btn-secondary" onclick="closeModal()">OK</button>`);
+      input.value=''; return;
+    }
+    const counts={};
+    if(data.farm){DB.saveFarm(data.farm);counts.farm='1 farm config';}
+    if(data.batches?.length){DB._set(KEYS.batches,data.batches);counts.batches=data.batches.length+' batches';}
+    if(data.brooding_daily_log?.length){DB._set(KEYS.daily,data.brooding_daily_log);counts.daily=data.brooding_daily_log.length+' daily logs';}
+    if(data.brooding_weight_log?.length){DB._set(KEYS.weight,data.brooding_weight_log);counts.weight=data.brooding_weight_log.length+' weight records';}
+    if(data.brooding_health_log?.length){DB._set(KEYS.health,data.brooding_health_log);counts.health=data.brooding_health_log.length+' health records';}
+    if(data.expenses?.length){DB._set(KEYS.expenses,data.expenses);counts.expenses=data.expenses.length+' expenses';}
+    if(data.sales?.length){DB._set(KEYS.sales,data.sales);counts.sales=data.sales.length+' sales';}
+    renderHome();renderDaily();renderHealth();renderFinance();renderReports();renderSettings();
+    const lines=Object.values(counts);
+    if(lines.length===0){
+      openModal(`<div class="modal-ttl">Nothing Imported <button class="modal-x" onclick="closeModal()">×</button></div>
+        <div style="font-size:13px;color:var(--gray);margin-bottom:12px">The file was valid JSON but contained no recognisable data. Check that the file came from a BroodTrack export.</div>
+        <button class="btn btn-secondary" onclick="closeModal()">OK</button>`);
+    } else {
+      openModal(`<div class="modal-ttl">Import Complete ✓ <button class="modal-x" onclick="closeModal()">×</button></div>
+        <div style="background:#d1fae5;border-left:3px solid var(--g2);padding:10px 14px;border-radius:0 8px 8px 0;font-size:13px;color:#065f46;margin-bottom:12px">
+          ${lines.map(l=>`✓ ${l}`).join('<br>')}
+        </div>
+        <div style="font-size:12px;color:var(--gray);margin-bottom:12px">Navigate to each tab to verify the data looks correct.</div>
+        <button class="btn btn-primary" onclick="closeModal()">Done</button>`);
+    }
+    input.value='';
   };
-  reader.readAsText(file);input.value='';
+  reader.readAsText(file);
 }
 function resetAll(){
   openModal(`<div class="modal-ttl">Reset ALL Data? <button class="modal-x" onclick="closeModal()">×</button></div>
