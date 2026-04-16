@@ -1338,7 +1338,7 @@ function delSale(id){openModal(`<div class="modal-ttl">Delete Sale? <button clas
 // ═══════════════════════════════════════════════
 // REPORTS — MULTI-MODULE ANALYTICS
 // ═══════════════════════════════════════════════
-let REP_TAB='eggs', ANA_TAB='cells', ANA_DATE=null;
+let REP_TAB='eggs', ANA_TAB='cells', ANA_DATE=null, TREND_MODE='weekly';
 let CELL_SORT={field:null,dir:'desc'};
 function setCellSort(field){CELL_SORT=CELL_SORT.field===field?{field,dir:CELL_SORT.dir==='desc'?'asc':'desc'}:{field,dir:'desc'};renderReports();}
 function sortCells(arr){
@@ -1405,7 +1405,14 @@ function renderReports(){
     const top=cells.filter(c=>c.rate!==null&&c.rate>=c.avgExp).sort((a,b)=>b.rate-a.rate).slice(0,10);
     let totalEggs=0,totalBroken=0;
     cols.forEach(col=>(col.entries||[]).forEach(e=>{totalEggs+=(e.eggs||0);totalBroken+=(e.broken||0);}));
-    const overallRate=farmBirds>0?totalEggs/farmBirds*100:null;
+    // Avg daily Hen Day Production: for each egg-collection day, use actual bird count from bird log
+    const _birdLog=DB.getBirds().sort((a,b)=>a.date.localeCompare(b.date));
+    const _birdDateMap={};_birdLog.forEach(r=>{_birdDateMap[r.date]=(r.closing_birds||r.opening_birds||0);});
+    const _birdDates=Object.keys(_birdDateMap).sort();
+    function _birdsOn(date){if(_birdDateMap[date])return _birdDateMap[date];const p=_birdDates.filter(d=>d<=date).pop();return p?_birdDateMap[p]:farmBirds;}
+    const _eggsByDate={};cols.forEach(col=>(col.entries||[]).forEach(e=>{_eggsByDate[col.date]=(_eggsByDate[col.date]||0)+(e.eggs||0);}));
+    const _hdp=Object.entries(_eggsByDate).map(([d,eggs])=>{const b=_birdsOn(d);return b>0?eggs/b*100:null;}).filter(r=>r!==null);
+    const overallRate=_hdp.length>0?_hdp.reduce((s,r)=>s+r,0)/_hdp.length:null;
     const crackRate=totalEggs>0?totalBroken/totalEggs*100:null;
     const crackColor=crackRate===null?'var(--gray)':crackRate>3?'var(--red)':crackRate>=2?'var(--amber)':'var(--g3)';
     const roundMap={};
@@ -1500,10 +1507,103 @@ function renderReports(){
             <td>${rateBadge(p.birds>0?p.eggs/p.birds*100:null)}</td></tr>`).join('')}
           </table></div>`;
     }
+    if(ANA_TAB==='trend'){
+      // All-time egg data (independent of ANA_DATE filter)
+      const _allColsTrend=DB.getCols().filter(c=>validPenIds.has(c.penId));
+      const _allEggsByDate={};
+      _allColsTrend.forEach(col=>(col.entries||[]).forEach(e=>{_allEggsByDate[col.date]=(_allEggsByDate[col.date]||0)+(e.eggs||0);}));
+      // Date → flock age week (from bird log, with interpolation fallback)
+      const _firstPen=(farm.pens||[])[0];
+      const _bwAge=_birdLog.filter(r=>r.age_weeks!=null);
+      const _ageWeekOn=(date)=>{
+        const exact=_birdLog.find(r=>r.date===date&&r.age_weeks!=null);
+        if(exact)return exact.age_weeks;
+        const prior=_bwAge.filter(r=>r.date<=date).pop();
+        if(prior){const dd=Math.floor((new Date(date)-new Date(prior.date+'T00:00:00'))/(864e5));return prior.age_weeks+Math.floor(dd/7);}
+        if(_firstPen?.flockStartDate){const wk=Math.floor((new Date(date)-new Date(_firstPen.flockStartDate+'T00:00:00'))/(7*864e5));return wk+(_firstPen.flockAgeAtArrival||0);}
+        return null;
+      };
+      const isWeekly=TREND_MODE==='weekly';
+      const _buckets={};
+      const _moN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      Object.entries(_allEggsByDate).forEach(([date,eggs])=>{
+        const birds=_birdsOn(date); if(!birds)return;
+        const dHDP=eggs/birds*100;
+        let key,label,sortKey;
+        if(isWeekly){const w=_ageWeekOn(date);if(w===null||w===undefined)return;key=w;label=`Wk ${w}`;sortKey=w;}
+        else{key=date.slice(0,7);const mo=parseInt(date.slice(5,7))-1;label=`${_moN[mo]} '${date.slice(2,4)}`;sortKey=key;}
+        if(!_buckets[key])_buckets[key]={hdpSum:0,days:0,eggs:0,label,sortKey};
+        _buckets[key].hdpSum+=dHDP;_buckets[key].days++;_buckets[key].eggs+=eggs;
+      });
+      const _tPoints=Object.values(_buckets).sort((a,b)=>isWeekly?a.sortKey-b.sortKey:a.sortKey.localeCompare(b.sortKey))
+        .map(b=>({...b,hdp:b.hdpSum/b.days})).filter(p=>!isNaN(p.hdp));
+      const _peakPt=_tPoints.length>0?_tPoints.reduce((best,p)=>p.hdp>best.hdp?p:best):null;
+      const _pdsAbove80=_tPoints.filter(p=>p.hdp>=80).length;
+      const _lastPt=_tPoints[_tPoints.length-1];
+      let _tArrow='→',_tCol='var(--gray)';
+      if(_tPoints.length>=4){
+        const l3=_tPoints.slice(-3).reduce((s,p)=>s+p.hdp,0)/3;
+        const p3=_tPoints.slice(-6,-3);if(p3.length){const p3a=p3.reduce((s,p)=>s+p.hdp,0)/p3.length;if(l3>p3a+2){_tArrow='↑';_tCol='var(--g2)';}else if(l3<p3a-2){_tArrow='↓';_tCol='var(--red)';}}
+      }
+      const _trendSvg=(()=>{
+        const pts=_tPoints,n=pts.length;
+        if(n<2)return`<div style="color:var(--gray);font-size:13px;padding:24px 0;text-align:center">Not enough data — log eggs across at least 2 ${isWeekly?'weeks':'months'} to see the trend.</div>`;
+        const svgW=600,cH=110,lblH=18,svgH=cH+lblH,padL=36,padR=8,plotW=svgW-padL-padR;
+        const yp=(v)=>(cH-6)-Math.min(Math.max(v,0),100)/100*(cH-12)+2;
+        const xp=(i)=>padL+(i/Math.max(n-1,1))*plotW;
+        const y80=yp(80),y70=yp(70);
+        const bench=`<line x1="${padL}" y1="${y80.toFixed(1)}" x2="${svgW-padR}" y2="${y80.toFixed(1)}" stroke="#27ae60" stroke-width="1" stroke-dasharray="5,3" opacity="0.7"/>
+          <text x="${padL-3}" y="${(y80+3).toFixed(1)}" text-anchor="end" font-size="8" fill="#27ae60" font-weight="700">80</text>
+          <line x1="${padL}" y1="${y70.toFixed(1)}" x2="${svgW-padR}" y2="${y70.toFixed(1)}" stroke="#e67e22" stroke-width="1" stroke-dasharray="5,3" opacity="0.7"/>
+          <text x="${padL-3}" y="${(y70+3).toFixed(1)}" text-anchor="end" font-size="8" fill="#e67e22" font-weight="700">70</text>`;
+        const linePts=pts.map((p,i)=>`${xp(i).toFixed(1)},${yp(p.hdp).toFixed(1)}`).join(' ');
+        const area=`<polygon points="${xp(0).toFixed(1)},${cH+2} ${linePts} ${xp(n-1).toFixed(1)},${cH+2}" fill="url(#tGrad)" opacity="0.18"/>`;
+        const segs=pts.slice(0,-1).map((p,i)=>{const x1=xp(i),y1=yp(p.hdp),x2=xp(i+1),y2=yp(pts[i+1].hdp);const avg=(p.hdp+pts[i+1].hdp)/2;const col=avg>=80?'#27ae60':avg>=70?'#e67e22':'#c0392b';return`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${col}" stroke-width="2.5" stroke-linecap="round"/>`;}).join('');
+        const dots=pts.map((p,i)=>{const x=xp(i),y=yp(p.hdp),isPk=p===_peakPt,col=p.hdp>=80?'#27ae60':p.hdp>=70?'#e67e22':'#c0392b';return`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${isPk?4.5:2.5}" fill="${col}" stroke="white" stroke-width="1.5"/>${isPk?`<text x="${x.toFixed(1)}" y="${(y-10).toFixed(1)}" text-anchor="middle" font-size="9" fill="${col}" font-weight="800">▲${p.hdp.toFixed(0)}%</text>`:''}`;}).join('');
+        const lstep=Math.ceil(n/10);
+        const xlbls=pts.map((p,i)=>i%lstep===0||i===n-1?`<text x="${xp(i).toFixed(1)}" y="${svgH-1}" text-anchor="middle" font-size="7.5" fill="#aaa">${p.label}</text>`:'').join('');
+        return`<svg viewBox="0 0 ${svgW} ${svgH}" style="width:100%;height:auto;display:block;overflow:visible">
+          <defs><linearGradient id="tGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#27ae60" stop-opacity="0.4"/><stop offset="100%" stop-color="#27ae60" stop-opacity="0"/></linearGradient></defs>
+          ${bench}${area}${segs}${dots}${xlbls}</svg>`;
+      })();
+      const _lbl=isWeekly?'Week':'Month';
+      tabContent=`
+        <div style="display:flex;align-items:center;gap:8px;margin:10px 16px 2px">
+          <button class="btn ${TREND_MODE==='weekly'?'btn-primary':'btn-secondary'} btn-sm" style="min-width:72px" onclick="TREND_MODE='weekly';renderReports()">Weekly</button>
+          <button class="btn ${TREND_MODE==='monthly'?'btn-primary':'btn-secondary'} btn-sm" style="min-width:72px" onclick="TREND_MODE='monthly';renderReports()">Monthly</button>
+        </div>
+        <div class="kpi-row-3">
+          <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${_peakPt?_peakPt.hdp.toFixed(0)+'%':'—'}</div><div class="kpi-lbl">Peak${_peakPt?' ('+_peakPt.label+')':''}</div></div>
+          <div class="kpi"><div class="kpi-val">${_pdsAbove80}</div><div class="kpi-lbl">${_lbl}s ≥80%</div></div>
+          <div class="kpi"><div class="kpi-val" style="color:${_tCol}">${_tArrow} ${_lastPt?_lastPt.hdp.toFixed(0)+'%':'—'}</div><div class="kpi-lbl">Latest ${_lbl}</div></div>
+        </div>
+        <div class="sec-hdr" style="margin-top:4px">Production Trend — ${isWeekly?'By Flock Age Week':'By Calendar Month'}</div>
+        <div class="card" style="padding:16px">
+          ${_trendSvg}
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--gray)">
+            <span><svg width="20" height="8" viewBox="0 0 20 8" style="vertical-align:middle"><line x1="1" y1="4" x2="19" y2="4" stroke="#27ae60" stroke-width="2.5"/></svg> ≥80%</span>
+            <span><svg width="20" height="8" viewBox="0 0 20 8" style="vertical-align:middle"><line x1="1" y1="4" x2="19" y2="4" stroke="#e67e22" stroke-width="2.5"/></svg> 70–80%</span>
+            <span><svg width="20" height="8" viewBox="0 0 20 8" style="vertical-align:middle"><line x1="1" y1="4" x2="19" y2="4" stroke="#c0392b" stroke-width="2.5"/></svg> &lt;70%</span>
+            <span><svg width="20" height="8" viewBox="0 0 20 8" style="vertical-align:middle"><line x1="1" y1="4" x2="19" y2="4" stroke="#27ae60" stroke-width="1" stroke-dasharray="4,2"/></svg> 80% target</span>
+            <span><svg width="20" height="8" viewBox="0 0 20 8" style="vertical-align:middle"><line x1="1" y1="4" x2="19" y2="4" stroke="#e67e22" stroke-width="1" stroke-dasharray="4,2"/></svg> 70% floor</span>
+          </div>
+        </div>
+        <div class="sec-hdr">${isWeekly?'Weekly':'Monthly'} Breakdown</div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <table class="ana-table">
+            <tr><th>${_lbl}</th><th>Eggs</th><th>Avg HDP</th><th>vs 80%</th></tr>
+            ${[..._tPoints].reverse().map(p=>{const diff=p.hdp-80;const dc=diff>=0?'var(--g2)':diff>-10?'var(--amber)':'var(--red)';
+              return`<tr><td><b>${p.label}</b>${p===_peakPt?'<span style="font-size:9px;color:var(--g2);margin-left:4px">▲Peak</span>':''}</td>
+                <td style="font-weight:800">${p.eggs}</td><td>${rateBadge(p.hdp)}</td>
+                <td style="font-weight:700;color:${dc}">${diff>0?'+':''}${diff.toFixed(1)}%</td></tr>`;}).join('')}
+          </table>
+        </div>`;
+    }
     tabContent=`<div class="inner-tabs" style="background:var(--light)">
       <button class="inner-tab ${ANA_TAB==='cells'?'active':''}" onclick="ANA_TAB='cells';renderReports()">Cells</button>
       <button class="inner-tab ${ANA_TAB==='rounds'?'active':''}" onclick="ANA_TAB='rounds';renderReports()">Rounds</button>
       <button class="inner-tab ${ANA_TAB==='pens'?'active':''}" onclick="ANA_TAB='pens';renderReports()">Pens</button>
+      <button class="inner-tab ${ANA_TAB==='trend'?'active':''}" onclick="ANA_TAB='trend';renderReports()">📈 Trend</button>
     </div>${tabContent}`;
 
   } else if(REP_TAB==='flock'){
@@ -1547,14 +1647,25 @@ function renderReports(){
     const fcr=eggKg>0?(totalFeed/eggKg):null;
     const gPerEgg=totalEggsForFCR>0?((totalFeed*1000)/totalEggsForFCR):null;
     const dailyFeed=Object.entries(last30f.reduce((m,r)=>{(m[r.date]=m[r.date]||{kg:0,req:0});m[r.date].kg+=r.feed_kg_used||0;m[r.date].req+=r.feed_req_kg||0;return m;},{}))
-      .sort((a,b)=>a[0].localeCompare(b[0])).slice(-14);
-    const maxFeed=Math.max(...dailyFeed.map(([,v])=>v.kg),1);
-    const feedBars=dailyFeed.map(([date,v])=>{
-      const h=Math.max(2,Math.round(v.kg/maxFeed*50));
-      const variance=v.req>0?(v.kg-v.req)/v.req*100:0;
-      const c=Math.abs(variance)>15?'var(--red)':Math.abs(variance)>10?'var(--amber)':'var(--g3)';
-      return`<div class="bar-col"><div class="bar-fill" style="height:${h}px;background:${c}"></div>
-        <div class="bar-lbl">${v.kg.toFixed(0)}</div></div>`;}).join('');
+      .sort((a,b)=>a[0].localeCompare(b[0])).slice(-30);
+    const feedChartSvg=(()=>{
+      const n=dailyFeed.length; if(n===0)return'<div style="color:var(--gray);font-size:13px;padding:20px 0">No feed data.</div>';
+      const svgW=600,cH=58,svgH=74,slot=svgW/n,bW=slot*0.52;
+      const maxVal=Math.max(...dailyFeed.map(([,v])=>Math.max(v.kg,v.req||0)),1);
+      const lblStep=Math.ceil(n/12);
+      const bars=dailyFeed.map(([,v],i)=>{
+        const x=i*slot+(slot-bW)/2,bH=Math.max(1,(v.kg/maxVal)*cH),y=cH-bH;
+        const vr=v.req>0?(v.kg-v.req)/v.req*100:0;
+        const col=Math.abs(vr)>15?'#c0392b':Math.abs(vr)>10?'#e67e22':'#27ae60';
+        const lbl=i%lblStep===0||i===n-1?v.kg.toFixed(0):'';
+        return`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bW.toFixed(1)}" height="${bH.toFixed(1)}" fill="${col}" rx="1.5"/>${lbl?`<text x="${(x+bW/2).toFixed(1)}" y="${svgH-1}" text-anchor="middle" font-size="7" fill="#aaa">${lbl}</text>`:''}`;
+      }).join('');
+      const tPts=dailyFeed.map(([,v],i)=>{if(!v.req)return null;const x=i*slot+slot/2,y=cH-(v.req/maxVal)*cH;return`${x.toFixed(1)},${Math.max(0,y).toFixed(1)}`;}).filter(Boolean);
+      const tLine=tPts.length>0?`<polyline points="${tPts.join(' ')}" fill="none" stroke="#4895ef" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>${tPts.map(pt=>{const[x,y]=pt.split(',');return`<circle cx="${x}" cy="${y}" r="2.5" fill="#4895ef"/>`;}).join('')}`:'';
+      return`<svg viewBox="0 0 ${svgW} ${svgH}" style="width:100%;height:auto;display:block;overflow:visible">
+        <line x1="0" y1="0.5" x2="${svgW}" y2="0.5" stroke="#f0f0f0" stroke-width="1"/>
+        ${bars}${tLine}</svg>`;
+    })();
     tabContent=`
       <div class="kpi-row-3">
         <div class="kpi"><div class="kpi-val">${totalFeed.toFixed(0)}</div><div class="kpi-lbl">kg Used (30d)</div></div>
@@ -1565,9 +1676,16 @@ function renderReports(){
         <div style="font-size:12px;color:#1a5fa8;font-weight:700">FCR Benchmark</div>
         <div style="font-size:13px;color:var(--gray);margin-top:4px">Feed Conversion Ratio (FCR) = kg feed ÷ kg eggs produced. Good layers: <b>FCR &lt; 8</b>. g feed/egg: target <b>110–130g</b>.</div>
       </div>
-      <div class="sec-hdr">Daily Feed Usage (Last 14 Days)</div>
-      <div class="card"><div class="bar-chart-row">${feedBars||'<div style="color:var(--gray);font-size:13px">No feed data.</div>'}</div>
-        <div style="font-size:11px;color:var(--gray);margin-top:4px">Bar height = kg used. Color: green=on target, amber=10-15% off, red=&gt;15% off</div></div>
+      <div class="sec-hdr">Daily Feed Usage (Last 30 Days)</div>
+      <div class="card" style="padding:16px">
+        ${feedChartSvg}
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:var(--gray)">
+          <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:12px;height:10px;background:#27ae60;border-radius:2px"></span>On target (≤10%)</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:12px;height:10px;background:#e67e22;border-radius:2px"></span>10–15% off</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:12px;height:10px;background:#c0392b;border-radius:2px"></span>&gt;15% off</span>
+          <span style="display:flex;align-items:center;gap:5px"><svg width="22" height="10" viewBox="0 0 22 10"><line x1="0" y1="5" x2="22" y2="5" stroke="#4895ef" stroke-width="2"/><circle cx="11" cy="5" r="2.5" fill="#4895ef"/></svg>Expected (from saved req)</span>
+        </div>
+      </div>
       <div class="sec-hdr">Feed Log (Last 30 Days)</div>
       <div class="card" style="padding:0;overflow:hidden">
         ${last30f.reverse().slice(0,20).map(r=>{
