@@ -800,7 +800,7 @@ function saveStand(){
   const col=DB.getCols().find(c=>c.id===SES.id);
   if(col){col.entries=[(col.entries||[]).filter(e=>e.standId!==stand.id),...entries].flat();
     if(!col.completedStands.includes(stand.id))col.completedStands.push(stand.id);
-    DB.saveCols(DB.getCols().map(c=>c.id===SES.id?col:c));SES.completedStands=col.completedStands;}
+    DB.updateCol(SES.id,{entries:col.entries,completedStands:col.completedStands});SES.completedStands=col.completedStands;}
   if(SES_STAND<SES.stands.length-1){SES_STAND++;toast(`Stand ${SES_STAND} saved ✓`);renderSession();window.scrollTo(0,0);}
   else{toast('Pass complete! 🎉',3000);SES=null;SES_STAND=0;go('eggs');}
 }
