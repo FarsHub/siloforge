@@ -189,11 +189,26 @@ async function _deleteCol(k){
   CACHE[k]=[];
   try{const snap=await farmRef(k).get();if(!snap.empty){const b=db.batch();snap.docs.forEach(d=>b.delete(d.ref));await b.commit();}}catch(e){toast('Sync error ⚠');}
 }
+const _fsListeners=[];
+function _stopListeners(){_fsListeners.forEach(u=>u());_fsListeners.length=0;}
+function _reRenderCurrent(){
+  const name=document.querySelector('.nav-btn.active')?.dataset?.view;
+  if(!name)return;
+  ({home:renderHome,batches:renderBatches,daily:renderDaily,weight:renderWeight,
+    health:renderHealth,finance:renderFinance,reports:renderReports,settings:renderSettings})[name]?.();
+}
 async function loadFromFirestore(){
-  for(const[name,k]of Object.entries(KEYS)){
-    if(name==='farm'){const doc=await farmDoc(k,'config').get();CACHE[k]=doc.exists?doc.data().data:null;}
-    else{const snap=await farmRef(k).get();CACHE[k]=snap.docs.map(d=>d.data());}
-  }
+  _stopListeners();
+  await Promise.all(Object.entries(KEYS).map(([name,k])=>new Promise(resolve=>{
+    let done=false;
+    const ok=()=>{if(!done){done=true;resolve();}else _reRenderCurrent();};
+    const err=()=>{if(!done){done=true;resolve();}};
+    if(name==='farm'){
+      _fsListeners.push(farmDoc(k,'config').onSnapshot(doc=>{CACHE[k]=doc.exists?doc.data().data:null;ok();},err));
+    }else{
+      _fsListeners.push(farmRef(k).onSnapshot(snap=>{CACHE[k]=snap.docs.map(d=>d.data());ok();},err));
+    }
+  })));
 }
 function showLoginErr(msg){document.getElementById('login-err').textContent=msg;}
 async function doLogin(){
