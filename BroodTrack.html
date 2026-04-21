@@ -264,6 +264,18 @@ const BREED_BENCHMARKS = {
   'Dominant CZ':   {2:158,4:375,6:552,8:745,10:888,12:1010,14:1148,16:1258,18:1358},
   'Other':         {2:160,4:380,6:560,8:750,10:900,12:1050,14:1180,16:1280,18:1380},
 };
+const DOC_WEIGHT_G=40; // standard day-old chick weight
+const BREED_PURPOSE={
+  'Isa Brown':'pullet','Lohmann Brown':'pullet','Dominant CZ':'pullet',
+  'Arbor Acres':'broiler','Marshall':'broiler',
+  'Noiler':'dual','Other':'dual',
+};
+function getBreedPurpose(breed){return BREED_PURPOSE[breed]||'dual';}
+function getFeedEffBenchmarks(purpose){
+  if(purpose==='broiler')return{fcrGood:1.8,fcrOk:2.2,adgGood:50,adgOk:35,label:'Broiler'};
+  if(purpose==='pullet') return{fcrGood:3.0,fcrOk:3.5,adgGood:10,adgOk:7, label:'Pullet'};
+  return                        {fcrGood:2.5,fcrOk:3.0,adgGood:20,adgOk:12,label:'Dual-purpose'};
+}
 const VACC_SCHEDULE = [
   {dayMin:0,  dayMax:1,  name:"Marek's Disease",   route:"Hatchery — note only",hatchery:true},
   {dayMin:10, dayMax:14, name:"Gumboro D78 (IBD)", route:"Drinking Water"},
@@ -1294,9 +1306,19 @@ function renderReports(){
       const totalFeed=bDaily.reduce((s,r)=>s+(r.feed_kg_used||0),0);
       const finalBirds=getBatchBirdCount(b);
       const survival=b.doc_count>0?(finalBirds/b.doc_count*100):null;
-      const eggKg=0; const fcr=eggKg===0&&totalFeed>0?null:null;
       const lastW=bWeight[bWeight.length-1];
       const benchmark=lastW?getWeightBenchmark(b.breed,lastW.week_num):null;
+      // Feed efficiency metrics
+      const purpose=getBreedPurpose(b.breed);
+      const bm=getFeedEffBenchmarks(purpose);
+      const ageDays=batchAgeInDays(b)||0;
+      const liveWtGainKg=lastW?Math.max(0,(lastW.avg_weight_g-DOC_WEIGHT_G)*finalBirds/1000):null;
+      const fcr=liveWtGainKg>0?totalFeed/liveWtGainKg:null;
+      const adg=lastW&&ageDays>0?(lastW.avg_weight_g-DOC_WEIGHT_G)/ageDays:null;
+      const feedDays=bDaily.filter(r=>r.feed_kg_used>0).length;
+      const adfi=feedDays>0&&finalBirds>0?(totalFeed*1000)/feedDays/finalBirds:null;
+      const fcrColor=fcr===null?'var(--gray)':fcr<=bm.fcrGood?'var(--g2)':fcr<=bm.fcrOk?'var(--amber)':'var(--red)';
+      const adgColor=adg===null?'var(--gray)':adg>=bm.adgGood?'var(--g2)':adg>=bm.adgOk?'var(--amber)':'var(--red)';
       // Temperature compliance
       const broodDays=bDaily.filter(r=>r.age_days<=21&&r.temperature_c);
       const inRangeDays=broodDays.filter(r=>{const t=getTempTarget(r.age_days);return t&&r.temperature_c>=t.min&&r.temperature_c<=t.max;});
@@ -1314,6 +1336,23 @@ function renderReports(){
           <div class="kpi-sm"><div class="kpi-val-sm">${totalFeed.toFixed(0)}kg</div><div class="kpi-lbl">Feed Used</div></div>
           <div class="kpi-sm"><div class="kpi-val-sm">${lastW?lastW.avg_weight_g+'g':'—'}</div><div class="kpi-lbl">Last Weight</div></div>
           <div class="kpi-sm"><div class="kpi-val-sm">${tempCompliance!==null?tempCompliance.toFixed(0)+'%':'—'}</div><div class="kpi-lbl">Temp OK%</div></div>
+        </div>
+        <div style="margin-bottom:10px">
+          <div style="font-size:10px;font-weight:800;color:var(--gray);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Feed Efficiency · ${bm.label}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div class="kpi-sm">
+              <div class="kpi-val-sm" style="color:${fcrColor}">${fcr!==null?fcr.toFixed(2):'—'}</div>
+              <div class="kpi-lbl-sm">FCR</div>
+            </div>
+            <div class="kpi-sm">
+              <div class="kpi-val-sm" style="color:${adgColor}">${adg!==null?adg.toFixed(1)+'g':'—'}</div>
+              <div class="kpi-lbl-sm">ADG/Bird</div>
+            </div>
+            <div class="kpi-sm">
+              <div class="kpi-val-sm">${adfi!==null?adfi.toFixed(0)+'g':'—'}</div>
+              <div class="kpi-lbl-sm">Feed/Bird/Day</div>
+            </div>
+          </div>
         </div>
         <div style="display:flex;justify-content:space-between;padding:8px;background:${bSales-bExp>=0?'var(--g5)':'var(--redBg)'};border-radius:8px">
           <span style="font-size:13px;font-weight:700">Revenue − Costs</span>

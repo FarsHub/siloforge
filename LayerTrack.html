@@ -311,6 +311,7 @@ const FLOCK_STAGES = [
 const FEED_TYPES = ['Chick Mash','Grower Pellets','Pre-Layer Mash','Layer Mash','Concentrate','Other'];
 const EXPENSE_CATS = ['Feed Purchase','Medication','Transport','Generator Fuel','Labour','Litter/Bedding','Chick Purchase','Equipment','Water Purchase','Other'];
 const PRODUCT_TYPES = ['Eggs — Crates','Culled Birds','Cockerels','Manure','Other'];
+const EGGS_PER_CRATE = 30;
 const MED_SUGGESTIONS = ['Floxinor','MAXI Vitaconc','Lasota (ND)','Gumboro Vaccine','Amprolium','Tylosin','Oxytetracycline','Vitamin C','Electrolytes','Multivitamin','Water only'];
 const DROP_OPTIONS = ['Normal','Brownish','Greenish','Bloody','Watery','Yellowish'];
 const ADMIN_METHODS = ['Oral (Drinking Water)','Oral (Direct)','Injection','Eye Drop','Feed Mixing'];
@@ -367,6 +368,47 @@ const DB = {
   delRecv(id){ this._del(KEYS.recv,id) },
   updRecv(id,u){ this._upd(KEYS.recv,id,u) },
 };
+
+// ═══════════════════════════════════════════════
+// EGG STOCK
+// ═══════════════════════════════════════════════
+function getEggStock(){
+  const farm=DB.getFarm();
+  const validPenIds=new Set((farm?.pens||[]).map(p=>p.id));
+  let collected=0,broken=0;
+  DB.getCols().filter(c=>validPenIds.has(c.penId)).forEach(col=>{
+    (col.entries||[]).forEach(e=>{collected+=(e.eggs||0);broken+=(e.broken||0);});
+  });
+  const eggsSold=DB.getSales().filter(s=>s.product==='Eggs — Crates')
+    .reduce((sum,s)=>sum+(s.quantity||0)*EGGS_PER_CRATE,0);
+  const available=Math.max(0,collected-broken-eggsSold);
+  return{collected,broken,eggsSold,available,
+    crates:Math.floor(available/EGGS_PER_CRATE),loose:available%EGGS_PER_CRATE};
+}
+function getEggLedger(){
+  const farm=DB.getFarm();
+  const validPenIds=new Set((farm?.pens||[]).map(p=>p.id));
+  const colByDate={};
+  DB.getCols().filter(c=>validPenIds.has(c.penId)).forEach(col=>{
+    if(!colByDate[col.date])colByDate[col.date]={collected:0,broken:0};
+    (col.entries||[]).forEach(e=>{colByDate[col.date].collected+=(e.eggs||0);colByDate[col.date].broken+=(e.broken||0);});
+  });
+  const saleByDate={};
+  DB.getSales().filter(s=>s.product==='Eggs — Crates').forEach(s=>{
+    if(!saleByDate[s.date])saleByDate[s.date]={crates:0,eggs:0};
+    saleByDate[s.date].crates+=(s.quantity||0);
+    saleByDate[s.date].eggs+=(s.quantity||0)*EGGS_PER_CRATE;
+  });
+  const dates=[...new Set([...Object.keys(colByDate),...Object.keys(saleByDate)])].sort();
+  let running=0;
+  const ledger=dates.map(date=>{
+    const c=colByDate[date]||{collected:0,broken:0};
+    const s=saleByDate[date]||{crates:0,eggs:0};
+    running+=c.collected-c.broken-s.eggs;
+    return{date,collected:c.collected,broken:c.broken,soldCrates:s.crates,soldEggs:s.eggs,balance:Math.max(0,running)};
+  });
+  return ledger.reverse();
+}
 
 // ═══════════════════════════════════════════════
 // SESSION STATE (Egg Collection)
@@ -532,6 +574,16 @@ function renderHome(){
         <div class="kpi-lbl-sm">Crack Rate</div>
       </div>
     </div>
+    ${(()=>{const st=getEggStock();const stockColor=st.available===0?'var(--red)':st.available<EGGS_PER_CRATE?'var(--amber)':'var(--g2)';
+    const crateBreak=st.crates>0&&st.loose>0?`${st.crates} crate${st.crates>1?'s':''} + ${st.loose} loose`:st.crates>0?`${st.crates} crate${st.crates>1?'s':''}`:st.loose>0?`${st.loose} loose`:'none';
+    return`<div style="margin:6px 16px 4px;background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="FIN_TAB='stock';go('finance')">
+      <div>
+        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--gray);margin-bottom:4px">🥚 Egg Stock</div>
+        <div style="font-size:22px;font-weight:800;color:${stockColor}">${st.available} eggs</div>
+        <div style="font-size:12px;color:var(--gray);margin-top:2px">${crateBreak} &nbsp;·&nbsp; ${st.collected} collected − ${st.broken} cracked − ${st.eggsSold} sold</div>
+      </div>
+      <span style="color:var(--gray);font-size:20px">›</span>
+    </div>`;})()}
     ${alerts.length?`<div style="margin:0 16px 8px">${alerts.join('')}</div>`:''}
 
     <div class="sec-hdr">Today's Daily Logs
@@ -1190,6 +1242,39 @@ function renderFinance(){
           }).join('')}
       </div>`;
 
+  } else if(FIN_TAB==='stock'){
+    const st=getEggStock(), ledger=getEggLedger();
+    const stockColor=st.available===0?'var(--red)':st.available<EGGS_PER_CRATE?'var(--amber)':'var(--g2)';
+    const crateBreak=st.crates>0&&st.loose>0?`${st.crates} crate${st.crates>1?'s':''} + ${st.loose} loose`:st.crates>0?`${st.crates} crate${st.crates>1?'s':''}`:st.loose>0?`${st.loose} loose`:'none';
+    tabContent=`
+      <div style="margin:12px 16px 8px;background:var(--g5);border-radius:var(--radius);padding:16px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--g1);margin-bottom:6px">Currently Available</div>
+          <div style="font-size:36px;font-weight:800;color:${stockColor};line-height:1">${st.available}</div>
+          <div style="font-size:13px;font-weight:700;color:var(--g2);margin-top:4px">${crateBreak}</div>
+        </div>
+        <div style="text-align:right;font-size:12px;color:var(--g1);line-height:2">
+          <div>+${st.collected} collected</div>
+          <div style="color:var(--red)">−${st.broken} cracked</div>
+          <div style="color:var(--amber)">−${st.eggsSold} sold (${st.eggsSold/EGGS_PER_CRATE} crates)</div>
+        </div>
+      </div>
+      <div class="sec-hdr" style="margin-top:4px">Movement Log</div>
+      <div class="card" style="padding:0;overflow:hidden">
+        ${ledger.length===0?'<div class="empty" style="padding:24px"><p>No egg data yet.</p></div>':
+          ledger.map(r=>`<div class="list-item" style="flex-direction:column;align-items:stretch;gap:4px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:700;font-size:14px">${fmtDate(r.date)}</span>
+              <span style="font-weight:800;font-size:15px;color:${r.balance<EGGS_PER_CRATE?'var(--amber)':'var(--g2)'}">${r.balance} eggs</span>
+            </div>
+            <div style="display:flex;gap:10px;font-size:12px;color:var(--gray)">
+              ${r.collected>0?`<span style="color:var(--g3)">+${r.collected} collected</span>`:''}
+              ${r.broken>0?`<span style="color:var(--red)">−${r.broken} cracked</span>`:''}
+              ${r.soldEggs>0?`<span style="color:var(--amber)">−${r.soldEggs} sold (${r.soldCrates} crate${r.soldCrates>1?'s':''})</span>`:''}
+            </div>
+          </div>`).join('')}
+      </div>`;
+
   } else if(FIN_TAB==='recv'){
     tabContent=`
       ${overdueCount>0?`<div style="margin:12px 16px 0"><div class="alert-item alert-red">⚠ ${overdueCount} overdue payment${overdueCount>1?'s':''} — follow up with customer${overdueCount>1?'s':''}</div></div>`:''}
@@ -1223,7 +1308,7 @@ function renderFinance(){
       </div>`;
   }
 
-  el.innerHTML=`<div class="topbar"><div><h1>Finance</h1><small>Expenses · Sales · Receivables</small></div></div>
+  el.innerHTML=`<div class="topbar"><div><h1>Finance</h1><small>Expenses · Sales · Receivables · Egg Stock</small></div></div>
     <div class="kpi-row-3">
       <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${fmtMoney(monthSales)}</div><div class="kpi-lbl">Sales (Month)</div></div>
       <div class="kpi"><div class="kpi-val" style="color:var(--red)">${fmtMoney(monthExp)}</div><div class="kpi-lbl">Expenses (Month)</div></div>
@@ -1242,6 +1327,7 @@ function renderFinance(){
       <button class="inner-tab ${FIN_TAB==='expenses'?'active':''}" onclick="FIN_TAB='expenses';renderFinance()">Expenses</button>
       <button class="inner-tab ${FIN_TAB==='sales'?'active':''}" onclick="FIN_TAB='sales';renderFinance()">Sales</button>
       <button class="inner-tab ${FIN_TAB==='recv'?'active':''}" onclick="FIN_TAB='recv';renderFinance()">Receivables${overdueCount>0?' 🔴':unpaidCredit.length>0?' ('+unpaidCredit.length+')':''}</button>
+      <button class="inner-tab ${FIN_TAB==='stock'?'active':''}" onclick="FIN_TAB='stock';renderFinance()">Egg Stock</button>
     </div>
     ${tabContent}
     <div style="height:12px"></div>`;
@@ -1354,7 +1440,7 @@ function delSale(id){openModal(`<div class="modal-ttl">Delete Sale? <button clas
 // ═══════════════════════════════════════════════
 // REPORTS — MULTI-MODULE ANALYTICS
 // ═══════════════════════════════════════════════
-let REP_TAB='eggs', ANA_TAB='cells', ANA_DATE=null, TREND_MODE='weekly';
+let REP_TAB='eggs', ANA_TAB='cells', ANA_DATE=null, TREND_MODE='weekly', FEED_CHART_OFFSET=0;
 let CELL_SORT={field:null,dir:'desc'};
 function setCellSort(field){CELL_SORT=CELL_SORT.field===field?{field,dir:CELL_SORT.dir==='desc'?'asc':'desc'}:{field,dir:'desc'};renderReports();}
 function sortCells(arr){
@@ -1655,17 +1741,24 @@ function renderReports(){
 
   } else if(REP_TAB==='feed'){
     const fRecs=DB.getFeed().sort((a,b)=>a.date.localeCompare(b.date));
-    const last30f=fRecs.filter(r=>{const d=new Date(DB.today());d.setDate(d.getDate()-30);return r.date>=d.toISOString().slice(0,10);});
+    // KPI window — always most recent 30 days
+    const _cutoff30=(()=>{const d=new Date(DB.today());d.setDate(d.getDate()-30);return d.toISOString().slice(0,10);})();
+    const last30f=fRecs.filter(r=>r.date>=_cutoff30);
     const totalFeed=last30f.reduce((s,r)=>s+(r.feed_kg_used||0),0);
     const totalReq=last30f.reduce((s,r)=>s+(r.feed_req_kg||0),0);
-    const totalEggsForFCR=DB.getCols().filter(c=>validPenIds.has(c.penId)).reduce((s,c)=>(c.entries||[]).reduce((ss,e)=>ss+(e.eggs||0),s),0);
+    const totalEggsForFCR=DB.getCols().filter(c=>validPenIds.has(c.penId)&&c.date>=_cutoff30).reduce((s,c)=>(c.entries||[]).reduce((ss,e)=>ss+(e.eggs||0),s),0);
     const eggKg=totalEggsForFCR*0.06;
     const fcr=eggKg>0?(totalFeed/eggKg):null;
     const gPerEgg=totalEggsForFCR>0?((totalFeed*1000)/totalEggsForFCR):null;
-    const dailyFeed=Object.entries(last30f.reduce((m,r)=>{(m[r.date]=m[r.date]||{kg:0,req:0});m[r.date].kg+=r.feed_kg_used||0;m[r.date].req+=r.feed_req_kg||0;return m;},{}))
-      .sort((a,b)=>a[0].localeCompare(b[0])).slice(-30);
+    // Chart window — navigable via FEED_CHART_OFFSET
+    const _chartEnd=(()=>{const d=new Date(DB.today());d.setDate(d.getDate()-FEED_CHART_OFFSET*30);return d.toISOString().slice(0,10);})();
+    const _chartStart=(()=>{const d=new Date(DB.today());d.setDate(d.getDate()-FEED_CHART_OFFSET*30-30);return d.toISOString().slice(0,10);})();
+    const chartFeed=fRecs.filter(r=>r.date>_chartStart&&r.date<=_chartEnd);
+    const hasPrev=fRecs.some(r=>r.date<=_chartStart);
+    const dailyFeed=Object.entries(chartFeed.reduce((m,r)=>{(m[r.date]=m[r.date]||{kg:0,req:0});m[r.date].kg+=r.feed_kg_used||0;m[r.date].req+=r.feed_req_kg||0;return m;},{}))
+      .sort((a,b)=>a[0].localeCompare(b[0]));
     const feedChartSvg=(()=>{
-      const n=dailyFeed.length; if(n===0)return'<div style="color:var(--gray);font-size:13px;padding:20px 0">No feed data.</div>';
+      const n=dailyFeed.length; if(n===0)return'<div style="color:var(--gray);font-size:13px;padding:20px 0">No feed data for this period.</div>';
       const svgW=600,cH=58,svgH=74,slot=svgW/n,bW=slot*0.52;
       const maxVal=Math.max(...dailyFeed.map(([,v])=>Math.max(v.kg,v.req||0)),1);
       const lblStep=Math.ceil(n/12);
@@ -1682,17 +1775,26 @@ function renderReports(){
         <line x1="0" y1="0.5" x2="${svgW}" y2="0.5" stroke="#f0f0f0" stroke-width="1"/>
         ${bars}${tLine}</svg>`;
     })();
+    const navBtnStyle='border:none;background:none;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:6px;line-height:1';
+    const navBtnDis='opacity:.25;cursor:default;pointer-events:none';
     tabContent=`
       <div class="kpi-row-3">
         <div class="kpi"><div class="kpi-val">${totalFeed.toFixed(0)}</div><div class="kpi-lbl">kg Used (30d)</div></div>
-        <div class="kpi"><div class="kpi-val" style="color:${fcr&&fcr<8?'var(--g2)':fcr&&fcr<12?'var(--amber)':'var(--red)'}">${fcr?fcr.toFixed(1):'—'}</div><div class="kpi-lbl">FCR</div></div>
-        <div class="kpi"><div class="kpi-val">${gPerEgg?gPerEgg.toFixed(0)+'g':'—'}</div><div class="kpi-lbl">Feed/Egg</div></div>
+        <div class="kpi"><div class="kpi-val" style="color:${fcr&&fcr<8?'var(--g2)':fcr&&fcr<12?'var(--amber)':'var(--red)'}">${fcr?fcr.toFixed(1):'—'}</div><div class="kpi-lbl">FCR (30d)</div></div>
+        <div class="kpi"><div class="kpi-val">${gPerEgg?gPerEgg.toFixed(0)+'g':'—'}</div><div class="kpi-lbl">Feed/Egg (30d)</div></div>
       </div>
       <div class="card" style="background:var(--blueBg);border:1.5px solid var(--blue)">
         <div style="font-size:12px;color:#1a5fa8;font-weight:700">FCR Benchmark</div>
-        <div style="font-size:13px;color:var(--gray);margin-top:4px">Feed Conversion Ratio (FCR) = kg feed ÷ kg eggs produced. Good layers: <b>FCR &lt; 8</b>. g feed/egg: target <b>110–130g</b>.</div>
+        <div style="font-size:13px;color:var(--gray);margin-top:4px">Feed Conversion Ratio (FCR) = kg feed consumed ÷ kg eggs produced, both over the same 30-day window. Good layers: <b>FCR &lt; 8</b>. g feed/egg: target <b>110–130g</b>. Note: eggs reflect feed eaten ~1–3 days prior — this averages out reliably over 30 days.</div>
       </div>
-      <div class="sec-hdr">Daily Feed Usage (Last 30 Days)</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px 4px">
+        <span style="font-size:12px;font-weight:800;color:var(--g1);text-transform:uppercase;letter-spacing:.4px">Daily Feed Usage</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button style="${navBtnStyle}${!hasPrev?navBtnDis:''}" onclick="FEED_CHART_OFFSET++;renderReports()" title="Earlier">←</button>
+          <span style="font-size:11px;color:var(--gray);min-width:130px;text-align:center">${fmtDate(_chartStart)} – ${fmtDate(_chartEnd)}</span>
+          <button style="${navBtnStyle}${FEED_CHART_OFFSET===0?navBtnDis:''}" onclick="FEED_CHART_OFFSET=Math.max(0,FEED_CHART_OFFSET-1);renderReports()" title="Later">→</button>
+        </div>
+      </div>
       <div class="card" style="padding:16px">
         ${feedChartSvg}
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:var(--gray)">
@@ -1702,9 +1804,9 @@ function renderReports(){
           <span style="display:flex;align-items:center;gap:5px"><svg width="22" height="10" viewBox="0 0 22 10"><line x1="0" y1="5" x2="22" y2="5" stroke="#4895ef" stroke-width="2"/><circle cx="11" cy="5" r="2.5" fill="#4895ef"/></svg>Expected (from saved req)</span>
         </div>
       </div>
-      <div class="sec-hdr">Feed Log (Last 30 Days)</div>
+      <div class="sec-hdr">Feed Log · ${fmtDate(_chartStart)} – ${fmtDate(_chartEnd)}</div>
       <div class="card" style="padding:0;overflow:hidden">
-        ${last30f.reverse().slice(0,20).map(r=>{
+        ${chartFeed.slice().reverse().slice(0,20).map(r=>{
           const vr=r.feed_req_kg>0?((r.feed_kg_used-r.feed_req_kg)/r.feed_req_kg*100):0;
           const bc=Math.abs(vr)>15?'badge-red':Math.abs(vr)>10?'badge-amber':'badge-green';
           return`<div class="list-item"><div>
