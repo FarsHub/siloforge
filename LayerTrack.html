@@ -30,6 +30,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .card{background:var(--white);border-radius:var(--radius);padding:18px;margin:14px 16px;box-shadow:var(--shadow)}
 .card-title{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--gray);margin-bottom:12px}
 .kpi-row-5{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin:10px 10px}
+.kpi-row-6{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin:10px 10px}
 .kpi-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 16px}
 .kpi-row-2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 16px 10px}
 .kpi{background:var(--white);border-radius:var(--radius);padding:14px 10px;box-shadow:var(--shadow);text-align:center}
@@ -564,7 +565,7 @@ function renderHome(){
 
   el.innerHTML=`
     <div class="topbar"><div><h1>🐔 LayerTrack</h1><small>${farm.name||'My Farm'} · ${fmtDate(today)}</small></div></div>
-    <div class="kpi-row-5">
+    <div class="kpi-row-6">
       <div class="kpi-sm"><div class="kpi-val-sm">${totalEggs}</div><div class="kpi-lbl-sm">Eggs Today</div></div>
       <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(todayRate)}">${todayRate!==null?todayRate.toFixed(0)+'%':'—'}</div><div class="kpi-lbl-sm">Prod Rate</div></div>
       <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g1)">${farmBirds}</div><div class="kpi-lbl-sm">Total Birds</div></div>
@@ -573,17 +574,14 @@ function renderHome(){
         <div class="kpi-val-sm" style="color:${crackColor}">${todayCrack!==null?todayCrack.toFixed(1)+'%'+crackAlert:'—'}</div>
         <div class="kpi-lbl-sm">Crack Rate</div>
       </div>
+      ${(()=>{const st=getEggStock();const stockColor=st.available===0?'var(--red)':st.available<EGGS_PER_CRATE?'var(--amber)':'var(--g2)';
+      let mainVal,subVal='';
+      if(st.available===0){mainVal=`<div class="kpi-val-sm" style="color:var(--red)">0</div>`;}
+      else if(st.crates===0){mainVal=`<div style="font-size:15px;font-weight:500;color:var(--gray)">${st.loose} pcs</div>`;}
+      else{mainVal=`<div class="kpi-val-sm" style="color:${stockColor}">${st.crates} crate${st.crates>1?'s':''}</div>`;
+        if(st.loose>0)subVal=`<div style="font-size:10px;color:var(--gray);margin-top:1px">${st.loose} pcs</div>`;}
+      return`<div class="kpi-sm" style="cursor:pointer" onclick="FIN_TAB='stock';go('finance')">${mainVal}${subVal}<div class="kpi-lbl-sm">🥚 Egg Stock</div></div>`;})()}
     </div>
-    ${(()=>{const st=getEggStock();const stockColor=st.available===0?'var(--red)':st.available<EGGS_PER_CRATE?'var(--amber)':'var(--g2)';
-    const crateBreak=st.crates>0&&st.loose>0?`${st.crates} crate${st.crates>1?'s':''} + ${st.loose} loose`:st.crates>0?`${st.crates} crate${st.crates>1?'s':''}`:st.loose>0?`${st.loose} loose`:'none';
-    return`<div style="margin:6px 16px 4px;background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="FIN_TAB='stock';go('finance')">
-      <div>
-        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--gray);margin-bottom:4px">🥚 Egg Stock</div>
-        <div style="font-size:22px;font-weight:800;color:${stockColor}">${st.available} eggs</div>
-        <div style="font-size:12px;color:var(--gray);margin-top:2px">${crateBreak} &nbsp;·&nbsp; ${st.collected} collected − ${st.broken} cracked − ${st.eggsSold} sold</div>
-      </div>
-      <span style="color:var(--gray);font-size:20px">›</span>
-    </div>`;})()}
     ${alerts.length?`<div style="margin:0 16px 8px">${alerts.join('')}</div>`:''}
 
     <div class="sec-hdr">Today's Daily Logs
@@ -1245,34 +1243,41 @@ function renderFinance(){
   } else if(FIN_TAB==='stock'){
     const st=getEggStock(), ledger=getEggLedger();
     const stockColor=st.available===0?'var(--red)':st.available<EGGS_PER_CRATE?'var(--amber)':'var(--g2)';
-    const crateBreak=st.crates>0&&st.loose>0?`${st.crates} crate${st.crates>1?'s':''} + ${st.loose} loose`:st.crates>0?`${st.crates} crate${st.crates>1?'s':''}`:st.loose>0?`${st.loose} loose`:'none';
+    const stockMainVal=st.available===0
+      ?`<div style="font-size:36px;font-weight:800;color:var(--red);line-height:1">0</div>`
+      :st.crates===0
+        ?`<div style="font-size:28px;font-weight:600;color:var(--amber);line-height:1">${st.loose} pcs</div>`
+        :`<div style="font-size:36px;font-weight:800;color:${stockColor};line-height:1">${st.crates} crate${st.crates>1?'s':''}</div>${st.loose>0?`<div style="font-size:13px;color:var(--gray);margin-top:4px">${st.loose} pcs</div>`:''}`;
     tabContent=`
       <div style="margin:12px 16px 8px;background:var(--g5);border-radius:var(--radius);padding:16px;display:flex;justify-content:space-between;align-items:center">
         <div>
           <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--g1);margin-bottom:6px">Currently Available</div>
-          <div style="font-size:36px;font-weight:800;color:${stockColor};line-height:1">${st.available}</div>
-          <div style="font-size:13px;font-weight:700;color:var(--g2);margin-top:4px">${crateBreak}</div>
+          ${stockMainVal}
         </div>
         <div style="text-align:right;font-size:12px;color:var(--g1);line-height:2">
           <div>+${st.collected} collected</div>
           <div style="color:var(--red)">−${st.broken} cracked</div>
-          <div style="color:var(--amber)">−${st.eggsSold} sold (${st.eggsSold/EGGS_PER_CRATE} crates)</div>
+          <div style="color:var(--amber)">−${Math.round(st.eggsSold/EGGS_PER_CRATE)} crates sold</div>
         </div>
       </div>
       <div class="sec-hdr" style="margin-top:4px">Movement Log</div>
       <div class="card" style="padding:0;overflow:hidden">
         ${ledger.length===0?'<div class="empty" style="padding:24px"><p>No egg data yet.</p></div>':
-          ledger.map(r=>`<div class="list-item" style="flex-direction:column;align-items:stretch;gap:4px">
+          ledger.map(r=>{const bCrates=Math.floor(r.balance/EGGS_PER_CRATE),bPcs=r.balance%EGGS_PER_CRATE;
+          const balHtml=bCrates>0
+            ?`<span style="font-weight:800;font-size:15px;color:var(--g2)">${bCrates} crate${bCrates>1?'s':''}</span>${bPcs>0?`<span style="font-size:11px;color:var(--gray);margin-left:4px">${bPcs} pcs</span>`:''}`
+            :`<span style="font-weight:600;font-size:14px;color:var(--amber)">${bPcs} pcs</span>`;
+          return`<div class="list-item" style="flex-direction:column;align-items:stretch;gap:4px">
             <div style="display:flex;justify-content:space-between;align-items:center">
               <span style="font-weight:700;font-size:14px">${fmtDate(r.date)}</span>
-              <span style="font-weight:800;font-size:15px;color:${r.balance<EGGS_PER_CRATE?'var(--amber)':'var(--g2)'}">${r.balance} eggs</span>
+              <span>${balHtml}</span>
             </div>
             <div style="display:flex;gap:10px;font-size:12px;color:var(--gray)">
               ${r.collected>0?`<span style="color:var(--g3)">+${r.collected} collected</span>`:''}
               ${r.broken>0?`<span style="color:var(--red)">−${r.broken} cracked</span>`:''}
-              ${r.soldEggs>0?`<span style="color:var(--amber)">−${r.soldEggs} sold (${r.soldCrates} crate${r.soldCrates>1?'s':''})</span>`:''}
+              ${r.soldEggs>0?`<span style="color:var(--amber)">−${r.soldCrates} crate${r.soldCrates>1?'s':''} sold</span>`:''}
             </div>
-          </div>`).join('')}
+          </div>`;}).join('')}
       </div>`;
 
   } else if(FIN_TAB==='recv'){
