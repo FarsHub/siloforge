@@ -575,12 +575,11 @@ function renderHome(){
         <div class="kpi-lbl-sm">Crack Rate</div>
       </div>
       ${(()=>{const st=getEggStock();const stockColor=st.available===0?'var(--red)':st.available<EGGS_PER_CRATE?'var(--amber)':'var(--g2)';
-      let mainVal,subVal='';
+      let mainVal;
       if(st.available===0){mainVal=`<div class="kpi-val-sm" style="color:var(--red)">0</div>`;}
-      else if(st.crates===0){mainVal=`<div style="font-size:15px;font-weight:500;color:var(--gray)">${st.loose} pcs</div>`;}
-      else{mainVal=`<div class="kpi-val-sm" style="color:${stockColor}">${st.crates} crate${st.crates>1?'s':''}</div>`;
-        if(st.loose>0)subVal=`<div style="font-size:10px;color:var(--gray);margin-top:1px">${st.loose} pcs</div>`;}
-      return`<div class="kpi-sm" style="cursor:pointer" onclick="FIN_TAB='stock';go('finance')">${mainVal}${subVal}<div class="kpi-lbl-sm">🥚 Egg Stock</div></div>`;})()}
+      else if(st.crates===0){mainVal=`<div class="kpi-val-sm" style="color:var(--amber);font-weight:600;font-size:15px">${st.loose} pcs</div>`;}
+      else{mainVal=`<div class="kpi-val-sm" style="color:${stockColor}">${st.crates} crate${st.crates>1?'s':''}${st.loose>0?`<span style="font-size:10px;font-weight:500;color:var(--gray);margin-left:3px">${st.loose} pcs</span>`:''}</div>`;}
+      return`<div class="kpi-sm" style="cursor:pointer" onclick="FIN_TAB='stock';go('finance')">${mainVal}<div class="kpi-lbl-sm">Egg Stock</div></div>`;})()}
     </div>
     ${alerts.length?`<div style="margin:0 16px 8px">${alerts.join('')}</div>`:''}
 
@@ -1652,17 +1651,21 @@ function renderReports(){
         const l3=_tPoints.slice(-3).reduce((s,p)=>s+p.hdp,0)/3;
         const p3=_tPoints.slice(-6,-3);if(p3.length){const p3a=p3.reduce((s,p)=>s+p.hdp,0)/p3.length;if(l3>p3a+2){_tArrow='↑';_tCol='var(--g2)';}else if(l3<p3a-2){_tArrow='↓';_tCol='var(--red)';}}
       }
+      const _maxRate=_tPoints.length>0?Math.max(..._tPoints.map(p=>p.hdp)):20;
+      const _yMax=Math.max(Math.ceil(_maxRate/5)*5+5,20);
       const _trendSvg=(()=>{
         const pts=_tPoints,n=pts.length;
         if(n<2)return`<div style="color:var(--gray);font-size:13px;padding:24px 0;text-align:center">Not enough data — log eggs across at least 2 ${isWeekly?'weeks':'months'} to see the trend.</div>`;
         const svgW=600,cH=110,lblH=18,svgH=cH+lblH,padL=36,padR=8,plotW=svgW-padL-padR;
-        const yp=(v)=>(cH-6)-Math.min(Math.max(v,0),100)/100*(cH-12)+2;
+        const yp=(v)=>(cH-6)-(Math.min(Math.max(v,0),_yMax)/_yMax)*(cH-12)+2;
         const xp=(i)=>padL+(i/Math.max(n-1,1))*plotW;
-        const y80=yp(80),y70=yp(70);
-        const bench=`<line x1="${padL}" y1="${y80.toFixed(1)}" x2="${svgW-padR}" y2="${y80.toFixed(1)}" stroke="#27ae60" stroke-width="1" stroke-dasharray="5,3" opacity="0.7"/>
-          <text x="${padL-3}" y="${(y80+3).toFixed(1)}" text-anchor="end" font-size="8" fill="#27ae60" font-weight="700">80</text>
-          <line x1="${padL}" y1="${y70.toFixed(1)}" x2="${svgW-padR}" y2="${y70.toFixed(1)}" stroke="#e67e22" stroke-width="1" stroke-dasharray="5,3" opacity="0.7"/>
-          <text x="${padL-3}" y="${(y70+3).toFixed(1)}" text-anchor="end" font-size="8" fill="#e67e22" font-weight="700">70</text>`;
+        const yAxisLbls=`<text x="${padL-3}" y="${(yp(0)+3).toFixed(1)}" text-anchor="end" font-size="8" fill="#bbb">0</text>
+          <text x="${padL-3}" y="${(yp(_yMax)+3).toFixed(1)}" text-anchor="end" font-size="8" fill="#bbb">${_yMax}</text>
+          <line x1="${padL}" y1="${yp(0).toFixed(1)}" x2="${svgW-padR}" y2="${yp(0).toFixed(1)}" stroke="#eee" stroke-width="1"/>`;
+        const bench=(_yMax>=80?`<line x1="${padL}" y1="${yp(80).toFixed(1)}" x2="${svgW-padR}" y2="${yp(80).toFixed(1)}" stroke="#27ae60" stroke-width="1" stroke-dasharray="5,3" opacity="0.7"/>
+          <text x="${padL-3}" y="${(yp(80)+3).toFixed(1)}" text-anchor="end" font-size="8" fill="#27ae60" font-weight="700">80</text>`:'')
+          +(_yMax>=70?`<line x1="${padL}" y1="${yp(70).toFixed(1)}" x2="${svgW-padR}" y2="${yp(70).toFixed(1)}" stroke="#e67e22" stroke-width="1" stroke-dasharray="5,3" opacity="0.7"/>
+          <text x="${padL-3}" y="${(yp(70)+3).toFixed(1)}" text-anchor="end" font-size="8" fill="#e67e22" font-weight="700">70</text>`:'');
         const linePts=pts.map((p,i)=>`${xp(i).toFixed(1)},${yp(p.hdp).toFixed(1)}`).join(' ');
         const area=`<polygon points="${xp(0).toFixed(1)},${cH+2} ${linePts} ${xp(n-1).toFixed(1)},${cH+2}" fill="url(#tGrad)" opacity="0.18"/>`;
         const segs=pts.slice(0,-1).map((p,i)=>{const x1=xp(i),y1=yp(p.hdp),x2=xp(i+1),y2=yp(pts[i+1].hdp);const avg=(p.hdp+pts[i+1].hdp)/2;const col=avg>=80?'#27ae60':avg>=70?'#e67e22':'#c0392b';return`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${col}" stroke-width="2.5" stroke-linecap="round"/>`;}).join('');
@@ -1671,7 +1674,7 @@ function renderReports(){
         const xlbls=pts.map((p,i)=>i%lstep===0||i===n-1?`<text x="${xp(i).toFixed(1)}" y="${svgH-1}" text-anchor="middle" font-size="7.5" fill="#aaa">${p.label}</text>`:'').join('');
         return`<svg viewBox="0 0 ${svgW} ${svgH}" style="width:100%;height:auto;display:block;overflow:visible">
           <defs><linearGradient id="tGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#27ae60" stop-opacity="0.4"/><stop offset="100%" stop-color="#27ae60" stop-opacity="0"/></linearGradient></defs>
-          ${bench}${area}${segs}${dots}${xlbls}</svg>`;
+          ${yAxisLbls}${bench}${area}${segs}${dots}${xlbls}</svg>`;
       })();
       const _lbl=isWeekly?'Week':'Month';
       tabContent=`
@@ -1691,8 +1694,8 @@ function renderReports(){
             <span><svg width="20" height="8" viewBox="0 0 20 8" style="vertical-align:middle"><line x1="1" y1="4" x2="19" y2="4" stroke="#27ae60" stroke-width="2.5"/></svg> ≥80%</span>
             <span><svg width="20" height="8" viewBox="0 0 20 8" style="vertical-align:middle"><line x1="1" y1="4" x2="19" y2="4" stroke="#e67e22" stroke-width="2.5"/></svg> 70–80%</span>
             <span><svg width="20" height="8" viewBox="0 0 20 8" style="vertical-align:middle"><line x1="1" y1="4" x2="19" y2="4" stroke="#c0392b" stroke-width="2.5"/></svg> &lt;70%</span>
-            <span><svg width="20" height="8" viewBox="0 0 20 8" style="vertical-align:middle"><line x1="1" y1="4" x2="19" y2="4" stroke="#27ae60" stroke-width="1" stroke-dasharray="4,2"/></svg> 80% target</span>
-            <span><svg width="20" height="8" viewBox="0 0 20 8" style="vertical-align:middle"><line x1="1" y1="4" x2="19" y2="4" stroke="#e67e22" stroke-width="1" stroke-dasharray="4,2"/></svg> 70% floor</span>
+            ${_yMax>=80?`<span><svg width="20" height="8" viewBox="0 0 20 8" style="vertical-align:middle"><line x1="1" y1="4" x2="19" y2="4" stroke="#27ae60" stroke-width="1" stroke-dasharray="4,2"/></svg> 80% target</span>`:''}
+            ${_yMax>=70?`<span><svg width="20" height="8" viewBox="0 0 20 8" style="vertical-align:middle"><line x1="1" y1="4" x2="19" y2="4" stroke="#e67e22" stroke-width="1" stroke-dasharray="4,2"/></svg> 70% floor</span>`:''}
           </div>
         </div>
         <div class="sec-hdr">${isWeekly?'Weekly':'Monthly'} Breakdown</div>
@@ -1788,10 +1791,10 @@ function renderReports(){
         <div class="kpi"><div class="kpi-val" style="color:${fcr&&fcr<8?'var(--g2)':fcr&&fcr<12?'var(--amber)':'var(--red)'}">${fcr?fcr.toFixed(1):'—'}</div><div class="kpi-lbl">FCR (30d)</div></div>
         <div class="kpi"><div class="kpi-val">${gPerEgg?gPerEgg.toFixed(0)+'g':'—'}</div><div class="kpi-lbl">Feed/Egg (30d)</div></div>
       </div>
-      <div class="card" style="background:var(--blueBg);border:1.5px solid var(--blue)">
-        <div style="font-size:12px;color:#1a5fa8;font-weight:700">FCR Benchmark</div>
-        <div style="font-size:13px;color:var(--gray);margin-top:4px">Feed Conversion Ratio (FCR) = kg feed consumed ÷ kg eggs produced, both over the same 30-day window. Good layers: <b>FCR &lt; 8</b>. g feed/egg: target <b>110–130g</b>. Note: eggs reflect feed eaten ~1–3 days prior — this averages out reliably over 30 days.</div>
-      </div>
+      <details style="background:var(--blueBg);border:1.5px solid var(--blue);border-radius:var(--radius);padding:10px 14px;margin:0 16px 10px">
+        <summary style="font-size:12px;color:#1a5fa8;font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center">FCR Benchmark <span style="font-size:10px;color:#5a9fd4;font-weight:400">tap to expand</span></summary>
+        <div style="font-size:13px;color:var(--gray);margin-top:8px">FCR = kg feed ÷ kg eggs (30-day window). Target: <b>FCR &lt; 8</b> · g feed/egg: <b>110–130g</b>.</div>
+      </details>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px 4px">
         <span style="font-size:12px;font-weight:800;color:var(--g1);text-transform:uppercase;letter-spacing:.4px">Daily Feed Usage</span>
         <div style="display:flex;align-items:center;gap:4px">
