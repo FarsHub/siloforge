@@ -1653,6 +1653,7 @@ function renderReports(){
       }
       const _maxRate=_tPoints.length>0?Math.max(..._tPoints.map(p=>p.hdp)):20;
       const _yMax=Math.max(Math.ceil(_maxRate/5)*5+5,20);
+      window._trendPts=_tPoints;
       const _trendSvg=(()=>{
         const pts=_tPoints,n=pts.length;
         if(n<2)return`<div style="color:var(--gray);font-size:13px;padding:24px 0;text-align:center">Not enough data — log eggs across at least 2 ${isWeekly?'weeks':'months'} to see the trend.</div>`;
@@ -1669,7 +1670,7 @@ function renderReports(){
         const linePts=pts.map((p,i)=>`${xp(i).toFixed(1)},${yp(p.hdp).toFixed(1)}`).join(' ');
         const area=`<polygon points="${xp(0).toFixed(1)},${cH+2} ${linePts} ${xp(n-1).toFixed(1)},${cH+2}" fill="url(#tGrad)" opacity="0.18"/>`;
         const segs=pts.slice(0,-1).map((p,i)=>{const x1=xp(i),y1=yp(p.hdp),x2=xp(i+1),y2=yp(pts[i+1].hdp);const avg=(p.hdp+pts[i+1].hdp)/2;const col=avg>=80?'#27ae60':avg>=70?'#e67e22':'#c0392b';return`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${col}" stroke-width="2.5" stroke-linecap="round"/>`;}).join('');
-        const dots=pts.map((p,i)=>{const x=xp(i),y=yp(p.hdp),isPk=p===_peakPt,col=p.hdp>=80?'#27ae60':p.hdp>=70?'#e67e22':'#c0392b';return`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${isPk?4.5:2.5}" fill="${col}" stroke="white" stroke-width="1.5"/>${isPk?`<text x="${x.toFixed(1)}" y="${(y-10).toFixed(1)}" text-anchor="middle" font-size="9" fill="${col}" font-weight="800">▲${p.hdp.toFixed(0)}%</text>`:''}`;}).join('');
+        const dots=pts.map((p,i)=>{const x=xp(i),y=yp(p.hdp),isPk=p===_peakPt,col=p.hdp>=80?'#27ae60':p.hdp>=70?'#e67e22':'#c0392b';return`<g onmouseenter="showTrendTip(event,_trendPts[${i}])" onmouseleave="hideTrendTip()" onmousemove="positionTrendTip(event)" style="cursor:pointer"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="11" fill="transparent"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${isPk?4.5:2.5}" fill="${col}" stroke="white" stroke-width="1.5"/>${isPk?`<text x="${x.toFixed(1)}" y="${(y-10).toFixed(1)}" text-anchor="middle" font-size="9" fill="${col}" font-weight="800">▲${p.hdp.toFixed(0)}%</text>`:''}</g>`;}).join('');
         const lstep=Math.ceil(n/10);
         const xlbls=pts.map((p,i)=>i%lstep===0||i===n-1?`<text x="${xp(i).toFixed(1)}" y="${svgH-1}" text-anchor="middle" font-size="7.5" fill="#aaa">${p.label}</text>`:'').join('');
         return`<svg viewBox="0 0 ${svgW} ${svgH}" style="width:100%;height:auto;display:block;overflow:visible">
@@ -2227,6 +2228,30 @@ function importData(input){
 // INIT
 // ═══════════════════════════════════════════════
 initApp();
+
+function showTrendTip(evt, pt) {
+  const cr=Math.floor(pt.eggs/30),lp=pt.eggs%30;
+  const eggStr=cr>0
+    ?cr+' crate'+(cr>1?'s':'')+(lp>0?` <span style="font-size:10px;color:#999">${lp} pcs</span>`:'')
+    :lp+' pcs';
+  const col=pt.hdp>=80?'#27ae60':pt.hdp>=70?'#e67e22':'#c0392b';
+  document.getElementById('trendTip').innerHTML=
+    `<div style="font-weight:700;font-size:12px;margin-bottom:5px;color:#333">${pt.label}</div>`+
+    `<div style="font-size:11px;margin-bottom:2px">Avg HDP: <b style="color:${col}">${pt.hdp.toFixed(1)}%</b></div>`+
+    `<div style="font-size:11px">Eggs: <b>${eggStr}</b></div>`;
+  document.getElementById('trendTip').style.display='block';
+  positionTrendTip(evt);
+}
+function positionTrendTip(evt) {
+  const tip=document.getElementById('trendTip');
+  if(tip.style.display==='none')return;
+  const x=evt.clientX+16,y=evt.clientY-14;
+  const tw=tip.offsetWidth||160,th=tip.offsetHeight||70;
+  tip.style.left=Math.min(x,window.innerWidth-tw-8)+'px';
+  tip.style.top=Math.max(y-th,8)+'px';
+}
+function hideTrendTip(){document.getElementById('trendTip').style.display='none';}
 </script>
+<div id="trendTip" style="display:none;position:fixed;background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:9px 13px;box-shadow:0 3px 14px rgba(0,0,0,0.13);pointer-events:none;z-index:9999;min-width:120px"></div>
 </body>
 </html>
