@@ -1564,6 +1564,11 @@ function exportData(){
   const a=document.createElement('a');a.href=url;a.download=`BroodTrack_export_${DB.today()}.json`;a.click();
   URL.revokeObjectURL(url);toast('Export complete ✓');
 }
+function _mergeById(existing,incoming){
+  const map=new Map((existing||[]).map(r=>[r.id,r]));
+  (incoming||[]).forEach(r=>{if(r.id&&!map.has(r.id))map.set(r.id,r);});
+  return Array.from(map.values());
+}
 function importData(input){
   const file=input.files[0]; if(!file)return;
   const reader=new FileReader();
@@ -1580,12 +1585,12 @@ function importData(input){
     }
     const counts={};
     if(data.farm){DB.saveFarm(data.farm);counts.farm='1 farm config';}
-    if(data.batches?.length){DB._set(KEYS.batches,data.batches);counts.batches=data.batches.length+' batches';}
-    if(data.brooding_daily_log?.length){DB._set(KEYS.daily,data.brooding_daily_log);counts.daily=data.brooding_daily_log.length+' daily logs';}
-    if(data.brooding_weight_log?.length){DB._set(KEYS.weight,data.brooding_weight_log);counts.weight=data.brooding_weight_log.length+' weight records';}
-    if(data.brooding_health_log?.length){DB._set(KEYS.health,data.brooding_health_log);counts.health=data.brooding_health_log.length+' health records';}
-    if(data.expenses?.length){DB._set(KEYS.expenses,data.expenses);counts.expenses=data.expenses.length+' expenses';}
-    if(data.sales?.length){DB._set(KEYS.sales,data.sales);counts.sales=data.sales.length+' sales';}
+    if(data.batches?.length){const m=_mergeById(DB._arr(KEYS.batches),data.batches);DB._set(KEYS.batches,m);counts.batches=data.batches.length+' batch(es) merged';}
+    if(data.brooding_daily_log?.length){const m=_mergeById(DB._arr(KEYS.daily),data.brooding_daily_log);DB._set(KEYS.daily,m);counts.daily=data.brooding_daily_log.length+' daily logs merged';}
+    if(data.brooding_weight_log?.length){const m=_mergeById(DB._arr(KEYS.weight),data.brooding_weight_log);DB._set(KEYS.weight,m);counts.weight=data.brooding_weight_log.length+' weight records merged';}
+    if(data.brooding_health_log?.length){const m=_mergeById(DB._arr(KEYS.health),data.brooding_health_log);DB._set(KEYS.health,m);counts.health=data.brooding_health_log.length+' health records merged';}
+    if(data.expenses?.length){const m=_mergeById(DB._arr(KEYS.expenses),data.expenses);DB._set(KEYS.expenses,m);counts.expenses=data.expenses.length+' expenses merged';}
+    if(data.sales?.length){const m=_mergeById(DB._arr(KEYS.sales),data.sales);DB._set(KEYS.sales,m);counts.sales=data.sales.length+' sales merged';}
     renderHome();renderDaily();renderHealth();renderFinance();renderReports();renderSettings();
     const lines=Object.values(counts);
     if(lines.length===0){
@@ -1597,7 +1602,7 @@ function importData(input){
         <div style="background:#d1fae5;border-left:3px solid var(--g2);padding:10px 14px;border-radius:0 8px 8px 0;font-size:13px;color:#065f46;margin-bottom:12px">
           ${lines.map(l=>`✓ ${l}`).join('<br>')}
         </div>
-        <div style="font-size:12px;color:var(--gray);margin-bottom:12px">Navigate to each tab to verify the data looks correct.</div>
+        <div style="font-size:12px;color:var(--gray);margin-bottom:12px">Existing data was preserved. New records were added alongside it.</div>
         <button class="btn btn-primary" onclick="closeModal()">Done</button>`);
     }
     input.value='';
