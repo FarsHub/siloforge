@@ -96,6 +96,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
 .bar-fill{width:100%;border-radius:4px 4px 0 0;min-height:2px}
 .bar-lbl{font-size:8px;color:var(--gray);text-align:center;white-space:nowrap;overflow:hidden;width:100%}
+/* ── Batch context bar ── */
+.batch-ctx-bar{display:flex;align-items:center;justify-content:space-between;background:var(--white);border-bottom:1px solid #ede8f5;padding:10px 16px;gap:10px}
+.batch-ctx-left{display:flex;align-items:center;gap:10px;min-width:0}
+.batch-ctx-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.batch-ctx-dot.active-dot{background:var(--p2)}
+.batch-ctx-dot.sold-dot{background:var(--g3)}
+.batch-ctx-dot.closed-dot{background:var(--gray)}
+.batch-ctx-name{font-weight:800;font-size:14px;color:var(--p1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.batch-ctx-sub{font-size:11px;color:var(--gray);margin-top:1px}
+.batch-select-prompt{text-align:center;padding:52px 28px;color:var(--gray)}
+.batch-select-prompt .bsp-icon{font-size:48px;margin-bottom:14px;opacity:.5}
+.batch-select-prompt h3{font-size:17px;font-weight:800;color:var(--p1);margin-bottom:8px}
+.batch-select-prompt p{font-size:13px;line-height:1.7;max-width:280px;margin:0 auto 16px}
+.batch-card-selected{box-shadow:0 0 0 2.5px var(--p2),var(--shadow)!important}
+.fin-scope-bar{display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--p5);border-bottom:1px solid #ede8f5;font-size:12px;font-weight:700;color:var(--p1)}
+.fin-scope-bar .scope-toggle{margin-left:auto;font-size:12px;font-weight:700;color:var(--p2);background:none;border:1.5px solid var(--p3);border-radius:20px;padding:4px 12px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -352,6 +368,38 @@ function go(name){
   ({home:renderHome,batches:renderBatches,daily:renderDaily,weight:renderWeight,
     health:renderHealth,finance:renderFinance,reports:renderReports,settings:renderSettings})[name]?.();
 }
+function selectBatch(id,view){
+  _activeBatchId=id;
+  _finAllBatches=false;
+  go(view||'daily');
+}
+function getBatchCtxBar(){
+  if(!_activeBatchId)return'';
+  const b=DB.getBatches().find(x=>x.id===_activeBatchId);
+  if(!b)return'';
+  const ageDays=batchAgeInDays(b);
+  const birds=getBatchBirdCount(b);
+  const dotCls=b.status==='Active'?'active-dot':b.status==='Sold'?'sold-dot':'closed-dot';
+  const statusLabel=b.status==='Active'?`Day ${ageDays??'—'}`:b.status;
+  return`<div class="batch-ctx-bar">
+    <div class="batch-ctx-left">
+      <div class="batch-ctx-dot ${dotCls}"></div>
+      <div>
+        <div class="batch-ctx-name">${b.name}</div>
+        <div class="batch-ctx-sub">${b.breed} · ${statusLabel} · ${birds.toLocaleString()} birds</div>
+      </div>
+    </div>
+    <button class="btn btn-secondary btn-sm" onclick="go('batches')" style="flex-shrink:0">Switch</button>
+  </div>`;
+}
+function getBatchSelectPrompt(){
+  return`<div class="batch-select-prompt">
+    <div class="bsp-icon">📦</div>
+    <h3>No batch selected</h3>
+    <p>Go to <b>Batches</b> and tap <b>Open</b> on a batch to view and log its records here.</p>
+    <button class="btn btn-primary" style="max-width:200px;margin:0 auto" onclick="go('batches')">Go to Batches</button>
+  </div>`;
+}
 
 // ═══════════════════════════════════════════════
 // UTILITIES
@@ -475,8 +523,8 @@ function renderHome(){
       </div>
       ${lastWeight&&weightStatus?`<div style="margin-top:8px"><span class="badge ${weightStatus}">${lastWeight.avg_weight_g>=benchmark*0.95?'On Track':lastWeight.avg_weight_g>=benchmark*0.85?'Slightly Below':'Below Target'} — ${fmtDate(lastWeight.date)}</span></div>`:''}
       <div style="display:flex;gap:8px;margin-top:12px">
-        <button class="btn btn-primary btn-sm" style="flex:1" onclick="openDailyForm('${b.id}')">Add Log</button>
-        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="go('batches')">Details</button>
+        <button class="btn btn-primary btn-sm" style="flex:2" onclick="selectBatch('${b.id}','daily')">Open Records</button>
+        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="openDailyForm('${b.id}')">Quick Log</button>
       </div>
     </div>`;
   }).join('');
@@ -518,11 +566,12 @@ function renderBatches(){
           ${v.hatchery?'Hatchery':v.done?'Done':v.overdue?'Overdue':v.due?'Due Now':'Upcoming'}
         </span>
       </div>`).join('');
-    return`<div class="batch-card ${statusCls}" id="bc_${b.id}">
+    const isSelected=_activeBatchId===b.id;
+    return`<div class="batch-card ${statusCls}${isSelected?' batch-card-selected':''}" id="bc_${b.id}">
       <div style="padding:14px 16px">
         <div style="display:flex;align-items:flex-start;justify-content:space-between">
           <div>
-            <div style="font-weight:800;font-size:16px">${b.name}</div>
+            <div style="font-weight:800;font-size:16px">${b.name}${isSelected?` <span style="font-size:11px;background:var(--p5);color:var(--p2);border-radius:20px;padding:2px 8px;font-weight:700;vertical-align:middle">Viewing</span>`:''}</div>
             <div style="font-size:12px;color:var(--gray);margin-top:2px">${b.breed} · Arrived: ${b.arrival_date?fmtDate(b.arrival_date):'Unknown'}</div>
           </div>
           <span class="badge ${statusBadge}">${b.status}</span>
@@ -536,8 +585,8 @@ function renderBatches(){
         ${overdueVacc.length?`<div class="alert-item alert-red" style="margin-bottom:8px">⚠ ${overdueVacc.length} overdue vaccination${overdueVacc.length>1?'s':''}</div>`:''}
         ${nextVacc&&!overdueVacc.length?`<div style="font-size:12px;color:var(--amber);font-weight:700;margin-bottom:8px">💉 Next: ${nextVacc.name} by ${fmtDate(nextVacc.dueDate)}</div>`:''}
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn btn-primary btn-sm" style="flex:1;min-width:80px" onclick="openDailyForm('${b.id}')">Add Log</button>
-          <button class="btn btn-secondary btn-sm" style="flex:1;min-width:80px" onclick="openWeightForm('${b.id}')">Log Weight</button>
+          <button class="btn btn-primary btn-sm" style="flex:2;min-width:100px" onclick="selectBatch('${b.id}','daily')">${isSelected?'✓ Currently Viewing':'Open Records'}</button>
+          <button class="btn btn-secondary btn-sm" style="flex:1;min-width:70px" onclick="openDailyForm('${b.id}')">Log Today</button>
           <button class="btn btn-amber btn-sm" onclick="editBatch('${b.id}')">Edit</button>
           <button class="btn btn-danger btn-sm" onclick="closeBatch('${b.id}')">Close</button>
         </div>
@@ -651,11 +700,16 @@ function doCloseBatch(batchId){
 // ═══════════════════════════════════════════════
 function renderDaily(){
   const el=document.getElementById('v-daily'), today=DB.today();
-  const active=getActiveBatches();
-  const allDaily=DB.getDaily().sort((a,b)=>b.date.localeCompare(a.date));
-  const todayLogs=allDaily.filter(r=>r.date===today);
-  const logsHtml=allDaily.slice(0,50).map(r=>{
-    const batch=DB.getBatches().find(b=>b.id===r.batch_id);
+  const topbar=`<div class="topbar"><div><h1>Daily Log</h1><small>Mortality · Feed · Water · Temp</small></div></div>`;
+  if(!_activeBatchId||!DB.getBatches().find(b=>b.id===_activeBatchId)){
+    el.innerHTML=topbar+getBatchSelectPrompt(); return;
+  }
+  const batch=DB.getBatches().find(b=>b.id===_activeBatchId);
+  const allDaily=DB.getDaily().filter(r=>r.batch_id===_activeBatchId).sort((a,b)=>b.date.localeCompare(a.date));
+  const todayLogged=allDaily.some(r=>r.date===today);
+  const totalDeaths=allDaily.reduce((s,r)=>s+(r.deaths||0),0);
+  const survivalPct=batch.doc_count>0?((batch.doc_count-totalDeaths)/batch.doc_count*100).toFixed(1):null;
+  const logsHtml=allDaily.map(r=>{
     const ageDays=r.age_days, target=getTempTarget(ageDays);
     const tempCls=r.temperature_c&&target?(r.temperature_c>=target.min&&r.temperature_c<=target.max?'temp-ok':
       Math.abs(r.temperature_c-((target.min+target.max)/2))<=3?'temp-warn':'temp-bad'):'';
@@ -663,8 +717,8 @@ function renderDaily(){
     const mBadge=mortality>2?'badge-red':mortality>0.5?'badge-amber':r.deaths>0?'badge-gray':'';
     return`<div class="list-item">
       <div style="flex:1">
-        <div style="font-weight:700;font-size:14px">${batch?.name||r.batch_id} <span style="font-size:11px;color:var(--gray)">Day ${ageDays}</span></div>
-        <div style="font-size:12px;color:var(--gray);margin-top:2px">${fmtDate(r.date)} · ${(()=>{
+        <div style="font-weight:700;font-size:14px">Day ${ageDays} <span style="font-size:11px;font-weight:400;color:var(--gray)">${fmtDate(r.date)}</span></div>
+        <div style="font-size:12px;color:var(--gray);margin-top:2px">${(()=>{
           const fv=r.feed_req_kg>0?((r.feed_kg_used-r.feed_req_kg)/r.feed_req_kg*100):null;
           const fc=fv===null?'var(--gray)':Math.abs(fv)>15?'var(--red)':Math.abs(fv)>10?'var(--amber)':'var(--g2)';
           const wv=r.water_req_liters>0?((r.water_liters-r.water_req_liters)/r.water_req_liters*100):null;
@@ -672,7 +726,7 @@ function renderDaily(){
           return`Feed: ${r.feed_kg_used}kg / Req: ${r.feed_req_kg||'—'}kg${fv!==null?` <span style="color:${fc};font-weight:700">(${fv>0?'+':''}${fv.toFixed(0)}%)</span>`:''} · Water: ${r.water_liters}L / Req: ${r.water_req_liters||'—'}L${wv!==null?` <span style="color:${wc};font-weight:700">(${wv>0?'+':''}${wv.toFixed(0)}%)</span>`:''}`;
         })()}</div>
         <div style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap">
-          ${r.deaths>0?`<span class="badge ${mBadge}">${r.deaths} deaths</span>`:''}
+          ${r.deaths>0?`<span class="badge ${mBadge}">${r.deaths} death${r.deaths>1?'s':''}</span>`:''}
           ${r.temperature_c?`<span class="${tempCls}" style="font-size:11px">${r.temperature_c}°C</span>`:''}
           ${r.humidity_pct?`<span style="font-size:11px;color:var(--blue)">${r.humidity_pct}% RH</span>`:''}
         </div>
@@ -683,14 +737,19 @@ function renderDaily(){
         <button class="btn btn-danger btn-sm" onclick="delDaily('${r.id}')">✕</button>`}
       </div></div>`;
   }).join('');
-  el.innerHTML=`<div class="topbar"><div><h1>Daily Log</h1><small>Mortality · Feed · Water · Temp</small></div></div>
+  el.innerHTML=topbar+getBatchCtxBar()+`
     <div style="margin:12px 16px">
-      ${active.length===1?`<button class="btn btn-primary" onclick="openDailyForm('${active[0].id}')">+ Add Daily Log — ${active[0].name}</button>`:
-        active.length>1?`<div style="display:flex;flex-direction:column;gap:8px">${active.map(b=>`<button class="btn btn-primary btn-sm" onclick="openDailyForm('${b.id}')">${b.name} — Add Daily Log</button>`).join('')}</div>`:
-        '<div style="color:var(--gray);font-size:13px">No active batches to log.</div>'}
+      ${batch.status==='Active'
+        ?`<button class="btn btn-primary" onclick="openDailyForm('${_activeBatchId}')">+ Log Today${todayLogged?' (Update)':''}</button>`
+        :`<div style="font-size:12px;color:var(--gray);padding:4px 0">This batch is closed — records are read-only.</div>`}
     </div>
-    <div class="sec-hdr">All Logs</div>
-    <div class="card" style="padding:0;overflow:hidden">${logsHtml||'<div class="empty" style="padding:24px"><p>No daily logs yet.</p></div>'}</div>
+    ${allDaily.length>0?`<div class="kpi-row-3" style="margin:0 16px 4px">
+      <div class="kpi"><div class="kpi-val">${allDaily.length}</div><div class="kpi-lbl">Days Logged</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:var(--red)">${totalDeaths}</div><div class="kpi-lbl">Total Deaths</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:${survivalPct>=95?'var(--g2)':survivalPct>=90?'var(--amber)':'var(--red)'}">${survivalPct??'—'}%</div><div class="kpi-lbl">Survival</div></div>
+    </div>`:''}
+    <div class="sec-hdr">${allDaily.length} Records</div>
+    <div class="card" style="padding:0;overflow:hidden">${logsHtml||'<div class="empty" style="padding:24px"><p>No daily logs yet for this batch.</p></div>'}</div>
     <div style="height:12px"></div>`;
 }
 function openDailyForm(batchId,editId){
@@ -810,20 +869,24 @@ function delDaily(id){
 // WEIGHT
 // ═══════════════════════════════════════════════
 function renderWeight(){
-  const el=document.getElementById('v-weight'), today=DB.today();
-  const active=getActiveBatches();
-  const allWeight=DB.getWeight().sort((a,b)=>b.date.localeCompare(a.date));
-  const weightHtml=allWeight.slice(0,50).map(r=>{
-    const batch=DB.getBatches().find(b=>b.id===r.batch_id);
-    const benchmark=getWeightBenchmark(batch?.breed||'Isa Brown',r.week_num);
+  const el=document.getElementById('v-weight');
+  const topbar=`<div class="topbar"><div><h1>Weight Tracking</h1><small>Weekly growth vs benchmark</small></div></div>`;
+  if(!_activeBatchId||!DB.getBatches().find(b=>b.id===_activeBatchId)){
+    el.innerHTML=topbar+getBatchSelectPrompt(); return;
+  }
+  const batch=DB.getBatches().find(b=>b.id===_activeBatchId);
+  const allWeight=DB.getWeight().filter(r=>r.batch_id===_activeBatchId).sort((a,b)=>b.date.localeCompare(a.date));
+  const weightHtml=allWeight.map(r=>{
+    const benchmark=getWeightBenchmark(batch.breed,r.week_num);
     const pct=benchmark?Math.round(r.avg_weight_g/benchmark*100):null;
     const pctCls=pct===null?'badge-gray':pct>=95?'badge-green':pct>=85?'badge-amber':'badge-red';
     return`<div class="list-item">
       <div style="flex:1">
-        <div style="font-weight:700;font-size:14px">${batch?.name||r.batch_id} — Wk ${r.week_num}</div>
-        <div style="font-size:12px;color:var(--gray)">${fmtDate(r.date)} · ${r.sample_size} birds sampled</div>
+        <div style="font-weight:700;font-size:14px">Week ${r.week_num} <span style="font-size:11px;font-weight:400;color:var(--gray)">${fmtDate(r.date)}</span></div>
+        <div style="font-size:12px;color:var(--gray)">${r.sample_size} birds sampled</div>
         <div style="font-size:14px;font-weight:800;color:var(--p2);margin-top:3px">${r.avg_weight_g}g
           <span style="font-size:11px;color:var(--gray);font-weight:400">target: ${benchmark?benchmark+'g':'—'}</span></div>
+        ${r.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:3px">"${r.notes}"</div>`:''}
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
         <span class="badge ${pctCls}">${pct!==null?pct+'%':'—'}</span>
@@ -833,22 +896,22 @@ function renderWeight(){
         </div>
       </div></div>`;
   }).join('');
-  el.innerHTML=`<div class="topbar"><div><h1>Weight Tracking</h1><small>Weekly growth vs benchmark</small></div></div>
+  el.innerHTML=topbar+getBatchCtxBar()+`
     <div style="margin:12px 16px">
-      ${active.length===1?`<button class="btn btn-primary" onclick="openWeightForm('${active[0].id}')">+ Log Weight — ${active[0].name}</button>`:
-        active.length>1?`<div style="display:flex;flex-direction:column;gap:8px">${active.map(b=>`<button class="btn btn-primary btn-sm" onclick="openWeightForm('${b.id}')">${b.name}</button>`).join('')}</div>`:
-        '<div style="color:var(--gray);font-size:13px">No active batches.</div>'}
+      ${batch.status==='Active'
+        ?`<button class="btn btn-primary" onclick="openWeightForm('${_activeBatchId}')">+ Log Weight</button>`
+        :`<div style="font-size:12px;color:var(--gray);padding:4px 0">Batch closed — records are read-only.</div>`}
     </div>
     <div class="card" style="background:var(--p5)">
       <div class="card-title">Breed Benchmarks (Average Weight g)</div>
       <div style="overflow-x:auto"><table style="font-size:11px;width:100%;border-collapse:collapse">
         <tr style="color:var(--p1);font-weight:800"><th>Breed</th><th>Wk6</th><th>Wk8</th><th>Wk12</th><th>Wk16</th><th>Wk18</th></tr>
-        ${BREEDS.filter(b=>b!=='Other').map(b=>`<tr><td style="font-weight:700;white-space:nowrap">${b}</td>
+        ${BREEDS.filter(b=>b!=='Other').map(b=>`<tr ${b===batch.breed?'style="background:var(--p5)"':''}><td style="font-weight:${b===batch.breed?'800':'700'};white-space:nowrap">${b}${b===batch.breed?' ←':''}</td>
           ${[6,8,12,16,18].map(w=>`<td style="text-align:center;padding:3px">${(BREED_BENCHMARKS[b]||{})[w]||'—'}</td>`).join('')}</tr>`).join('')}
       </table></div>
     </div>
-    <div class="sec-hdr">Weight Records</div>
-    <div class="card" style="padding:0;overflow:hidden">${weightHtml||'<div class="empty" style="padding:24px"><p>No weight records yet.</p></div>'}</div>
+    <div class="sec-hdr">${allWeight.length} Records</div>
+    <div class="card" style="padding:0;overflow:hidden">${weightHtml||'<div class="empty" style="padding:24px"><p>No weight records yet for this batch.</p></div>'}</div>
     <div style="height:12px"></div>`;
 }
 function openWeightForm(batchId,editId){
@@ -912,12 +975,19 @@ function delWeight(id){
 // ═══════════════════════════════════════════════
 function renderHealth(){
   const el=document.getElementById('v-health'), today=DB.today();
-  const recs=DB.getHealth().sort((a,b)=>b.date.localeCompare(a.date));
-  const todayRec=recs.find(r=>r.date===today);
-  const medOpts=MED_SUGGESTIONS.map(m=>`<option value="${m}">${m}</option>`).join('');
-  el.innerHTML=`<div class="topbar"><div><h1>Health Log</h1><small>Water · Droppings · Medication</small></div></div>
+  const topbar=`<div class="topbar"><div><h1>Health Log</h1><small>Water · Droppings · Medication</small></div></div>`;
+  if(!_activeBatchId||!DB.getBatches().find(b=>b.id===_activeBatchId)){
+    el.innerHTML=topbar+getBatchSelectPrompt(); return;
+  }
+  const batch=DB.getBatches().find(b=>b.id===_activeBatchId);
+  const recs=DB.getHealth().filter(r=>r.batch_id===_activeBatchId||(!r.batch_id&&!_activeBatchId)).sort((a,b)=>b.date.localeCompare(a.date));
+  const allRecs=DB.getHealth().filter(r=>r.batch_id===_activeBatchId).sort((a,b)=>b.date.localeCompare(a.date));
+  const todayRec=allRecs.find(r=>r.date===today);
+  el.innerHTML=topbar+getBatchCtxBar()+`
     <div style="margin:12px 16px">
-      <button class="btn btn-primary" onclick="openHealthForm()">+ Log Health Today</button>
+      ${batch.status==='Active'
+        ?`<button class="btn btn-primary" onclick="openHealthForm()">+ Log Health Today${todayRec?' (Update)':''}</button>`
+        :`<div style="font-size:12px;color:var(--gray);padding:4px 0">Batch closed — records are read-only.</div>`}
     </div>
     ${todayRec?`<div class="card" style="border-left:4px solid var(--g3)">
       <div class="card-title">Today's Health Log ✓</div>
@@ -925,19 +995,19 @@ function renderHealth(){
       ${todayRec.medication?`<div style="margin-top:6px;font-size:13px;color:var(--p2);font-weight:700">💊 ${todayRec.medication} via ${todayRec.admin_method}</div>`:''}
       ${todayRec.notes?`<div style="margin-top:6px;font-size:12px;color:var(--gray)">${todayRec.notes}</div>`:''}
     </div>`:''}
-    <div class="sec-hdr">Health History</div>
+    <div class="sec-hdr">${allRecs.length} Records</div>
     <div class="card" style="padding:0;overflow:hidden">
-      ${recs.slice(0,30).map(r=>{
+      ${allRecs.map(r=>{
         const dropCls=r.droppings==='Normal'?'badge-green':r.droppings?'badge-red':'badge-gray';
         return`<div class="list-item">
-          <div><div style="font-weight:700;font-size:14px">${fmtDate(r.date)} ${r.batch_name?`<span style="font-size:11px;color:var(--gray)">— ${r.batch_name}</span>`:''}</div>
+          <div><div style="font-weight:700;font-size:14px">${fmtDate(r.date)}</div>
             <div style="font-size:12px;color:var(--gray)">${(()=>{const c=r.water_liters||0;const q=r.water_req_liters||0;const wv=q>0?((c-q)/q*100):null;const wvc=wv===null?'var(--gray)':Math.abs(wv)>20?'var(--red)':Math.abs(wv)>10?'var(--amber)':'var(--g2)';return`Water: ${c||'—'}L${q?` / Req: ${q}L`:''} ${wv!==null?`<span style="color:${wvc};font-weight:700">(${wv>0?'+':''}${wv.toFixed(0)}%)</span>`:''} · ${r.medication||'No meds'}`;})()}</div>
             <span class="badge ${dropCls}" style="margin-top:4px">${r.droppings||'—'} droppings</span>
             ${r.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:4px">"${r.notes}"</div>`:''}</div>
           <div style="display:flex;gap:4px">
             ${isLocked(r.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openHealthForm('${r.id}')">Edit</button>
             <button class="btn btn-danger btn-sm" onclick="delHealth('${r.id}')">✕</button>`}
-          </div></div>`;}).join('')||'<div class="empty" style="padding:24px"><p>No health records yet.</p></div>'}
+          </div></div>`;}).join('')||'<div class="empty" style="padding:24px"><p>No health records yet for this batch.</p></div>'}
     </div>
     <div style="height:12px"></div>`;
 }
@@ -957,8 +1027,8 @@ function openHealthForm(editId){
       📅 Change the date to log records for any past day.<br><span style="display:block;margin-top:4px">💧 Expected for ${totalBirds} birds: <b>${defWaterReq} L</b> (avg age ~${avgAge}d)</span>
     </div>
     <div class="field"><label>Date</label><input type="date" id="hf_date" value="${rec?rec.date:today}" max="${today}"></div>
-    ${active.length>1?`<div class="field"><label>Batch (optional)</label>
-      <select id="hf_batch"><option value="">All Batches</option>${active.map(b=>`<option value="${b.id}" ${rec?.batch_id===b.id?'selected':''}>${b.name}</option>`).join('')}</select></div>`:'<input type="hidden" id="hf_batch" value="">'}
+    ${active.length>1?`<div class="field"><label>Batch</label>
+      <select id="hf_batch"><option value="">— All Batches —</option>${active.map(b=>`<option value="${b.id}" ${(rec?.batch_id||_activeBatchId)===b.id?'selected':''}>${b.name}</option>`).join('')}</select></div>`:'<input type="hidden" id="hf_batch" value="${active[0]?.id||_activeBatchId||''}">'}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Water Consumed (L)</label><input type="number" id="hf_water" value="${rec?.water_liters||''}" min="0" step="1" placeholder="${defWaterReq}"></div>
       <div class="field"><label>Water Required (L)</label><input type="number" id="hf_water_req" value="${rec?.water_req_liters||defWaterReq}" min="0" step="0.5" placeholder="${defWaterReq}"></div>
@@ -1006,10 +1076,16 @@ function delHealth(id){
 // Credit sales are NOT paid (paid:false) until marked.
 // Receivables tab = sales.filter(credit). No separate store needed.
 let FIN_TAB='expenses';
+let _activeBatchId=null;
+let _finAllBatches=false;
 function renderFinance(){
   const el=document.getElementById('v-finance'), today=DB.today(), thisMonth=today.slice(0,7);
-  const expenses=DB.getExpenses().sort((a,b)=>b.date.localeCompare(a.date));
-  const sales=DB.getSales().sort((a,b)=>b.date.localeCompare(a.date));
+  const allExpenses=DB.getExpenses().sort((a,b)=>b.date.localeCompare(a.date));
+  const allSalesRaw=DB.getSales().sort((a,b)=>b.date.localeCompare(a.date));
+  const showAll=_finAllBatches||!_activeBatchId;
+  const expenses=showAll?allExpenses:allExpenses.filter(e=>e.batch_id===_activeBatchId);
+  const sales=showAll?allSalesRaw:allSalesRaw.filter(s=>s.batch_id===_activeBatchId);
+  const batch=_activeBatchId?DB.getBatches().find(b=>b.id===_activeBatchId):null;
   const monthExp=expenses.filter(e=>e.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.amount_ngn||0),0);
   const monthSales=sales.filter(s=>s.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.total_amount_ngn||0),0);
   const allExp=expenses.reduce((s,e)=>s+(e.amount_ngn||0),0);
@@ -1018,6 +1094,11 @@ function renderFinance(){
   const unpaidCredit=creditSales.filter(s=>!s.paid);
   const totalOwed=unpaidCredit.reduce((s,r)=>s+(r.total_amount_ngn||0),0);
   const overdueCount=unpaidCredit.filter(s=>s.due_date&&s.due_date<today).length;
+  const scopeBar=_activeBatchId
+    ?`<div class="fin-scope-bar">${showAll?'All Batches':'Batch: <b style="margin-left:4px">'+batch?.name+'</b>'}
+        <button class="scope-toggle" onclick="_finAllBatches=!_finAllBatches;renderFinance()">${showAll?'Filter by Batch':'View All Batches'}</button>
+      </div>`
+    :'';
 
   let tabContent='';
   if(FIN_TAB==='expenses'){
@@ -1133,6 +1214,7 @@ function renderFinance(){
   }
 
   el.innerHTML=`<div class="topbar"><div><h1>Finance</h1><small>Brooding costs & POL sales</small></div></div>
+    ${scopeBar}
     <div class="kpi-row-3">
       <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${fmtMoney(monthSales)}</div><div class="kpi-lbl">Sales (Month)</div></div>
       <div class="kpi"><div class="kpi-val" style="color:var(--red)">${fmtMoney(monthExp)}</div><div class="kpi-lbl">Expenses (Month)</div></div>

@@ -136,6 +136,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
 .bar-fill{width:100%;border-radius:4px 4px 0 0;min-height:2px;transition:height .3s}
 .bar-lbl{font-size:8px;color:var(--gray);text-align:center;white-space:nowrap;overflow:hidden;width:100%}
+.pen-ctx-bar{display:flex;align-items:center;justify-content:space-between;background:var(--white);border-bottom:1px solid #d8f3dc;padding:10px 16px;gap:10px}
+.pen-ctx-left{display:flex;align-items:center;gap:10px;min-width:0}
+.pen-ctx-dot{width:10px;height:10px;border-radius:50%;background:var(--g3);flex-shrink:0}
+.pen-ctx-name{font-weight:800;font-size:14px;color:var(--g1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pen-ctx-sub{font-size:11px;color:var(--gray);margin-top:1px}
+.pen-select-prompt{text-align:center;padding:52px 28px;color:var(--gray)}
+.pen-select-prompt .psp-icon{font-size:48px;margin-bottom:14px;opacity:.5}
 </style>
 </head>
 <body>
@@ -434,6 +441,39 @@ function go(name){
 }
 
 // ═══════════════════════════════════════════════
+// PEN CONTEXT
+// ═══════════════════════════════════════════════
+function selectPen(id,view){
+  _activePenId=id;
+  go(view||'flock');
+}
+function getPenCtxBar(){
+  if(!_activePenId)return'';
+  const farm=DB.getFarm();
+  const pen=(farm?.pens||[]).find(p=>p.id===_activePenId);
+  if(!pen)return'';
+  const st=getPenStage(pen);
+  return`<div class="pen-ctx-bar">
+    <div class="pen-ctx-left">
+      <div class="pen-ctx-dot"></div>
+      <div>
+        <div class="pen-ctx-name">${pen.name}</div>
+        <div class="pen-ctx-sub">${st?`Wk ${st.weeks} · ${st.label}`:'Not configured'} · ${(pen.lines||[]).length} lines</div>
+      </div>
+    </div>
+    <button class="btn btn-secondary btn-sm" onclick="go('home')" style="flex-shrink:0">Switch Pen</button>
+  </div>`;
+}
+function getPenSelectPrompt(){
+  return`<div class="pen-select-prompt">
+    <div class="psp-icon">🏠</div>
+    <h3>No pen selected</h3>
+    <p>Go to <b>Home</b> and tap <b>Open Records</b> on a pen to view its data here.</p>
+    <button class="btn btn-primary" style="max-width:200px;margin:0 auto" onclick="go('home')">Go to Home</button>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════
 // UTILITIES
 // ═══════════════════════════════════════════════
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6) }
@@ -610,6 +650,29 @@ function renderHome(){
     <div class="sec-hdr">Today's Collections</div>
     <div style="margin:0 16px 10px">${roundsHtml||'<div style="color:var(--gray);font-size:13px;padding:8px 0">No farm passes configured.</div>'}</div>
 
+    <div class="sec-hdr">Pens
+      <span style="font-size:11px;color:var(--gray);text-transform:none;font-weight:500">Select pen to view records</span>
+    </div>
+    ${(farm.pens||[]).length===0?`<div class="card" style="margin:0 16px 10px;text-align:center;color:var(--gray);padding:20px">No pens configured — go to Settings to add pens.</div>`:(farm.pens||[]).map(pen=>{
+      const st=getPenStage(pen);
+      const penBirds=(()=>{let t=0;for(const l of pen.lines||[])for(const s of l.stands||[])for(let ti=1;ti<=s.tiers;ti++)for(let c=1;c<=s.cellsPerTier;c++)t+=getCellBirds(s,ti,c,'A')+getCellBirds(s,ti,c,'B');return t;})();
+      const isSelected=_activePenId===pen.id;
+      return`<div class="card" style="margin:0 16px 10px;padding:14px;${isSelected?'box-shadow:0 0 0 2.5px var(--g3),0 2px 10px rgba(0,0,0,.1)':''}position:relative;overflow:hidden">
+        ${isSelected?`<div style="position:absolute;top:10px;right:10px;background:var(--g5);color:var(--g1);font-size:10px;font-weight:800;padding:3px 8px;border-radius:12px">Viewing</div>`:''}
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--g3);flex-shrink:0"></div>
+          <div>
+            <div style="font-weight:800;font-size:15px;color:var(--g1)">${pen.name}</div>
+            <div style="font-size:11px;color:var(--gray);margin-top:2px">${st?`Wk ${st.weeks} · ${st.label}`:'Not configured'} · ${penBirds.toLocaleString()} birds · ${(pen.lines||[]).length} line${(pen.lines||[]).length!==1?'s':''}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" style="flex:2" onclick="selectPen('${pen.id}','flock')">${isSelected?'✓ Currently Viewing':'Open Records'}</button>
+          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="selectPen('${pen.id}','eggs')">Collect Eggs</button>
+        </div>
+      </div>`;
+    }).join('')}
+
     <div class="sec-hdr">Last 7 Days</div>
     <div class="card" style="padding:0;overflow:hidden">
       ${recent.length===0?'<div class="empty" style="padding:20px"><p>No data yet.</p></div>':
@@ -662,7 +725,7 @@ function renderEggs(){
     el.innerHTML=`<div class="topbar"><div><h1>Egg Collection</h1></div></div><div class="empty"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg><h3>No farm set up</h3><p>Go to Settings to add pens and lines.</p></div>`;
     return;
   }
-  const today=DB.today(), todayCols=DB.todayCols(), allPass=getAllPassStatus(farm,todayCols);
+  const today=DB.today(), todayCols=DB.todayCols(), allPass=getAllPassStatus(farm,todayCols).filter(p=>!_activePenId||p.penId===_activePenId);
   let openRound=COLLECT_ROUND;
   if(openRound===null){const fp=ROUNDS.find(r=>allPass.some(p=>p.round===r.id&&!p.complete));openRound=fp?fp.id:ROUNDS[0].id;}
   const roundSections=ROUNDS.map(rnd=>{
@@ -697,9 +760,10 @@ function renderEggs(){
       ${isOpen?`<div style="padding:0 16px 6px">${passRows||'<div style="padding:14px 0;color:var(--gray);font-size:13px">No passes configured.</div>'}</div>`:''}</div>`;
   }).join('');
   el.innerHTML=`<div class="topbar"><div><h1>Egg Collection</h1><small>${fmtDate(today)}</small></div></div>
+    ${getPenCtxBar()}
     <div style="background:var(--g5);padding:10px 18px;font-size:12px;color:var(--g1);line-height:1.7">
       <b>Side A</b> = Right side, walking forward &nbsp;·&nbsp; <b>Side B</b> = Left side, walking back</div>
-    <div style="padding-top:12px;padding-bottom:24px">${roundSections}</div>`;
+    <div style="padding-top:12px;padding-bottom:24px">${roundSections||'<div style="text-align:center;padding:32px 24px;color:var(--gray)"><p>No passes configured for this pen.<br>Go to Settings to add lines and stands.</p></div>'}</div>`;
 }
 
 function beginSession(penId,lineId,side,round){
@@ -866,7 +930,8 @@ function exitSession(){
 // ═══════════════════════════════════════════════
 function renderFlock(){
   const el=document.getElementById('v-flock'), today=DB.today(), farm=DB.getFarm();
-  const recs=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date));
+  if(!_activePenId){el.innerHTML=`<div class="topbar"><div><h1>Flock Status</h1><small>Bird mortality & daily count</small></div></div>${getPenSelectPrompt()}`;return;}
+  const recs=DB.getBirds().filter(r=>!r.pen_id||r.pen_id===_activePenId).sort((a,b)=>b.date.localeCompare(a.date));
   const todayRec=recs.find(r=>r.date===today);
   const farmBirds=farm?getFarmTotalBirds(farm):0;
   const ageWeeks=farm?getFarmAgeWeeks(farm):null;
@@ -905,6 +970,7 @@ function renderFlock(){
   }).join('');
 
   el.innerHTML=`<div class="topbar"><div><h1>Flock Status</h1><small>Bird mortality & daily count</small></div></div>
+    ${getPenCtxBar()}
     <div class="kpi-row-3">
       <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${farmBirds}</div><div class="kpi-lbl">Farm Birds</div></div>
       <div class="kpi"><div class="kpi-val">${ageWeeks!==null?'Wk '+ageWeeks:'—'}</div><div class="kpi-lbl">Flock Age</div></div>
@@ -955,7 +1021,7 @@ function saveBirdLog(editId){
   const culls=parseInt(document.getElementById('bf_culls').value)||0;
   const age_weeks=parseInt(document.getElementById('bf_age').value)||0;
   const notes=document.getElementById('bf_notes').value.trim();
-  const rec={id:editId||uid(),date,opening_birds:opening,deaths,culls,
+  const rec={id:editId||uid(),date,pen_id:_activePenId||undefined,opening_birds:opening,deaths,culls,
     closing_birds:Math.max(0,opening-deaths),age_weeks,notes};
   if(editId)DB.updBird(editId,rec); else DB.addBird(rec);
   closeModal();toast('Bird status saved ✓');renderFlock();
@@ -973,7 +1039,8 @@ function delBirdLog(id){
 // ═══════════════════════════════════════════════
 function renderFeed(){
   const el=document.getElementById('v-feed'), today=DB.today(), farm=DB.getFarm();
-  const recs=DB.getFeed().sort((a,b)=>b.date.localeCompare(a.date));
+  if(!_activePenId){el.innerHTML=`<div class="topbar"><div><h1>Feed Management</h1><small>Daily usage tracking</small></div></div>${getPenSelectPrompt()}`;return;}
+  const recs=DB.getFeed().filter(r=>!r.pen_id||r.pen_id===_activePenId).sort((a,b)=>b.date.localeCompare(a.date));
   const todayRecs=recs.filter(r=>r.date===today);
   const totalUsed7=recs.filter(r=>{const d=new Date(today);d.setDate(d.getDate()-7);return r.date>d.toISOString().slice(0,10);}).reduce((s,r)=>s+(r.feed_kg_used||0),0);
   const farmBirds=farm?getFarmTotalBirds(farm):0;
@@ -1009,6 +1076,7 @@ function renderFeed(){
       <span class="badge ${vc}">${vr>0?'+':''}${vr.toFixed(0)}%</span></div>`;
   }).join('');
   el.innerHTML=`<div class="topbar"><div><h1>Feed Management</h1><small>Daily usage tracking</small></div></div>
+    ${getPenCtxBar()}
     <div class="kpi-row-3">
       <div class="kpi"><div class="kpi-val">${totalUsed7.toFixed(0)}</div><div class="kpi-lbl">kg Used (7d)</div></div>
       <div class="kpi"><div class="kpi-val">${(farm?.feedRateG||110)}</div><div class="kpi-lbl">g/Bird/Day</div></div>
@@ -1052,7 +1120,7 @@ function saveFeedLog(editId){
   // Snapshot feed_rate_g at time of save; preserve existing snapshot on edit
   const feed_rate_g=existing?.feed_rate_g||(farm?.feedRateG||110);
   const notes=document.getElementById('ff_notes').value.trim();
-  const rec={id:editId||uid(),date,feed_type,feed_kg_used,feed_req_kg,age_weeks:ageWeeks,feed_rate_g,notes};
+  const rec={id:editId||uid(),date,pen_id:_activePenId||undefined,feed_type,feed_kg_used,feed_req_kg,age_weeks:ageWeeks,feed_rate_g,notes};
   if(editId)DB.updFeed(editId,rec);else DB.addFeed(rec);
   closeModal();toast('Feed log saved ✓');renderFeed();
 }
@@ -1069,7 +1137,8 @@ function delFeed(id){
 // ═══════════════════════════════════════════════
 function renderHealth(){
   const el=document.getElementById('v-health'), today=DB.today();
-  const recs=DB.getHealth().sort((a,b)=>b.date.localeCompare(a.date));
+  if(!_activePenId){el.innerHTML=`<div class="topbar"><div><h1>Health Log</h1><small>Water, droppings, medication</small></div></div>${getPenSelectPrompt()}`;return;}
+  const recs=DB.getHealth().filter(r=>!r.pen_id||r.pen_id===_activePenId).sort((a,b)=>b.date.localeCompare(a.date));
   const todayRec=recs.find(r=>r.date===today);
   const abnormal=recs.slice(0,7).filter(r=>r.droppings_observation&&r.droppings_observation!=='Normal').length;
   const logHtml=`<div class="card">
@@ -1102,6 +1171,7 @@ function renderHealth(){
       </div></div>`;
   }).join('');
   el.innerHTML=`<div class="topbar"><div><h1>Health Log</h1><small>Water, droppings, medication</small></div></div>
+    ${getPenCtxBar()}
     <div class="kpi-row-3">
       <div class="kpi">${(()=>{const c=recs[0]?.water_consumed_liters;const q=recs[0]?.water_req_liters;const wv=(c&&q)?((c-q)/q*100):null;const wvc=wv===null?'var(--blue)':Math.abs(wv)>20?'var(--red)':Math.abs(wv)>10?'var(--amber)':'var(--g2)';return`<div class="kpi-val" style="color:${wvc}">${c||'—'}</div><div class="kpi-lbl">Last Water (L)${q?` / Req ${q}`:''}</div>`;})()}</div>
       <div class="kpi"><div class="kpi-val">${recs.length}</div><div class="kpi-lbl">Total Logs</div></div>
@@ -1145,6 +1215,7 @@ function saveHealthLog(editId){
   // Snapshot water_rate_ml at time of save; preserve existing snapshot on edit
   const water_rate_ml=existing?.water_rate_ml||(farm?.waterRateMlPerBird||250);
   const rec={id:editId||uid(),date:document.getElementById('hf_date').value,
+    pen_id:_activePenId||undefined,
     water_consumed_liters:parseFloat(document.getElementById('hf_water').value)||0,
     water_req_liters:parseFloat(document.getElementById('hf_water_req').value)||0,
     water_rate_ml,
@@ -1171,6 +1242,7 @@ function delHealth(id){
 // Credit sales are NOT paid (paid:false) until marked.
 // Receivables tab = sales.filter(credit). No separate receivable store needed.
 let FIN_TAB='expenses';
+let _activePenId=null;
 function renderFinance(){
   const el=document.getElementById('v-finance');
   const expenses=DB.getExpenses().sort((a,b)=>b.date.localeCompare(a.date));
