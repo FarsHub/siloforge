@@ -1028,7 +1028,7 @@ function openHealthForm(editId){
     </div>
     <div class="field"><label>Date</label><input type="date" id="hf_date" value="${rec?rec.date:today}" max="${today}"></div>
     ${active.length>1?`<div class="field"><label>Batch</label>
-      <select id="hf_batch"><option value="">— All Batches —</option>${active.map(b=>`<option value="${b.id}" ${(rec?.batch_id||_activeBatchId)===b.id?'selected':''}>${b.name}</option>`).join('')}</select></div>`:'<input type="hidden" id="hf_batch" value="${active[0]?.id||_activeBatchId||''}">'}
+      <select id="hf_batch"><option value="">— All Batches —</option>${active.map(b=>`<option value="${b.id}" ${(rec?.batch_id||_activeBatchId)===b.id?'selected':''}>${b.name}</option>`).join('')}</select></div>`:`<input type="hidden" id="hf_batch" value="${active[0]?.id||_activeBatchId||''}">`}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Water Consumed (L)</label><input type="number" id="hf_water" value="${rec?.water_liters||''}" min="0" step="1" placeholder="${defWaterReq}"></div>
       <div class="field"><label>Water Required (L)</label><input type="number" id="hf_water_req" value="${rec?.water_req_liters||defWaterReq}" min="0" step="0.5" placeholder="${defWaterReq}"></div>
