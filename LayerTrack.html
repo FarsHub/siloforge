@@ -390,8 +390,9 @@ function getEggStock(){
   const eggsSold=DB.getSales().filter(s=>s.product==='Eggs — Crates')
     .reduce((sum,s)=>sum+(s.quantity||0)*EGGS_PER_CRATE,0);
   const available=Math.max(0,collected-broken-eggsSold);
+  const availableInt=Math.round(available);
   return{collected,broken,eggsSold,available,
-    crates:Math.floor(available/EGGS_PER_CRATE),loose:available%EGGS_PER_CRATE};
+    crates:Math.floor(availableInt/EGGS_PER_CRATE),loose:availableInt%EGGS_PER_CRATE};
 }
 function getEggLedger(){
   const farm=DB.getFarm();
@@ -985,7 +986,7 @@ function openBirdForm(editId){
   const farm=DB.getFarm(), today=DB.today();
   const rec=editId?DB.getBirds().find(r=>r.id===editId):null;
   const lastRec=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date)).find(r=>!editId||r.id!==editId);
-  const defOpen=rec?rec.opening_birds:(lastRec?.closing_birds||getFarmTotalBirds(farm)||0);
+  const defOpen=rec?rec.opening_birds:(getFarmTotalBirds(farm)||lastRec?.closing_birds||0);
   const ageWeeks=getFarmAgeWeeks(farm)||0;
   openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Bird Status <button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
@@ -1475,7 +1476,7 @@ function toggleSalePayFields(){
   if(ca)ca.style.display=isCredit?'none':'block';
 }
 function calcSaleTotal(){
-  const q=parseFloat(document.getElementById('sf_qty')?.value)||0;
+  const q=parseInt(document.getElementById('sf_qty')?.value,10)||0;
   const p=parseFloat(document.getElementById('sf_price')?.value)||0;
   const t=document.getElementById('sf_total'); if(t)t.value=(q*p).toFixed(0);
 }
@@ -1486,7 +1487,8 @@ function saveSale(editId){
     ?(document.getElementById('sf_cust')?.value.trim()||''  )
     :(document.getElementById('sf_cust_cash')?.value.trim()||''  );
   if(isCredit&&!customer){toast('Enter customer name for credit sale');return;}
-  const qty=parseFloat(document.getElementById('sf_qty').value)||0;
+  const qty=parseInt(document.getElementById('sf_qty').value,10)||0;
+  if(!Number.isInteger(qty)||qty<1){toast('Quantity must be a whole number of crates');return;}
   const price=parseFloat(document.getElementById('sf_price').value)||0;
   const existingRec=editId?DB.getSales().find(s=>s.id===editId):null;
   const rec={

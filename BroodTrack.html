@@ -1314,7 +1314,7 @@ function updateSaleAge(){
   if(ageEl&&batch&&!ageEl.value)ageEl.value=batchAgeInWeeks(batch)||''  ;
 }
 function calcSaleTotal(){
-  const q=parseFloat(document.getElementById('sf_qty')?.value)||0;
+  const q=parseInt(document.getElementById('sf_qty')?.value,10)||0;
   const p=parseFloat(document.getElementById('sf_price')?.value)||0;
   const t=document.getElementById('sf_total'); if(t)t.value=(q*p).toFixed(0);
 }
@@ -1327,7 +1327,8 @@ function saveSale(editId){
   if(isCredit&&!buyer){toast('Enter buyer name for credit sale');return;}
   const batchId=document.getElementById('sf_batch').value;
   const batch=DB.getBatches().find(b=>b.id===batchId);
-  const qty=parseFloat(document.getElementById('sf_qty').value)||0;
+  const qty=parseInt(document.getElementById('sf_qty').value,10)||0;
+  if(!Number.isInteger(qty)||qty<1){toast('Quantity must be a whole number of birds');return;}
   const price=parseFloat(document.getElementById('sf_price').value)||0;
   const existingRec=editId?DB.getSales().find(s=>s.id===editId):null;
   const rec={id:editId||uid(),date:document.getElementById('sf_date').value,
