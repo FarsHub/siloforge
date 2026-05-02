@@ -851,7 +851,9 @@ function saveDailyLog(batchId,editId){
     temperature_c:parseFloat(document.getElementById('dl_temp')?.value)||null,
     humidity_pct:parseFloat(document.getElementById('dl_humid')?.value)||null,
     notes:document.getElementById('dl_notes').value.trim()};
-  if(editId)DB.updDaily(editId,rec);else DB.addDaily(rec);
+  if(editId){DB.updDaily(editId,rec);}
+  else{const dupe=DB.getDaily().find(r=>r.batch_id===batchId&&r.date===rec.date);
+    if(dupe){DB.updDaily(dupe.id,{...rec,id:dupe.id});}else{DB.addDaily(rec);}}
   closeModal();toast('Daily log saved ✓');
   // Refresh current view
   if(document.getElementById('v-daily').classList.contains('active'))renderDaily();

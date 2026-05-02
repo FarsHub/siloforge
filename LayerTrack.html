@@ -1122,7 +1122,9 @@ function saveFeedLog(editId){
   const feed_rate_g=existing?.feed_rate_g||(farm?.feedRateG||110);
   const notes=document.getElementById('ff_notes').value.trim();
   const rec={id:editId||uid(),date,pen_id:_activePenId||undefined,feed_type,feed_kg_used,feed_req_kg,age_weeks:ageWeeks,feed_rate_g,notes};
-  if(editId)DB.updFeed(editId,rec);else DB.addFeed(rec);
+  if(editId){DB.updFeed(editId,rec);}
+  else{const dupe=DB.getFeed().find(r=>r.date===date&&r.feed_type===feed_type&&(r.pen_id||null)===(_activePenId||null));
+    if(dupe){DB.updFeed(dupe.id,{...rec,id:dupe.id});}else{DB.addFeed(rec);}}
   closeModal();toast('Feed log saved ✓');renderFeed();
 }
 function delFeed(id){
