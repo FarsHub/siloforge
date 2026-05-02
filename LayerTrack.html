@@ -1042,39 +1042,38 @@ function renderFeed(){
   const el=document.getElementById('v-feed'), today=DB.today(), farm=DB.getFarm();
   if(!_activePenId){el.innerHTML=`<div class="topbar"><div><h1>Feed Management</h1><small>Daily usage tracking</small></div></div>${getPenSelectPrompt()}`;return;}
   const recs=DB.getFeed().filter(r=>!r.pen_id||r.pen_id===_activePenId).sort((a,b)=>b.date.localeCompare(a.date));
-  const todayRecs=recs.filter(r=>r.date===today);
+  const todayRec=recs.find(r=>r.date===today);
   const totalUsed7=recs.filter(r=>{const d=new Date(today);d.setDate(d.getDate()-7);return r.date>d.toISOString().slice(0,10);}).reduce((s,r)=>s+(r.feed_kg_used||0),0);
   const farmBirds=farm?getFarmTotalBirds(farm):0;
-  const feedRate=(farm?.feedRateG||110)/1000;
   const lastBird=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date))[0];
   const closingBirds=lastBird?.closing_birds||farmBirds;
-  const todayReq=(closingBirds*feedRate).toFixed(1);
-  const todayUsed=todayRecs.reduce((s,r)=>s+(r.feed_kg_used||0),0);
-  const variance=parseFloat(todayReq)>0?((todayUsed-parseFloat(todayReq))/parseFloat(todayReq)*100):0;
-  const varColor=Math.abs(variance)>15?'var(--red)':Math.abs(variance)>10?'var(--amber)':'var(--g2)';
   const logHtml=`<div class="card">
-    <div class="card-title">Today's Feed Log</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
-      <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g2)">${todayUsed}</div><div class="kpi-lbl-sm">kg Used</div></div>
-      <div class="kpi-sm"><div class="kpi-val-sm">${todayReq}</div><div class="kpi-lbl-sm">kg Required</div></div>
-      <div class="kpi-sm"><div class="kpi-val-sm" style="color:${varColor}">${variance>0?'+':''}${variance.toFixed(0)}%</div><div class="kpi-lbl-sm">Variance</div></div>
-    </div>
-    ${todayRecs.map(r=>`<div class="stand-row" style="margin-bottom:6px">
-      <div><div style="font-weight:700">${r.feed_type}</div>
-        <div style="font-size:12px;color:var(--gray)">${r.feed_kg_used} kg used · Req: ${r.feed_req_kg} kg</div></div>
-      <div style="display:flex;gap:5px">
-        <button class="btn btn-secondary btn-sm" onclick="openFeedForm('${r.id}')">Edit</button>
-        <button class="btn btn-danger btn-sm" onclick="delFeed('${r.id}')">✕</button>
-      </div></div>`).join('')}
-    <button class="btn btn-primary" style="margin-top:4px" onclick="openFeedForm()">+ Add Feed Entry</button>
+    <div class="card-title">${todayRec?'Today\'s Feed Log ✓':'Log Feed Usage'}</div>
+    ${todayRec?`
+      ${(()=>{const vr=todayRec.feed_req_kg>0?((todayRec.feed_kg_used-todayRec.feed_req_kg)/todayRec.feed_req_kg*100):0;const vc=Math.abs(vr)>15?'var(--red)':Math.abs(vr)>10?'var(--amber)':'var(--g2)';return`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+        <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g2)">${todayRec.feed_kg_used}</div><div class="kpi-lbl-sm">kg Used</div></div>
+        <div class="kpi-sm"><div class="kpi-val-sm">${todayRec.feed_req_kg}</div><div class="kpi-lbl-sm">kg Required</div></div>
+        <div class="kpi-sm"><div class="kpi-val-sm" style="color:${vc}">${vr>0?'+':''}${vr.toFixed(0)}%</div><div class="kpi-lbl-sm">Variance</div></div>
+      </div>`;})()}
+      <div style="font-size:12px;color:var(--gray);margin-bottom:10px">${todayRec.feed_type}</div>
+      ${todayRec.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-bottom:10px">"${todayRec.notes}"</div>`:''}
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-amber btn-sm" style="flex:1" onclick="openFeedForm('${todayRec.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" style="flex:1" onclick="delFeed('${todayRec.id}')">Delete</button>
+      </div>`:`<button class="btn btn-primary" onclick="openFeedForm()">+ Add Feed Entry</button>`}
   </div>`;
-  const histHtml=Object.entries(
-    recs.filter(r=>r.date!==today).reduce((m,r)=>{(m[r.date]=m[r.date]||{date:r.date,kg:0,req:0});m[r.date].kg+=r.feed_kg_used||0;m[r.date].req+=r.feed_req_kg||0;return m;},{})
-  ).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,30)
-  .map(([date,v])=>{const vr=v.req>0?(v.kg-v.req)/v.req*100:0;const vc=Math.abs(vr)>15?'badge-red':Math.abs(vr)>10?'badge-amber':'badge-green';
-    return`<div class="list-item"><div><div style="font-weight:700;font-size:14px">${fmtDate(date)}</div>
-      <div style="font-size:12px;color:var(--gray)">${v.kg} kg used · Req: ${v.req.toFixed(1)} kg</div></div>
-      <span class="badge ${vc}">${vr>0?'+':''}${vr.toFixed(0)}%</span></div>`;
+  const histHtml=recs.filter(r=>r.date!==today).slice(0,30).map(r=>{
+    const vr=r.feed_req_kg>0?((r.feed_kg_used-r.feed_req_kg)/r.feed_req_kg*100):0;
+    const vc=Math.abs(vr)>15?'badge-red':Math.abs(vr)>10?'badge-amber':'badge-green';
+    return`<div class="list-item">
+      <div><div style="font-weight:700;font-size:14px">${fmtDate(r.date)} <span style="font-size:11px;color:var(--gray)">${r.feed_type}</span></div>
+        <div style="font-size:12px;color:var(--gray);margin-top:2px">${r.feed_kg_used} kg used · Req: ${r.feed_req_kg} kg</div>
+        ${r.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:4px">"${r.notes}"</div>`:''}
+        <span class="badge ${vc}" style="margin-top:4px">${vr>0?'+':''}${vr.toFixed(0)}%</span></div>
+      <div style="display:flex;gap:5px">
+        ${isLocked(r.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openFeedForm('${r.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="delFeed('${r.id}')">✕</button>`}
+      </div></div>`;
   }).join('');
   el.innerHTML=`<div class="topbar"><div><h1>Feed Management</h1><small>Daily usage tracking</small></div></div>
     ${getPenCtxBar()}
@@ -1084,7 +1083,7 @@ function renderFeed(){
       <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${closingBirds}</div><div class="kpi-lbl">Active Birds</div></div>
     </div>
     ${logHtml}
-    <div class="sec-hdr">History (30 days)</div>
+    <div class="sec-hdr">History</div>
     <div class="card" style="padding:0;overflow:hidden">${histHtml||'<div class="empty" style="padding:24px"><p>No previous records.</p></div>'}</div>
     <div style="height:12px"></div>`;
 }
@@ -1123,8 +1122,7 @@ function saveFeedLog(editId){
   const notes=document.getElementById('ff_notes').value.trim();
   const rec={id:editId||uid(),date,pen_id:_activePenId||undefined,feed_type,feed_kg_used,feed_req_kg,age_weeks:ageWeeks,feed_rate_g,notes};
   if(editId){DB.updFeed(editId,rec);}
-  else{const dupe=DB.getFeed().find(r=>r.date===date&&r.feed_type===feed_type&&(r.pen_id||null)===(_activePenId||null));
-    if(dupe){DB.updFeed(dupe.id,{...rec,id:dupe.id});}else{DB.addFeed(rec);}}
+  else{DB.getFeed().filter(r=>r.date===date&&r.feed_type===feed_type&&(r.pen_id||null)===(_activePenId||null)).forEach(r=>DB.delFeed(r.id));DB.addFeed(rec);}
   closeModal();toast('Feed log saved ✓');renderFeed();
 }
 function delFeed(id){

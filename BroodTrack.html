@@ -852,8 +852,7 @@ function saveDailyLog(batchId,editId){
     humidity_pct:parseFloat(document.getElementById('dl_humid')?.value)||null,
     notes:document.getElementById('dl_notes').value.trim()};
   if(editId){DB.updDaily(editId,rec);}
-  else{const dupe=DB.getDaily().find(r=>r.batch_id===batchId&&r.date===rec.date);
-    if(dupe){DB.updDaily(dupe.id,{...rec,id:dupe.id});}else{DB.addDaily(rec);}}
+  else{DB.getDaily().filter(r=>r.batch_id===batchId&&r.date===rec.date).forEach(r=>DB.delDaily(r.id));DB.addDaily(rec);}
   closeModal();toast('Daily log saved ✓');
   // Refresh current view
   if(document.getElementById('v-daily').classList.contains('active'))renderDaily();
