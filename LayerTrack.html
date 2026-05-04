@@ -1726,7 +1726,8 @@ function renderReports(){
         const p3=_tPoints.slice(-6,-3);if(p3.length){const p3a=p3.reduce((s,p)=>s+p.hdp,0)/p3.length;if(l3>p3a+2){_tArrow='↑';_tCol='var(--g2)';}else if(l3<p3a-2){_tArrow='↓';_tCol='var(--red)';}}
       }
       const _maxRate=_tPoints.length>0?Math.max(..._tPoints.map(p=>p.hdp)):20;
-      const _yMax=Math.max(Math.ceil(_maxRate/5)*5+5,20);
+      const _rawMax=Math.max(Math.ceil(_maxRate/5)*5+5,20);
+      const _yMax=Math.ceil(_rawMax/10)*10;
       window._trendPts=_tPoints;
       const _trendSvg=(()=>{
         const pts=_tPoints,n=pts.length;
@@ -1734,9 +1735,15 @@ function renderReports(){
         const svgW=600,cH=110,lblH=18,svgH=cH+lblH,padL=36,padR=8,plotW=svgW-padL-padR;
         const yp=(v)=>(cH-6)-(Math.min(Math.max(v,0),_yMax)/_yMax)*(cH-12)+2;
         const xp=(i)=>padL+(i/Math.max(n-1,1))*plotW;
-        const yAxisLbls=`<text x="${padL-3}" y="${(yp(0)+3).toFixed(1)}" text-anchor="end" font-size="8" fill="#bbb">0</text>
-          <text x="${padL-3}" y="${(yp(_yMax)+3).toFixed(1)}" text-anchor="end" font-size="8" fill="#bbb">${_yMax}</text>
-          <line x1="${padL}" y1="${yp(0).toFixed(1)}" x2="${svgW-padR}" y2="${yp(0).toFixed(1)}" stroke="#eee" stroke-width="1"/>`;
+        const yAxisLbls=(()=>{
+          const parts=[];
+          for(let v=0;v<=_yMax;v+=10){
+            const y=yp(v);
+            parts.push(`<line x1="${padL}" y1="${y.toFixed(1)}" x2="${svgW-padR}" y2="${y.toFixed(1)}" stroke="#eee" stroke-width="${v===0?'1':'0.7'}"/>`);
+            parts.push(`<text x="${padL-3}" y="${(y+3).toFixed(1)}" text-anchor="end" font-size="8" fill="#bbb">${v}</text>`);
+          }
+          return parts.join('');
+        })();
         const bench=(_yMax>=80?`<line x1="${padL}" y1="${yp(80).toFixed(1)}" x2="${svgW-padR}" y2="${yp(80).toFixed(1)}" stroke="#27ae60" stroke-width="1" stroke-dasharray="5,3" opacity="0.7"/>
           <text x="${padL-3}" y="${(yp(80)+3).toFixed(1)}" text-anchor="end" font-size="8" fill="#27ae60" font-weight="700">80</text>`:'')
           +(_yMax>=70?`<line x1="${padL}" y1="${yp(70).toFixed(1)}" x2="${svgW-padR}" y2="${yp(70).toFixed(1)}" stroke="#e67e22" stroke-width="1" stroke-dasharray="5,3" opacity="0.7"/>
