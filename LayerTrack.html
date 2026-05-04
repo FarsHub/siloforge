@@ -1739,9 +1739,9 @@ function renderReports(){
           const parts=[];
           for(let v=0;v<=_yMax;v+=10){
             const y=yp(v);
-            parts.push(`<line x1="${padL}" y1="${y.toFixed(1)}" x2="${svgW-padR}" y2="${y.toFixed(1)}" stroke="#eee" stroke-width="${v===0?'1':'0.7'}"/>`);
             parts.push(`<text x="${padL-3}" y="${(y+3).toFixed(1)}" text-anchor="end" font-size="8" fill="#bbb">${v}</text>`);
           }
+          parts.push(`<line x1="${padL}" y1="${yp(0).toFixed(1)}" x2="${svgW-padR}" y2="${yp(0).toFixed(1)}" stroke="#eee" stroke-width="1"/>`);
           return parts.join('');
         })();
         const bench=(_yMax>=80?`<line x1="${padL}" y1="${yp(80).toFixed(1)}" x2="${svgW-padR}" y2="${yp(80).toFixed(1)}" stroke="#27ae60" stroke-width="1" stroke-dasharray="5,3" opacity="0.7"/>
