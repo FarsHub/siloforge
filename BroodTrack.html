@@ -270,48 +270,80 @@ function initApp(){
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const BREEDS = ['Isa Brown','Lohmann Brown','Noiler','Arbor Acres','Marshall','Dominant CZ','Other'];
-const BREED_BENCHMARKS = {
+const BREEDS_BY_TYPE={
+  broiler:['Arbor Acres','Marshall','Other'],
+  pullet:['Isa Brown','Lohmann Brown','Hy-Line Brown','Dominant CZ','Other'],
+  noiler:['Noiler','Other'],
+};
+const BREED_BENCHMARKS={
   'Isa Brown':     {2:160,4:380,6:560,8:750,10:900,12:1050,14:1180,16:1280,18:1380},
   'Lohmann Brown': {2:155,4:370,6:545,8:740,10:880,12:1000,14:1140,16:1250,18:1350},
-  'Noiler':        {2:200,4:500,6:720,8:900,10:1050,12:1200,14:1350,16:1400,18:1500},
-  'Arbor Acres':   {2:175,4:420,6:600,8:800,10:960,12:1100,14:1220,16:1320,18:1410},
-  'Marshall':      {2:165,4:390,6:570,8:760,10:910,12:1060,14:1190,16:1290,18:1390},
+  'Hy-Line Brown': {2:155,4:365,6:538,8:732,10:878,12:1002,14:1142,16:1252,18:1358},
   'Dominant CZ':   {2:158,4:375,6:552,8:745,10:888,12:1010,14:1148,16:1258,18:1358},
+  'Arbor Acres':   {2:450,4:1100,6:1900,8:2700,10:3300,12:3700,14:4000,16:4200},
+  'Marshall':      {2:430,4:1050,6:1800,8:2600,10:3100,12:3500,14:3800,16:4000},
+  'Noiler':        {2:200,4:500,6:720,8:900,10:1050,12:1200,14:1350,16:1400,18:1500},
   'Other':         {2:160,4:380,6:560,8:750,10:900,12:1050,14:1180,16:1280,18:1380},
 };
-const DOC_WEIGHT_G=40; // standard day-old chick weight
+const DOC_WEIGHT_G=40;
 const BREED_PURPOSE={
-  'Isa Brown':'pullet','Lohmann Brown':'pullet','Dominant CZ':'pullet',
+  'Isa Brown':'pullet','Lohmann Brown':'pullet','Hy-Line Brown':'pullet','Dominant CZ':'pullet',
   'Arbor Acres':'broiler','Marshall':'broiler',
-  'Noiler':'dual','Other':'dual',
+  'Noiler':'noiler','Other':'pullet',
 };
-function getBreedPurpose(breed){return BREED_PURPOSE[breed]||'dual';}
-function getFeedEffBenchmarks(purpose){
-  if(purpose==='broiler')return{fcrGood:1.8,fcrOk:2.2,adgGood:50,adgOk:35,label:'Broiler'};
-  if(purpose==='pullet') return{fcrGood:3.0,fcrOk:3.5,adgGood:10,adgOk:7, label:'Pullet'};
-  return                        {fcrGood:2.5,fcrOk:3.0,adgGood:20,adgOk:12,label:'Dual-purpose'};
+function getBirdType(batch){return batch.bird_type||(BREED_PURPOSE[batch.breed]||'pullet');}
+function getBirdTypeLabel(t){return t==='broiler'?'Broiler':t==='noiler'?'Noiler':'Pullet';}
+function getBreedPurpose(breed){return BREED_PURPOSE[breed]||'pullet';}
+function getFeedEffBenchmarks(birdType){
+  if(birdType==='broiler')return{fcrGood:1.8,fcrOk:2.2,adgGood:50,adgOk:35,label:'Broiler'};
+  if(birdType==='noiler') return{fcrGood:2.5,fcrOk:3.0,adgGood:20,adgOk:12,label:'Noiler'};
+  return                         {fcrGood:3.0,fcrOk:3.5,adgGood:10,adgOk:7, label:'Pullet'};
 }
-const VACC_SCHEDULE = [
-  {dayMin:0,  dayMax:1,  name:"Marek's Disease",   route:"Hatchery — note only",hatchery:true},
-  {dayMin:10, dayMax:14, name:"Gumboro D78 (IBD)", route:"Drinking Water"},
-  {dayMin:21, dayMax:21, name:"ND Lasota",          route:"Eye Drop"},
-  {dayMin:28, dayMax:28, name:"IB H120",            route:"Drinking Water"},
-  {dayMin:42, dayMax:42, name:"ND Clone 30",        route:"Drinking Water"},
-  {dayMin:56, dayMax:63, name:"Gumboro D78 Booster",route:"Drinking Water"},
-  {dayMin:70, dayMax:70, name:"ND Booster",         route:"Drinking Water"},
+const BROILER_VACC_SCHEDULE=[
+  {dayMin:0,  dayMax:1,  name:"Marek's Disease",    route:"Hatchery — note only",hatchery:true},
+  {dayMin:7,  dayMax:10, name:"Gumboro D78 (IBD)",  route:"Drinking Water"},
+  {dayMin:10, dayMax:14, name:"ND Lasota",           route:"Eye Drop"},
+  {dayMin:21, dayMax:21, name:"Gumboro D78 Booster", route:"Drinking Water"},
 ];
-// Temperature targets by age in days
-const TEMP_TARGETS = [
+const LAYER_VACC_SCHEDULE=[
+  {dayMin:0,  dayMax:1,  name:"Marek's Disease",    route:"Hatchery — note only",hatchery:true},
+  {dayMin:10, dayMax:14, name:"Gumboro D78 (IBD)",  route:"Drinking Water"},
+  {dayMin:21, dayMax:21, name:"ND Lasota",           route:"Eye Drop"},
+  {dayMin:28, dayMax:28, name:"IB H120",             route:"Drinking Water"},
+  {dayMin:42, dayMax:42, name:"ND Clone 30",         route:"Drinking Water"},
+  {dayMin:56, dayMax:63, name:"Gumboro D78 Booster", route:"Drinking Water"},
+  {dayMin:70, dayMax:70, name:"ND Booster",          route:"Drinking Water"},
+];
+function getVaccSchedule(birdType){return birdType==='broiler'?BROILER_VACC_SCHEDULE:LAYER_VACC_SCHEDULE;}
+const BROILER_FEED_PHASES=[
+  {maxDay:14, label:'Starter',  key:'starter',  feedGPerBird:45},
+  {maxDay:35, label:'Grower',   key:'grower',   feedGPerBird:90},
+  {maxDay:999,label:'Finisher', key:'finisher', feedGPerBird:130},
+];
+const PULLET_FEED_PHASES=[
+  {maxDay:21, label:'Brooding', key:'brooding', feedGPerBird:30},
+  {maxDay:56, label:'Starter',  key:'starter',  feedGPerBird:55},
+  {maxDay:126,label:'Grower',   key:'grower',   feedGPerBird:75},
+  {maxDay:999,label:'Pre-Sale', key:'presale',  feedGPerBird:90},
+];
+const NOILER_FEED_PHASES=[
+  {maxDay:21, label:'Brooding', key:'brooding', feedGPerBird:35},
+  {maxDay:70, label:'Grower',   key:'grower',   feedGPerBird:70},
+  {maxDay:999,label:'Pre-Sale', key:'presale',  feedGPerBird:95},
+];
+function getFeedPhases(birdType){return birdType==='broiler'?BROILER_FEED_PHASES:birdType==='noiler'?NOILER_FEED_PHASES:PULLET_FEED_PHASES;}
+function getFeedPhaseForBatch(batch,ageDays){
+  const phases=getFeedPhases(getBirdType(batch));
+  return phases.find(p=>ageDays<=p.maxDay)||phases[phases.length-1];
+}
+function getDefaultWaterRate(birdType,key){
+  const d={broiler:{starter:80,grower:150,finisher:220},pullet:{brooding:50,starter:80,grower:120,presale:150},noiler:{brooding:60,grower:120,presale:160}};
+  return(d[birdType]||d.pullet)[key]||80;
+}
+const TEMP_TARGETS=[
   {maxDay:7,  min:33,max:35,label:'Week 1'},
   {maxDay:14, min:30,max:32,label:'Week 2'},
   {maxDay:21, min:27,max:29,label:'Week 3'},
-];
-const FEED_PHASES = [
-  {maxDay:21, label:'Brooding',  feedGPerBird:30},
-  {maxDay:56, label:'Starter',   feedGPerBird:55},
-  {maxDay:126,label:'Grower',    feedGPerBird:75},
-  {maxDay:999,label:'Pre-Sale',  feedGPerBird:90},
 ];
 const BROOD_EXPENSE_CATS=['DOC Purchase','Feed','Medication','Litter/Bedding','Labour','Equipment','Transport','Brooding Fuel/Power','Other'];
 const MED_SUGGESTIONS=['Gumboro Vaccine D78','Lasota (ND)','IB H120 Vaccine','ND Clone 30','Amprolium','Tylosin','Floxinor','MAXI Vitaconc','Vitamin C/E','Electrolytes','Multivitamin'];
@@ -386,7 +418,7 @@ function getBatchCtxBar(){
       <div class="batch-ctx-dot ${dotCls}"></div>
       <div>
         <div class="batch-ctx-name">${b.name}</div>
-        <div class="batch-ctx-sub">${b.breed} · ${statusLabel} · ${birds.toLocaleString()} birds</div>
+        <div class="batch-ctx-sub">${b.breed} · ${getBirdTypeLabel(getBirdType(b))} · ${statusLabel} · ${birds.toLocaleString()} birds</div>
       </div>
     </div>
     <button class="btn btn-secondary btn-sm" onclick="go('batches')" style="flex-shrink:0">Switch</button>
@@ -428,15 +460,11 @@ function getBatchBirdCount(batch){
 function getTempTarget(ageDays){
   return TEMP_TARGETS.find(t=>ageDays<=t.maxDay)||null;
 }
-function getFeedPhase(ageDays){
-  return FEED_PHASES.find(p=>ageDays<=p.maxDay)||FEED_PHASES[FEED_PHASES.length-1];
-}
-function getWaterRateMl(ageDays,farm){
+function getWaterRateMl(ageDays,birdType,farm){
   const f=farm||DB.getFarm()||{};
-  if(ageDays<=21) return f.waterRateMl_brooding||50;
-  if(ageDays<=56) return f.waterRateMl_starter||80;
-  if(ageDays<=126)return f.waterRateMl_grower||120;
-  return f.waterRateMl_presale||150;
+  const phases=getFeedPhases(birdType);
+  const phase=phases.find(p=>ageDays<=p.maxDay)||phases[phases.length-1];
+  return f[`${birdType}_waterRateMl_${phase.key}`]||getDefaultWaterRate(birdType,phase.key);
 }
 function getWeightBenchmark(breed,weekNum){
   const bm=BREED_BENCHMARKS[breed]||BREED_BENCHMARKS['Isa Brown'];
@@ -447,7 +475,7 @@ function getWeightBenchmark(breed,weekNum){
 function getActiveBatches(){return DB.getBatches().filter(b=>b.status==='Active');}
 function getBatchVaccStatus(batch){
   const today=DB.today(), arrDate=new Date((batch.arrival_date||today)+'T00:00:00');
-  return VACC_SCHEDULE.map(v=>{
+  return getVaccSchedule(getBirdType(batch)).map(v=>{
     const fromDay=new Date(arrDate);fromDay.setDate(fromDay.getDate()+v.dayMin);
     const toDay=new Date(arrDate);toDay.setDate(toDay.getDate()+v.dayMax);
     const dueDate=fromDay.toISOString().slice(0,10);
@@ -512,7 +540,7 @@ function renderHome(){
     return`<div class="batch-card active" style="padding:14px 16px">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
         <div><div style="font-weight:800;font-size:16px">${b.name}</div>
-          <div style="font-size:12px;color:var(--gray)">${b.breed} · ${ageDays!==null?`Day ${ageDays} (Wk ${ageWeeks})`:b.arrival_date||'No arrival date'}</div></div>
+          <div style="font-size:12px;color:var(--gray)">${b.breed} · ${getBirdTypeLabel(getBirdType(b))}${b.supplier?` · ${b.supplier}`:''}${ageDays!==null?` · Day ${ageDays} (Wk ${ageWeeks})`:''}</div></div>
         <span class="badge badge-purple">Active</span>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px">
@@ -572,7 +600,7 @@ function renderBatches(){
         <div style="display:flex;align-items:flex-start;justify-content:space-between">
           <div>
             <div style="font-weight:800;font-size:16px">${b.name}${isSelected?` <span style="font-size:11px;background:var(--p5);color:var(--p2);border-radius:20px;padding:2px 8px;font-weight:700;vertical-align:middle">Viewing</span>`:''}</div>
-            <div style="font-size:12px;color:var(--gray);margin-top:2px">${b.breed} · Arrived: ${b.arrival_date?fmtDate(b.arrival_date):'Unknown'}</div>
+            <div style="font-size:12px;color:var(--gray);margin-top:2px">${b.breed} · ${getBirdTypeLabel(getBirdType(b))}${b.supplier?` · ${b.supplier}`:''} · Arrived: ${b.arrival_date?fmtDate(b.arrival_date):'Unknown'}</div>
           </div>
           <span class="badge ${statusBadge}">${b.status}</span>
         </div>
@@ -599,7 +627,7 @@ function renderBatches(){
       </div>
     </div>`;
   }).join('');
-  el.innerHTML=`<div class="topbar"><div><h1>Batches</h1><small>DOC to POL lifecycle</small></div></div>
+  el.innerHTML=`<div class="topbar"><div><h1>Batches</h1><small>Broiler · Pullet · Noiler</small></div></div>
     <div style="margin:12px 16px"><button class="btn btn-primary" onclick="addBatch()">+ New Batch (DOC Arrival)</button></div>
     ${batchHtml||'<div class="empty"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg><h3>No batches yet</h3><p>Add your first batch when DOC arrive.</p></div>'}
     <div style="height:12px"></div>`;
@@ -618,21 +646,40 @@ function toggleVacc(batchId,vaccName){
   toast(batch.vaccinations[vaccName]?`${vaccName} marked done ✓`:`${vaccName} unmarked`);
   renderBatches();
 }
+function setAddBatchType(type,pfx){
+  ['broiler','pullet','noiler'].forEach(t=>{
+    const btn=document.getElementById(pfx+'t_'+t);
+    if(btn){btn.className='btn btn-sm '+(t===type?'btn-primary':'btn-secondary');btn.style.flex='1';}
+  });
+  const sel=document.getElementById(pfx+'breed');
+  if(sel)sel.innerHTML=(BREEDS_BY_TYPE[type]||[]).map(b=>`<option value="${b}">${b}</option>`).join('');
+  const tgt=document.getElementById(pfx+'target');
+  if(tgt)tgt.value=type==='broiler'?6:type==='noiler'?14:18;
+  const inp=document.getElementById(pfx+'type');
+  if(inp)inp.value=type;
+}
 function addBatch(){
   const today=DB.today();
+  const initBreeds=BREEDS_BY_TYPE.broiler.map(b=>`<option value="${b}">${b}</option>`).join('');
   openModal(`<div class="modal-ttl">New Batch (DOC Arrival) <button class="modal-x" onclick="closeModal()">×</button></div>
-    <div class="field"><label>Batch Name</label><input type="text" id="ab_name" placeholder="e.g. Batch 1 — Apr 2026"></div>
-    <div class="field"><label>Breed</label>
-      <select id="ab_breed">${BREEDS.map(b=>`<option value="${b}">${b}</option>`).join('')}</select></div>
+    <div class="field"><label>Bird Type</label>
+      <div style="display:flex;gap:8px">
+        <button type="button" id="ab_t_broiler" class="btn btn-primary btn-sm" onclick="setAddBatchType('broiler','ab_')" style="flex:1">Broiler</button>
+        <button type="button" id="ab_t_pullet"  class="btn btn-secondary btn-sm" onclick="setAddBatchType('pullet','ab_')"  style="flex:1">Pullet</button>
+        <button type="button" id="ab_t_noiler"  class="btn btn-secondary btn-sm" onclick="setAddBatchType('noiler','ab_')"  style="flex:1">Noiler</button>
+      </div>
+      <input type="hidden" id="ab_type" value="broiler">
+    </div>
+    <div class="field"><label>Breed</label><select id="ab_breed">${initBreeds}</select></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Arrival Date</label><input type="date" id="ab_date" value="${today}" max="${today}"></div>
       <div class="field"><label>Number of DOC</label><input type="number" id="ab_count" value="" min="1" placeholder="e.g. 500"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Price/Bird (₦)</label><input type="number" id="ab_price" value="" min="0" step="50" placeholder="e.g. 600"></div>
-      <div class="field"><label>Target Sale Age (wks)</label><input type="number" id="ab_target" value="18" min="12" max="24"></div>
+      <div class="field"><label>Target Sale Age (wks)</label><input type="number" id="ab_target" value="6" min="4" max="24"></div>
     </div>
-    <div class="field"><label>Supplier</label><input type="text" id="ab_supplier" placeholder="e.g. Chi Farms, Zartech"></div>
+    <div class="field"><label>Supplier / Source</label><input type="text" id="ab_supplier" placeholder="e.g. Obasanjo Farms, Chi Farms"></div>
     <div class="field"><label>Notes</label><textarea id="ab_notes" placeholder="Optional"></textarea></div>
     <button class="btn btn-primary" onclick="doAddBatch()">Add Batch</button>`);
 }
@@ -641,10 +688,12 @@ function doAddBatch(){
   if(!name){toast('Enter batch name');return;}
   const count=parseInt(document.getElementById('ab_count').value)||0;
   if(count<1){toast('Enter DOC count');return;}
-  const batch={id:uid(),name,breed:document.getElementById('ab_breed').value,
+  const batch={id:uid(),name,
+    bird_type:document.getElementById('ab_type').value,
+    breed:document.getElementById('ab_breed').value,
     arrival_date:document.getElementById('ab_date').value,doc_count:count,
     price_per_bird_ngn:parseFloat(document.getElementById('ab_price').value)||0,
-    target_sale_age_weeks:parseInt(document.getElementById('ab_target').value)||18,
+    target_sale_age_weeks:parseInt(document.getElementById('ab_target').value)||6,
     supplier:document.getElementById('ab_supplier').value.trim(),
     notes:document.getElementById('ab_notes').value.trim(),
     status:'Active',vaccinations:{},sale_records:[]};
@@ -659,25 +708,36 @@ function doAddBatch(){
 }
 function editBatch(batchId){
   const b=DB.getBatches().find(b=>b.id===batchId); if(!b)return;
+  const bType=getBirdType(b);
+  const breedOpts=(BREEDS_BY_TYPE[bType]||[]).map(br=>`<option value="${br}" ${b.breed===br?'selected':''}>${br}</option>`).join('');
+  const btnCls=t=>'btn btn-sm '+(t===bType?'btn-primary':'btn-secondary');
   openModal(`<div class="modal-ttl">Edit ${b.name} <button class="modal-x" onclick="closeModal()">×</button></div>
     <div class="field"><label>Batch Name</label><input type="text" id="eb_name" value="${b.name}"></div>
-    <div class="field"><label>Breed</label>
-      <select id="eb_breed">${BREEDS.map(br=>`<option value="${br}" ${b.breed===br?'selected':''}>${br}</option>`).join('')}</select></div>
+    <div class="field"><label>Bird Type</label>
+      <div style="display:flex;gap:8px">
+        <button type="button" id="eb_t_broiler" class="${btnCls('broiler')}" onclick="setAddBatchType('broiler','eb_')" style="flex:1">Broiler</button>
+        <button type="button" id="eb_t_pullet"  class="${btnCls('pullet')}"  onclick="setAddBatchType('pullet','eb_')"  style="flex:1">Pullet</button>
+        <button type="button" id="eb_t_noiler"  class="${btnCls('noiler')}"  onclick="setAddBatchType('noiler','eb_')"  style="flex:1">Noiler</button>
+      </div>
+      <input type="hidden" id="eb_type" value="${bType}">
+    </div>
+    <div class="field"><label>Breed</label><select id="eb_breed">${breedOpts}</select></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Arrival Date</label><input type="date" id="eb_date" value="${b.arrival_date}"></div>
       <div class="field"><label>DOC Count</label><input type="number" id="eb_count" value="${b.doc_count}" min="1"></div>
     </div>
-    <div class="field"><label>Supplier</label><input type="text" id="eb_supplier" value="${b.supplier||''}"></div>
-    <div class="field"><label>Target Sale Age (weeks)</label><input type="number" id="eb_target" value="${b.target_sale_age_weeks||18}" min="12" max="24"></div>
+    <div class="field"><label>Supplier / Source</label><input type="text" id="eb_supplier" value="${b.supplier||''}"></div>
+    <div class="field"><label>Target Sale Age (weeks)</label><input type="number" id="eb_target" value="${b.target_sale_age_weeks||6}" min="4" max="24"></div>
     <button class="btn btn-primary" onclick="doEditBatch('${batchId}')">Save</button>`);
 }
 function doEditBatch(batchId){
   DB.updBatch(batchId,{name:document.getElementById('eb_name').value.trim(),
+    bird_type:document.getElementById('eb_type').value,
     breed:document.getElementById('eb_breed').value,
     arrival_date:document.getElementById('eb_date').value,
     doc_count:parseInt(document.getElementById('eb_count').value)||0,
     supplier:document.getElementById('eb_supplier').value.trim(),
-    target_sale_age_weeks:parseInt(document.getElementById('eb_target').value)||18});
+    target_sale_age_weeks:parseInt(document.getElementById('eb_target').value)||6});
   closeModal();toast('Batch updated ✓');renderBatches();
 }
 function closeBatch(batchId){
@@ -761,13 +821,11 @@ function openDailyForm(batchId,editId){
   const lastLog=DB.getDaily().filter(r=>r.batch_id===batchId).sort((a,b)=>b.date.localeCompare(a.date))[0];
   const defOpen=rec?rec.opening_birds:(lastLog?.closing_birds??batch.doc_count);
   const target=getTempTarget(ageDays);
-  const phase=getFeedPhase(ageDays);
-  // Use custom farm feed rates if set, falling back to FEED_PHASES defaults
-  const farmFeedRate=ageDays<=21?(farm?.feedRateG_brooding||phase.feedGPerBird):
-    ageDays<=56?(farm?.feedRateG_starter||phase.feedGPerBird):
-    ageDays<=126?(farm?.feedRateG_grower||phase.feedGPerBird):(farm?.feedRateG_presale||phase.feedGPerBird);
+  const birdType=getBirdType(batch);
+  const phase=getFeedPhaseForBatch(batch,ageDays);
+  const farmFeedRate=(farm?.[`${birdType}_feedRateG_${phase.key}`])||phase.feedGPerBird;
   const defFeedReq=((defOpen*farmFeedRate)/1000).toFixed(1);
-  const waterRateMl=getWaterRateMl(ageDays,farm);
+  const waterRateMl=getWaterRateMl(ageDays,birdType,farm);
   const defWaterReq=(defOpen*waterRateMl/1000).toFixed(1);
   const isBrooding=ageDays<=21;
   // When editing: show the rates that were active at time of original save
@@ -832,13 +890,11 @@ function saveDailyLog(batchId,editId){
   const deaths=parseInt(document.getElementById('dl_deaths').value)||0;
   const culls=parseInt(document.getElementById('dl_culls').value)||0;
   const farm=DB.getFarm();
-  const phase=getFeedPhase(ageDays);
+  const birdType=getBirdType(batch);
+  const phase=getFeedPhaseForBatch(batch,ageDays);
   const existing=editId?DB.getDaily().find(r=>r.id===editId):null;
-  // Snapshot rates at save time; preserve existing snapshots when editing
-  const feed_rate_g=existing?.feed_rate_g||(ageDays<=21?(farm?.feedRateG_brooding||phase.feedGPerBird):
-    ageDays<=56?(farm?.feedRateG_starter||phase.feedGPerBird):
-    ageDays<=126?(farm?.feedRateG_grower||phase.feedGPerBird):(farm?.feedRateG_presale||phase.feedGPerBird));
-  const water_rate_ml=existing?.water_rate_ml||getWaterRateMl(ageDays,farm);
+  const feed_rate_g=existing?.feed_rate_g||((farm?.[`${birdType}_feedRateG_${phase.key}`])||phase.feedGPerBird);
+  const water_rate_ml=existing?.water_rate_ml||getWaterRateMl(ageDays,birdType,farm);
   const rec={id:editId||uid(),batch_id:batchId,batch_name:batch.name,
     date:document.getElementById('dl_date').value,age_days:ageDays,
     opening_birds:opening,deaths,culls,closing_birds:Math.max(0,opening-deaths),
@@ -906,9 +962,11 @@ function renderWeight(){
     <div class="card" style="background:var(--p5)">
       <div class="card-title">Breed Benchmarks (Average Weight g)</div>
       <div style="overflow-x:auto"><table style="font-size:11px;width:100%;border-collapse:collapse">
-        <tr style="color:var(--p1);font-weight:800"><th>Breed</th><th>Wk6</th><th>Wk8</th><th>Wk12</th><th>Wk16</th><th>Wk18</th></tr>
-        ${BREEDS.filter(b=>b!=='Other').map(b=>`<tr ${b===batch.breed?'style="background:var(--p5)"':''}><td style="font-weight:${b===batch.breed?'800':'700'};white-space:nowrap">${b}${b===batch.breed?' ←':''}</td>
-          ${[6,8,12,16,18].map(w=>`<td style="text-align:center;padding:3px">${(BREED_BENCHMARKS[b]||{})[w]||'—'}</td>`).join('')}</tr>`).join('')}
+        ${(()=>{const bt=getBirdType(batch);const wks=bt==='broiler'?[2,4,6,8,12]:[6,8,12,16,18];
+        const rows=(BREEDS_BY_TYPE[bt]||[]).filter(b=>b!=='Other');
+        return`<tr style="color:var(--p1);font-weight:800"><th>Breed</th>${wks.map(w=>`<th>Wk${w}</th>`).join('')}</tr>
+          ${rows.map(b=>`<tr ${b===batch.breed?'style="background:var(--p5)"':''}><td style="font-weight:${b===batch.breed?'800':'700'};white-space:nowrap">${b}${b===batch.breed?' ←':''}</td>
+            ${wks.map(w=>`<td style="text-align:center;padding:3px">${(BREED_BENCHMARKS[b]||{})[w]||'—'}</td>`).join('')}</tr>`).join('')}`;})()}
       </table></div>
     </div>
     <div class="sec-hdr">${allWeight.length} Records</div>
@@ -1079,6 +1137,7 @@ function delHealth(id){
 let FIN_TAB='expenses';
 let _activeBatchId=null;
 let _finAllBatches=false;
+let SETTINGS_TYPE=null;
 function renderFinance(){
   const el=document.getElementById('v-finance'), today=DB.today(), thisMonth=today.slice(0,7);
   const allExpenses=DB.getExpenses().sort((a,b)=>b.date.localeCompare(a.date));
@@ -1393,8 +1452,7 @@ function renderReports(){
       const lastW=bWeight[bWeight.length-1];
       const benchmark=lastW?getWeightBenchmark(b.breed,lastW.week_num):null;
       // Feed efficiency metrics
-      const purpose=getBreedPurpose(b.breed);
-      const bm=getFeedEffBenchmarks(purpose);
+      const bm=getFeedEffBenchmarks(getBirdType(b));
       const ageDays=batchAgeInDays(b)||0;
       const liveWtGainKg=lastW?Math.max(0,(lastW.avg_weight_g-DOC_WEIGHT_G)*finalBirds/1000):null;
       const fcr=liveWtGainKg>0?totalFeed/liveWtGainKg:null;
@@ -1410,7 +1468,8 @@ function renderReports(){
       return`<div class="card" style="border-left:4px solid ${b.status==='Active'?'var(--p2)':b.status==='Sold'?'var(--g3)':'var(--gray)'}">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <div><div style="font-weight:800;font-size:16px">${b.name}</div>
-            <div style="font-size:12px;color:var(--gray)">${b.breed} · DOC: ${fmtDate(b.arrival_date)}</div></div>
+            <div style="font-size:12px;color:var(--gray)">${b.breed} · ${getBirdTypeLabel(getBirdType(b))}${b.supplier?` · ${b.supplier}`:''}</div>
+            <div style="font-size:11px;color:var(--gray);margin-top:2px">DOC: ${fmtDate(b.arrival_date)}</div></div>
           <span class="badge ${b.status==='Active'?'badge-purple':b.status==='Sold'?'badge-green':'badge-gray'}">${b.status}</span>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
@@ -1558,7 +1617,23 @@ let GRW_BATCH=null;
 // ═══════════════════════════════════════════════
 function renderSettings(){
   const el=document.getElementById('v-settings');
-  const farm=DB.getFarm()||{name:'',feedRateG_brooding:30,feedRateG_starter:55,feedRateG_grower:75,feedRateG_presale:90,waterRateMl_brooding:50,waterRateMl_starter:80,waterRateMl_grower:120,waterRateMl_presale:150};
+  const farm=DB.getFarm()||{name:''};
+  const activeBatch=_activeBatchId?DB.getBatches().find(b=>b.id===_activeBatchId):null;
+  if(!SETTINGS_TYPE)SETTINGS_TYPE=activeBatch?getBirdType(activeBatch):'broiler';
+  const st=SETTINGS_TYPE;
+  const phases=getFeedPhases(st);
+  const typeLabel=getBirdTypeLabel(st);
+  const activeNote=activeBatch
+    ?`<div style="font-size:12px;color:var(--p2);font-weight:600;margin-bottom:10px">Active batch: ${activeBatch.name} · ${getBirdTypeLabel(getBirdType(activeBatch))}</div>`
+    :'';
+  const phasesGrid=phases.map(p=>{
+    const fVal=farm[`${st}_feedRateG_${p.key}`]||p.feedGPerBird;
+    const wVal=farm[`${st}_waterRateMl_${p.key}`]||getDefaultWaterRate(st,p.key);
+    return`<div style="font-size:12px;font-weight:700;color:var(--p1);padding-top:6px">${p.label}</div>
+      <div class="field" style="margin-bottom:0"><input type="number" id="s_f_${p.key}" value="${fVal}" min="10" max="300"></div>
+      <div class="field" style="margin-bottom:0"><input type="number" id="s_w_${p.key}" value="${wVal}" min="10" max="600"></div>`;
+  }).join('');
+  const tabBtn=(t,lbl)=>`<button class="inner-tab ${st===t?'active':''}" onclick="SETTINGS_TYPE='${t}';renderSettings()">${lbl}</button>`;
   el.innerHTML=`<div class="topbar"><div><h1>Settings</h1></div></div>
     <div class="card">
       <div class="card-title">Farm / Operation</div>
@@ -1567,24 +1642,17 @@ function renderSettings(){
     </div>
     <div class="card">
       <div class="card-title">Feed & Water Rate Defaults (per bird/day)</div>
+      ${activeNote}
+      <div class="inner-tabs" style="margin:-4px -18px 14px;border-radius:0;border-top:1px solid #eee">
+        ${tabBtn('broiler','Broiler')}${tabBtn('pullet','Pullet')}${tabBtn('noiler','Noiler')}
+      </div>
       <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:8px 10px;align-items:end;margin-bottom:6px">
         <div style="font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;padding-bottom:4px"></div>
         <div style="font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;padding-bottom:4px">Feed (g)</div>
         <div style="font-size:11px;font-weight:800;color:var(--blue);text-transform:uppercase;padding-bottom:4px">Water (ml)</div>
-        <div style="font-size:12px;font-weight:700;color:var(--p1);padding-top:6px">Brooding (0–3wk)</div>
-        <div class="field" style="margin-bottom:0"><input type="number" id="s_br" value="${farm.feedRateG_brooding||30}" min="10" max="100"></div>
-        <div class="field" style="margin-bottom:0"><input type="number" id="s_br_w" value="${farm.waterRateMl_brooding||50}" min="10" max="300"></div>
-        <div style="font-size:12px;font-weight:700;color:var(--p1);padding-top:6px">Starter (4–8wk)</div>
-        <div class="field" style="margin-bottom:0"><input type="number" id="s_st" value="${farm.feedRateG_starter||55}" min="20" max="120"></div>
-        <div class="field" style="margin-bottom:0"><input type="number" id="s_st_w" value="${farm.waterRateMl_starter||80}" min="20" max="400"></div>
-        <div style="font-size:12px;font-weight:700;color:var(--p1);padding-top:6px">Grower (9–18wk)</div>
-        <div class="field" style="margin-bottom:0"><input type="number" id="s_gr" value="${farm.feedRateG_grower||75}" min="40" max="150"></div>
-        <div class="field" style="margin-bottom:0"><input type="number" id="s_gr_w" value="${farm.waterRateMl_grower||120}" min="40" max="500"></div>
-        <div style="font-size:12px;font-weight:700;color:var(--p1);padding-top:6px">Pre-Sale (18wk+)</div>
-        <div class="field" style="margin-bottom:0"><input type="number" id="s_ps" value="${farm.feedRateG_presale||90}" min="50" max="180"></div>
-        <div class="field" style="margin-bottom:0"><input type="number" id="s_ps_w" value="${farm.waterRateMl_presale||150}" min="50" max="600"></div>
+        ${phasesGrid}
       </div>
-      <button class="btn btn-primary" style="margin-top:8px" onclick="saveFarm()">Save Feed & Water Rates</button>
+      <button class="btn btn-primary" style="margin-top:8px" onclick="saveFeedRates()">Save ${typeLabel} Rates</button>
     </div>
     <div class="card">
       <div class="card-title">Data Export / Import</div>
@@ -1606,16 +1674,19 @@ function renderSettings(){
 function saveFarm(){
   const farm=DB.getFarm()||{};
   farm.name=document.getElementById('s_name')?.value.trim()||farm.name||'My Brooding Farm';
-  if(document.getElementById('s_br'))farm.feedRateG_brooding=parseInt(document.getElementById('s_br').value)||30;
-  if(document.getElementById('s_st'))farm.feedRateG_starter=parseInt(document.getElementById('s_st').value)||55;
-  if(document.getElementById('s_gr'))farm.feedRateG_grower=parseInt(document.getElementById('s_gr').value)||75;
-  if(document.getElementById('s_ps'))farm.feedRateG_presale=parseInt(document.getElementById('s_ps').value)||90;
-  if(document.getElementById('s_br_w'))farm.waterRateMl_brooding=parseInt(document.getElementById('s_br_w').value)||50;
-  if(document.getElementById('s_st_w'))farm.waterRateMl_starter=parseInt(document.getElementById('s_st_w').value)||80;
-  if(document.getElementById('s_gr_w'))farm.waterRateMl_grower=parseInt(document.getElementById('s_gr_w').value)||120;
-  if(document.getElementById('s_ps_w'))farm.waterRateMl_presale=parseInt(document.getElementById('s_ps_w').value)||150;
-  // Update FEED_PHASES with custom rates
-  DB.saveFarm(farm);toast('Settings saved ✓');
+  DB.saveFarm(farm);toast('Farm name saved ✓');
+}
+function saveFeedRates(){
+  const farm=DB.getFarm()||{};
+  const st=SETTINGS_TYPE||'broiler';
+  const phases=getFeedPhases(st);
+  phases.forEach(p=>{
+    const fEl=document.getElementById(`s_f_${p.key}`);
+    const wEl=document.getElementById(`s_w_${p.key}`);
+    if(fEl)farm[`${st}_feedRateG_${p.key}`]=parseInt(fEl.value)||p.feedGPerBird;
+    if(wEl)farm[`${st}_waterRateMl_${p.key}`]=parseInt(wEl.value)||getDefaultWaterRate(st,p.key);
+  });
+  DB.saveFarm(farm);toast(`${getBirdTypeLabel(st)} rates saved ✓`);
 }
 function exportData(){
   const bundle={exported_at:new Date().toISOString(),source:'BroodTrack',version:'1.0',
