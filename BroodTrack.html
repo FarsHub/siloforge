@@ -272,7 +272,7 @@ function initApp(){
 // ═══════════════════════════════════════════════
 const BREEDS_BY_TYPE={
   broiler:['Arbor Acres','Marshall','Other'],
-  pullet:['Isa Brown','Lohmann Brown','Hy-Line Brown','Dominant CZ','Other'],
+  pullet:['Isa Brown','Lohmann Brown','Hy-Line Brown','Dominant CZ','Black Pullet','Other'],
   noiler:['Noiler','Other'],
 };
 const BREED_BENCHMARKS={
@@ -280,6 +280,7 @@ const BREED_BENCHMARKS={
   'Lohmann Brown': {2:155,4:370,6:545,8:740,10:880,12:1000,14:1140,16:1250,18:1350},
   'Hy-Line Brown': {2:155,4:365,6:538,8:732,10:878,12:1002,14:1142,16:1252,18:1358},
   'Dominant CZ':   {2:158,4:375,6:552,8:745,10:888,12:1010,14:1148,16:1258,18:1358},
+  'Black Pullet':  {2:150,4:355,6:525,8:715,10:862,12:988,14:1125,16:1235,18:1345},
   'Arbor Acres':   {2:450,4:1100,6:1900,8:2700,10:3300,12:3700,14:4000,16:4200},
   'Marshall':      {2:430,4:1050,6:1800,8:2600,10:3100,12:3500,14:3800,16:4000},
   'Noiler':        {2:200,4:500,6:720,8:900,10:1050,12:1200,14:1350,16:1400,18:1500},
@@ -287,7 +288,7 @@ const BREED_BENCHMARKS={
 };
 const DOC_WEIGHT_G=40;
 const BREED_PURPOSE={
-  'Isa Brown':'pullet','Lohmann Brown':'pullet','Hy-Line Brown':'pullet','Dominant CZ':'pullet',
+  'Isa Brown':'pullet','Lohmann Brown':'pullet','Hy-Line Brown':'pullet','Dominant CZ':'pullet','Black Pullet':'pullet',
   'Arbor Acres':'broiler','Marshall':'broiler',
   'Noiler':'noiler','Other':'pullet',
 };
@@ -340,10 +341,20 @@ function getDefaultWaterRate(birdType,key){
   const d={broiler:{starter:80,grower:150,finisher:220},pullet:{brooding:50,starter:80,grower:120,presale:150},noiler:{brooding:60,grower:120,presale:160}};
   return(d[birdType]||d.pullet)[key]||80;
 }
-const TEMP_TARGETS=[
+const BROILER_TEMP_TARGETS=[
+  {maxDay:7,  min:32,max:35,label:'Week 1'},
+  {maxDay:14, min:29,max:32,label:'Week 2'},
+  {maxDay:21, min:26,max:29,label:'Week 3'},
+  {maxDay:28, min:24,max:27,label:'Week 4'},
+  {maxDay:42, min:21,max:25,label:'Weeks 5–6'},
+  {maxDay:56, min:18,max:24,label:'Weeks 7–8'},
+];
+const PULLET_TEMP_TARGETS=[
   {maxDay:7,  min:33,max:35,label:'Week 1'},
   {maxDay:14, min:30,max:32,label:'Week 2'},
   {maxDay:21, min:27,max:29,label:'Week 3'},
+  {maxDay:56, min:20,max:28,label:'Weeks 4–8'},
+  {maxDay:84, min:18,max:27,label:'Weeks 9–12'},
 ];
 const BROOD_EXPENSE_CATS=['DOC Purchase','Feed','Medication','Litter/Bedding','Labour','Equipment','Transport','Brooding Fuel/Power','Other'];
 const MED_SUGGESTIONS=['Gumboro Vaccine D78','Lasota (ND)','IB H120 Vaccine','ND Clone 30','Amprolium','Tylosin','Floxinor','MAXI Vitaconc','Vitamin C/E','Electrolytes','Multivitamin'];
@@ -457,8 +468,9 @@ function getBatchBirdCount(batch){
   const last=getBatchLatestLog(batch.id);
   return last?.closing_birds??batch.doc_count;
 }
-function getTempTarget(ageDays){
-  return TEMP_TARGETS.find(t=>ageDays<=t.maxDay)||null;
+function getTempTarget(ageDays,birdType){
+  const targets=birdType==='broiler'?BROILER_TEMP_TARGETS:PULLET_TEMP_TARGETS;
+  return targets.find(t=>ageDays<=t.maxDay)||null;
 }
 function getWaterRateMl(ageDays,birdType,farm){
   const f=farm||DB.getFarm()||{};
@@ -507,15 +519,15 @@ function renderHome(){
   active.forEach(b=>{
     const ageDays=batchAgeInDays(b);
     const todayLog=DB.getDaily().find(r=>r.batch_id===b.id&&r.date===today);
-    if(ageDays!==null&&ageDays<=21){
-      if(!todayLog){
-        alerts.push(`<div class="alert-item alert-amber">🌡️ ${b.name} (Day ${ageDays}) — temperature not yet logged today (critical brooding phase)</div>`);
-      } else if(todayLog.temperature_c){
-        const target=getTempTarget(ageDays);
-        if(target){
-          if(todayLog.temperature_c<target.min||todayLog.temperature_c>target.max){
-            alerts.push(`<div class="alert-item alert-red">🌡️ ${b.name} — temperature ${todayLog.temperature_c}°C out of range (target ${target.min}–${target.max}°C)</div>`);
-          }
+    const bType=getBirdType(b);
+    const tempTarget=ageDays!==null?getTempTarget(ageDays,bType):null;
+    if(tempTarget){
+      if(!todayLog||!todayLog.temperature_c){
+        const phase=ageDays<=21?'brooding':'growing';
+        alerts.push(`<div class="alert-item alert-amber">🌡️ ${b.name} (Day ${ageDays}) — temperature not yet logged today (${phase} phase)</div>`);
+      } else {
+        if(todayLog.temperature_c<tempTarget.min||todayLog.temperature_c>tempTarget.max){
+          alerts.push(`<div class="alert-item alert-red">🌡️ ${b.name} — temperature ${todayLog.temperature_c}°C out of range (target ${tempTarget.min}–${tempTarget.max}°C for ${tempTarget.label})</div>`);
         }
       }
     }
@@ -662,6 +674,7 @@ function addBatch(){
   const today=DB.today();
   const initBreeds=BREEDS_BY_TYPE.broiler.map(b=>`<option value="${b}">${b}</option>`).join('');
   openModal(`<div class="modal-ttl">New Batch (DOC Arrival) <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="field"><label>Batch Name</label><input type="text" id="ab_name" placeholder="e.g. Batch 1 — Apr 2026"></div>
     <div class="field"><label>Bird Type</label>
       <div style="display:flex;gap:8px">
         <button type="button" id="ab_t_broiler" class="btn btn-primary btn-sm" onclick="setAddBatchType('broiler','ab_')" style="flex:1">Broiler</button>
@@ -770,7 +783,7 @@ function renderDaily(){
   const totalDeaths=allDaily.reduce((s,r)=>s+(r.deaths||0),0);
   const survivalPct=batch.doc_count>0?((batch.doc_count-totalDeaths)/batch.doc_count*100).toFixed(1):null;
   const logsHtml=allDaily.map(r=>{
-    const ageDays=r.age_days, target=getTempTarget(ageDays);
+    const ageDays=r.age_days, target=getTempTarget(ageDays,getBirdType(batch));
     const tempCls=r.temperature_c&&target?(r.temperature_c>=target.min&&r.temperature_c<=target.max?'temp-ok':
       Math.abs(r.temperature_c-((target.min+target.max)/2))<=3?'temp-warn':'temp-bad'):'';
     const mortality=r.opening_birds>0?(r.deaths/r.opening_birds*100):0;
@@ -820,14 +833,15 @@ function openDailyForm(batchId,editId){
   const farm=DB.getFarm();
   const lastLog=DB.getDaily().filter(r=>r.batch_id===batchId).sort((a,b)=>b.date.localeCompare(a.date))[0];
   const defOpen=rec?rec.opening_birds:(lastLog?.closing_birds??batch.doc_count);
-  const target=getTempTarget(ageDays);
   const birdType=getBirdType(batch);
   const phase=getFeedPhaseForBatch(batch,ageDays);
   const farmFeedRate=(farm?.[`${birdType}_feedRateG_${phase.key}`])||phase.feedGPerBird;
   const defFeedReq=((defOpen*farmFeedRate)/1000).toFixed(1);
   const waterRateMl=getWaterRateMl(ageDays,birdType,farm);
   const defWaterReq=(defOpen*waterRateMl/1000).toFixed(1);
-  const isBrooding=ageDays<=21;
+  const target=getTempTarget(ageDays,birdType);
+  const hasTarget=!!target;
+  const tempLabel=ageDays<=21?'Brooder Temp (°C)':'Temperature (°C)';
   // When editing: show the rates that were active at time of original save
   const rateNote=rec?.feed_rate_g?
     `Feed rate locked at <b>${rec.feed_rate_g}g</b>${rec.water_rate_ml?` · Water locked at <b>${rec.water_rate_ml}ml</b>`:''} per bird (current: ${farmFeedRate}g / ${waterRateMl}ml)`:
@@ -857,9 +871,9 @@ function openDailyForm(batchId,editId){
       <div class="field"><label>Water Used (L)</label><input type="number" id="dl_water" value="${rec?.water_liters||''}" min="0" step="1" placeholder="${defWaterReq}"></div>
       <div class="field"><label>Water Required (L)</label><input type="number" id="dl_water_req" value="${rec?.water_req_liters||defWaterReq}" min="0" step="0.1" placeholder="${defWaterReq}"></div>
     </div>
-    ${isBrooding?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="field"><label>Brooder Temp (°C) ${target?`<span style="color:var(--amber);font-weight:800">→ target ${target.min}–${target.max}°C</span>`:''}
-        </label><input type="number" id="dl_temp" value="${rec?.temperature_c||''}" min="15" max="45" step="0.5" placeholder="${target?((target.min+target.max)/2):'—'}" oninput="checkTemp(${target?target.min:0},${target?target.max:0})">
+    ${hasTarget?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>${tempLabel} ${target?`<span style="color:var(--amber);font-weight:800">→ target ${target.min}–${target.max}°C</span>`:''}
+        </label><input type="number" id="dl_temp" value="${rec?.temperature_c||''}" min="10" max="45" step="0.5" placeholder="${target?((target.min+target.max)/2):'—'}" oninput="checkTemp(${target?target.min:0},${target?target.max:0})">
         <div id="temp_alert" style="font-size:11px;margin-top:3px"></div>
       </div>
       <div class="field"><label>Humidity (%)</label><input type="number" id="dl_humid" value="${rec?.humidity_pct||''}" min="0" max="100" step="1" placeholder="e.g. 65"></div>
@@ -1462,8 +1476,9 @@ function renderReports(){
       const fcrColor=fcr===null?'var(--gray)':fcr<=bm.fcrGood?'var(--g2)':fcr<=bm.fcrOk?'var(--amber)':'var(--red)';
       const adgColor=adg===null?'var(--gray)':adg>=bm.adgGood?'var(--g2)':adg>=bm.adgOk?'var(--amber)':'var(--red)';
       // Temperature compliance
-      const broodDays=bDaily.filter(r=>r.age_days<=21&&r.temperature_c);
-      const inRangeDays=broodDays.filter(r=>{const t=getTempTarget(r.age_days);return t&&r.temperature_c>=t.min&&r.temperature_c<=t.max;});
+      const batchBirdType=getBirdType(b);
+      const broodDays=bDaily.filter(r=>r.temperature_c&&getTempTarget(r.age_days,batchBirdType));
+      const inRangeDays=broodDays.filter(r=>{const t=getTempTarget(r.age_days,batchBirdType);return t&&r.temperature_c>=t.min&&r.temperature_c<=t.max;});
       const tempCompliance=broodDays.length>0?(inRangeDays.length/broodDays.length*100):null;
       return`<div class="card" style="border-left:4px solid ${b.status==='Active'?'var(--p2)':b.status==='Sold'?'var(--g3)':'var(--gray)'}">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
