@@ -272,15 +272,14 @@ function initApp(){
 // ═══════════════════════════════════════════════
 const BREEDS_BY_TYPE={
   broiler:['Arbor Acres','Marshall','Other'],
-  pullet:['Isa Brown','Lohmann Brown','Hy-Line Brown','Dominant CZ','Black Pullet','Other'],
+  pullet:['Isa Brown','Lohmann Brown','Hy-Line Brown','Black Pullet','Other'],
   noiler:['Noiler','Other'],
 };
 const BREED_BENCHMARKS={
-  'Isa Brown':     {2:160,4:380,6:560,8:750,10:900,12:1050,14:1180,16:1280,18:1380},
-  'Lohmann Brown': {2:155,4:370,6:545,8:740,10:880,12:1000,14:1140,16:1250,18:1350},
-  'Hy-Line Brown': {2:155,4:365,6:538,8:732,10:878,12:1002,14:1142,16:1252,18:1358},
-  'Dominant CZ':   {2:158,4:375,6:552,8:745,10:888,12:1010,14:1148,16:1258,18:1358},
-  'Black Pullet':  {2:150,4:355,6:525,8:715,10:862,12:988,14:1125,16:1235,18:1345},
+  'Isa Brown':     {2:120,4:275,6:450,8:630,10:810,12:1000,14:1180,16:1350,18:1500},
+  'Lohmann Brown': {2:128,4:295,6:495,8:715,10:945,12:1175,14:1375,16:1525,18:1640},
+  'Hy-Line Brown': {2:122,4:275,6:475,8:695,10:925,12:1155,14:1360,16:1515,18:1630},
+  'Black Pullet':  {2:140,4:310,6:520,8:750,10:1000,12:1240,14:1460,16:1650,18:1800},
   'Arbor Acres':   {2:450,4:1100,6:1900,8:2700,10:3300,12:3700,14:4000,16:4200},
   'Marshall':      {2:430,4:1050,6:1800,8:2600,10:3100,12:3500,14:3800,16:4000},
   'Noiler':        {2:200,4:500,6:720,8:900,10:1050,12:1200,14:1350,16:1400,18:1500},
@@ -288,7 +287,7 @@ const BREED_BENCHMARKS={
 };
 const DOC_WEIGHT_G=40;
 const BREED_PURPOSE={
-  'Isa Brown':'pullet','Lohmann Brown':'pullet','Hy-Line Brown':'pullet','Dominant CZ':'pullet','Black Pullet':'pullet',
+  'Isa Brown':'pullet','Lohmann Brown':'pullet','Hy-Line Brown':'pullet','Black Pullet':'pullet',
   'Arbor Acres':'broiler','Marshall':'broiler',
   'Noiler':'noiler','Other':'pullet',
 };
@@ -301,20 +300,32 @@ function getFeedEffBenchmarks(birdType){
   return                         {fcrGood:3.0,fcrOk:3.5,adgGood:10,adgOk:7, label:'Pullet'};
 }
 const BROILER_VACC_SCHEDULE=[
-  {dayMin:0,  dayMax:1,  name:"Marek's Disease",    route:"Hatchery — note only",hatchery:true},
-  {dayMin:7,  dayMax:10, name:"Gumboro D78 (IBD)",  route:"Drinking Water"},
-  {dayMin:10, dayMax:14, name:"ND Lasota",           route:"Eye Drop"},
-  {dayMin:21, dayMax:21, name:"Gumboro D78 Booster", route:"Drinking Water"},
+  {dayMin:1,  dayMax:1,  name:"NDV1-0",             route:"Ocular (Eye Drop)"},
+  {dayMin:1,  dayMax:5,  name:"Antibiotics",         route:"Drinking Water"},
+  {dayMin:10, dayMax:10, name:"Gumboro 1 (IBD)",     route:"Drinking Water"},
+  {dayMin:14, dayMax:14, name:"Lasota 1 (ND)",       route:"Drinking Water"},
+  {dayMin:17, dayMax:17, name:"Gumboro 2 (IBD)",     route:"Drinking Water"},
+  {dayMin:15, dayMax:21, name:"Coccidiostat",        route:"Drinking Water"},
+  {dayMin:22, dayMax:28, name:"Lasota 2 (ND)",       route:"Drinking Water"},
+  {dayMin:29, dayMax:35, name:"Antibiotics 2",       route:"Drinking Water"},
+  {dayMin:36, dayMax:42, name:"Coccidiostat 2",      route:"Drinking Water"},
+  {dayMin:36, dayMax:42, name:"Dewormer",            route:"Drinking Water"},
 ];
 const LAYER_VACC_SCHEDULE=[
-  {dayMin:0,  dayMax:1,  name:"Marek's Disease",    route:"Hatchery — note only",hatchery:true},
-  {dayMin:10, dayMax:14, name:"Gumboro D78 (IBD)",  route:"Drinking Water"},
-  {dayMin:21, dayMax:21, name:"ND Lasota",           route:"Eye Drop"},
-  {dayMin:28, dayMax:28, name:"IB H120",             route:"Drinking Water"},
-  {dayMin:42, dayMax:42, name:"ND Clone 30",         route:"Drinking Water"},
-  {dayMin:56, dayMax:63, name:"Gumboro D78 Booster", route:"Drinking Water"},
-  {dayMin:70, dayMax:70, name:"ND Booster",          route:"Drinking Water"},
+  {dayMin:1,  dayMax:1,  name:"Marek's Disease",     route:"Subcutaneous",hatchery:true},
+  {dayMin:1,  dayMax:1,  name:"NDV LV1",             route:"Spray / Intranasal"},
+  {dayMin:1,  dayMax:5,  name:"Antibiotics",         route:"Drinking Water"},
+  {dayMin:10, dayMax:10, name:"Gumboro 1 (IBD)",     route:"Drinking Water"},
+  {dayMin:17, dayMax:17, name:"Gumboro 2 (IBD)",     route:"Drinking Water"},
+  {dayMin:21, dayMax:21, name:"Lasota 1 (ND)",       route:"Drinking Water"},
+  {dayMin:15, dayMax:28, name:"Coccidiostat",        route:"Drinking Water"},
+  {dayMin:29, dayMax:42, name:"Antibiotics 2",       route:"Drinking Water"},
+  {dayMin:50, dayMax:56, name:"Fowl Pox",            route:"Wing Web"},
+  {dayMin:70, dayMax:84, name:"Lasota 2 (ND)",       route:"Drinking Water"},
+  {dayMin:91, dayMax:98, name:"Dewormer",            route:"Drinking Water"},
+  {dayMin:112,dayMax:112,name:"EDS + NDV (3-in-1)",  route:"Subcutaneous"},
 ];
+const VACC_NOTE="Give multivitamins in drinking water after every vaccination, antibiotic, dewormer, or coccidiostat treatment.";
 function getVaccSchedule(birdType){return birdType==='broiler'?BROILER_VACC_SCHEDULE:LAYER_VACC_SCHEDULE;}
 const BROILER_FEED_PHASES=[
   {maxDay:14, label:'Starter',  key:'starter',  feedGPerBird:45},
@@ -323,9 +334,9 @@ const BROILER_FEED_PHASES=[
 ];
 const PULLET_FEED_PHASES=[
   {maxDay:21, label:'Brooding', key:'brooding', feedGPerBird:30},
-  {maxDay:56, label:'Starter',  key:'starter',  feedGPerBird:55},
+  {maxDay:56, label:'Starter',  key:'starter',  feedGPerBird:50},
   {maxDay:126,label:'Grower',   key:'grower',   feedGPerBird:75},
-  {maxDay:999,label:'Pre-Sale', key:'presale',  feedGPerBird:90},
+  {maxDay:999,label:'Pre-Sale', key:'presale',  feedGPerBird:110},
 ];
 const NOILER_FEED_PHASES=[
   {maxDay:21, label:'Brooding', key:'brooding', feedGPerBird:35},
@@ -357,7 +368,7 @@ const PULLET_TEMP_TARGETS=[
   {maxDay:84, min:18,max:27,label:'Weeks 9–12'},
 ];
 const BROOD_EXPENSE_CATS=['DOC Purchase','Feed','Medication','Litter/Bedding','Labour','Equipment','Transport','Brooding Fuel/Power','Other'];
-const MED_SUGGESTIONS=['Gumboro Vaccine D78','Lasota (ND)','IB H120 Vaccine','ND Clone 30','Amprolium','Tylosin','Floxinor','MAXI Vitaconc','Vitamin C/E','Electrolytes','Multivitamin'];
+const MED_SUGGESTIONS=['NDV1-0','NDV LV1','Gumboro 1 (IBD)','Gumboro 2 (IBD)','Lasota 1 (ND)','Lasota 2 (ND)','EDS + NDV (3-in-1)','Fowl Pox Vaccine','Marek\'s Disease Vaccine','Coccidiostat','Dewormer','Antibiotics','Amprolium','Tylosin','Floxinor','Multivitamin','Vitamin C/E','Electrolytes'];
 
 // ═══════════════════════════════════════════════
 // DATA LAYER
@@ -635,7 +646,10 @@ function renderBatches(){
         <div style="padding:10px 16px;font-size:12px;font-weight:800;color:var(--gray);text-transform:uppercase;cursor:pointer" onclick="toggleVaccPanel('${b.id}')">
           💉 Vaccination Schedule <span id="vacc_arr_${b.id}">▾</span>
         </div>
-        <div id="vacc_panel_${b.id}" style="display:none">${vaccRows}</div>
+        <div id="vacc_panel_${b.id}" style="display:none">
+          ${vaccRows}
+          <div style="padding:10px 14px;font-size:11px;color:var(--amber);border-top:1px solid #f5f5f5;font-style:italic">💊 ${VACC_NOTE}</div>
+        </div>
       </div>
     </div>`;
   }).join('');
