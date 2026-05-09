@@ -329,7 +329,7 @@ const VACC_NOTE="Give multivitamins in drinking water after every vaccination, a
 function getVaccSchedule(birdType){return birdType==='broiler'?BROILER_VACC_SCHEDULE:LAYER_VACC_SCHEDULE;}
 const BROILER_FEED_PHASES=[
   {maxDay:14, label:'Starter',  key:'starter',  feedGPerBird:45},
-  {maxDay:35, label:'Grower',   key:'grower',   feedGPerBird:90},
+  {maxDay:28, label:'Chick',    key:'chick',    feedGPerBird:90},
   {maxDay:999,label:'Finisher', key:'finisher', feedGPerBird:130},
 ];
 const PULLET_FEED_PHASES=[
@@ -349,7 +349,7 @@ function getFeedPhaseForBatch(batch,ageDays){
   return phases.find(p=>ageDays<=p.maxDay)||phases[phases.length-1];
 }
 function getDefaultWaterRate(birdType,key){
-  const d={broiler:{starter:80,grower:150,finisher:220},pullet:{brooding:50,starter:80,grower:120,presale:150},noiler:{brooding:60,grower:120,presale:160}};
+  const d={broiler:{starter:80,chick:150,finisher:220},pullet:{brooding:50,starter:80,grower:120,presale:150},noiler:{brooding:60,grower:120,presale:160}};
   return(d[birdType]||d.pullet)[key]||80;
 }
 const BROILER_TEMP_TARGETS=[
