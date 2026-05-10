@@ -123,6 +123,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 <div id="v-home"     class="view active"></div>
 <div id="v-batches"  class="view"></div>
 <div id="v-daily"    class="view"></div>
+<div id="v-feed"     class="view"></div>
 <div id="v-weight"   class="view"></div>
 <div id="v-health"   class="view"></div>
 <div id="v-finance"  class="view"></div>
@@ -138,6 +139,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   </button>
   <button class="nav-btn" data-view="daily" onclick="go('daily')">
     <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Daily Log
+  </button>
+  <button class="nav-btn" data-view="feed" onclick="go('feed')">
+    <svg viewBox="0 0 24 24"><path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z"/></svg>Feed
   </button>
   <button class="nav-btn" data-view="weight" onclick="go('weight')">
     <svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v1H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-4V5a3 3 0 0 0-3-3z"/></svg>Weight
@@ -210,7 +214,7 @@ function _stopListeners(){_fsListeners.forEach(u=>u());_fsListeners.length=0;}
 function _reRenderCurrent(){
   const name=document.querySelector('.nav-btn.active')?.dataset?.view;
   if(!name)return;
-  ({home:renderHome,batches:renderBatches,daily:renderDaily,weight:renderWeight,
+  ({home:renderHome,batches:renderBatches,daily:renderDaily,feed:renderFeed,weight:renderWeight,
     health:renderHealth,finance:renderFinance,reports:renderReports,settings:renderSettings})[name]?.();
 }
 async function loadFromFirestore(){
@@ -367,6 +371,7 @@ const PULLET_TEMP_TARGETS=[
   {maxDay:56, min:20,max:28,label:'Weeks 4–8'},
   {maxDay:84, min:18,max:27,label:'Weeks 9–12'},
 ];
+const BROOD_FEED_TYPES=['Starter Mash','Chick Mash','Grower Mash','Finisher Pellets','Pre-Layer Mash','Brooding Mash','Concentrate','Other'];
 const BROOD_EXPENSE_CATS=['DOC Purchase','Feed','Medication','Litter/Bedding','Labour','Equipment','Transport','Brooding Fuel/Power','Other'];
 const MED_SUGGESTIONS=['NDV1-0','NDV LV1','Gumboro 1 (IBD)','Gumboro 2 (IBD)','Lasota 1 (ND)','Lasota 2 (ND)','EDS + NDV (3-in-1)','Fowl Pox Vaccine','Marek\'s Disease Vaccine','Coccidiostat','Dewormer','Antibiotics','Amprolium','Tylosin','Floxinor','Multivitamin','Vitamin C/E','Electrolytes'];
 
@@ -374,7 +379,8 @@ const MED_SUGGESTIONS=['NDV1-0','NDV LV1','Gumboro 1 (IBD)','Gumboro 2 (IBD)','L
 // DATA LAYER
 // ═══════════════════════════════════════════════
 const KEYS={farm:'bt_farm_v1',batches:'bt_batches_v1',daily:'bt_daily_v1',
-  weight:'bt_weight_v1',health:'bt_health_v1',expenses:'bt_expenses_v1',sales:'bt_sales_v1'};
+  weight:'bt_weight_v1',health:'bt_health_v1',expenses:'bt_expenses_v1',sales:'bt_sales_v1',
+  feed:'bt_feed_v1'};
 const DB={
   today(){return new Date().toISOString().slice(0,10)},
   _get(k){return CACHE[k]??null},
@@ -409,6 +415,10 @@ const DB={
   addSale(r){this._push(KEYS.sales,r)},
   updSale(id,u){this._upd(KEYS.sales,id,u)},
   delSale(id){this._del(KEYS.sales,id)},
+  getFeed(){return this._arr(KEYS.feed)},
+  addFeed(r){this._push(KEYS.feed,r)},
+  updFeed(id,u){this._upd(KEYS.feed,id,u)},
+  delFeed(id){this._del(KEYS.feed,id)},
 };
 
 // ═══════════════════════════════════════════════
@@ -419,7 +429,7 @@ function go(name){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('v-'+name).classList.add('active');
   document.querySelector(`[data-view="${name}"]`).classList.add('active');
-  ({home:renderHome,batches:renderBatches,daily:renderDaily,weight:renderWeight,
+  ({home:renderHome,batches:renderBatches,daily:renderDaily,feed:renderFeed,weight:renderWeight,
     health:renderHealth,finance:renderFinance,reports:renderReports,settings:renderSettings})[name]?.();
 }
 function selectBatch(id,view){
@@ -478,6 +488,13 @@ function getBatchLatestLog(batchId){
 function getBatchBirdCount(batch){
   const last=getBatchLatestLog(batch.id);
   return last?.closing_birds??batch.doc_count;
+}
+function syncBatchSoldStatus(batchId){
+  const batch=DB.getBatches().find(b=>b.id===batchId);
+  if(!batch||batch.status!=='Active')return;
+  const totalBirds=getBatchBirdCount(batch);
+  const totalSold=DB.getSales().filter(s=>s.batch_id===batchId).reduce((s,e)=>s+(e.quantity||0),0);
+  if(totalSold>=totalBirds)DB.updBatch(batchId,{status:'Sold'});
 }
 function getTempTarget(ageDays,birdType){
   const targets=birdType==='broiler'?BROILER_TEMP_TARGETS:PULLET_TEMP_TARGETS;
@@ -686,18 +703,17 @@ function setAddBatchType(type,pfx){
 }
 function addBatch(){
   const today=DB.today();
-  const initBreeds=BREEDS_BY_TYPE.broiler.map(b=>`<option value="${b}">${b}</option>`).join('');
   openModal(`<div class="modal-ttl">New Batch (DOC Arrival) <button class="modal-x" onclick="closeModal()">×</button></div>
     <div class="field"><label>Batch Name</label><input type="text" id="ab_name" placeholder="e.g. Batch 1 — Apr 2026"></div>
     <div class="field"><label>Bird Type</label>
       <div style="display:flex;gap:8px">
-        <button type="button" id="ab_t_broiler" class="btn btn-primary btn-sm" onclick="setAddBatchType('broiler','ab_')" style="flex:1">Broiler</button>
+        <button type="button" id="ab_t_broiler" class="btn btn-secondary btn-sm" onclick="setAddBatchType('broiler','ab_')" style="flex:1">Broiler</button>
         <button type="button" id="ab_t_pullet"  class="btn btn-secondary btn-sm" onclick="setAddBatchType('pullet','ab_')"  style="flex:1">Pullet</button>
         <button type="button" id="ab_t_noiler"  class="btn btn-secondary btn-sm" onclick="setAddBatchType('noiler','ab_')"  style="flex:1">Noiler</button>
       </div>
-      <input type="hidden" id="ab_type" value="broiler">
+      <input type="hidden" id="ab_type" value="">
     </div>
-    <div class="field"><label>Breed</label><select id="ab_breed">${initBreeds}</select></div>
+    <div class="field"><label>Breed</label><select id="ab_breed"><option value="">— select bird type first —</option></select></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Arrival Date</label><input type="date" id="ab_date" value="${today}" max="${today}"></div>
       <div class="field"><label>Number of DOC</label><input type="number" id="ab_count" value="" min="1" placeholder="e.g. 500"></div>
@@ -713,10 +729,12 @@ function addBatch(){
 function doAddBatch(){
   const name=document.getElementById('ab_name').value.trim();
   if(!name){toast('Enter batch name');return;}
+  const bird_type=document.getElementById('ab_type').value;
+  if(!bird_type){toast('Select a bird type — Broiler, Pullet or Noiler');return;}
   const count=parseInt(document.getElementById('ab_count').value)||0;
   if(count<1){toast('Enter DOC count');return;}
   const batch={id:uid(),name,
-    bird_type:document.getElementById('ab_type').value,
+    bird_type,
     breed:document.getElementById('ab_breed').value,
     arrival_date:document.getElementById('ab_date').value,doc_count:count,
     price_per_bird_ngn:parseFloat(document.getElementById('ab_price').value)||0,
@@ -787,7 +805,7 @@ function doCloseBatch(batchId){
 // ═══════════════════════════════════════════════
 function renderDaily(){
   const el=document.getElementById('v-daily'), today=DB.today();
-  const topbar=`<div class="topbar"><div><h1>Daily Log</h1><small>Mortality · Feed · Water · Temp</small></div></div>`;
+  const topbar=`<div class="topbar"><div><h1>Daily Log</h1><small>Mortality · Temperature</small></div></div>`;
   if(!_activeBatchId||!DB.getBatches().find(b=>b.id===_activeBatchId)){
     el.innerHTML=topbar+getBatchSelectPrompt(); return;
   }
@@ -805,13 +823,7 @@ function renderDaily(){
     return`<div class="list-item">
       <div style="flex:1">
         <div style="font-weight:700;font-size:14px">Day ${ageDays} <span style="font-size:11px;font-weight:400;color:var(--gray)">${fmtDate(r.date)}</span></div>
-        <div style="font-size:12px;color:var(--gray);margin-top:2px">${(()=>{
-          const fv=r.feed_req_kg>0?((r.feed_kg_used-r.feed_req_kg)/r.feed_req_kg*100):null;
-          const fc=fv===null?'var(--gray)':Math.abs(fv)>15?'var(--red)':Math.abs(fv)>10?'var(--amber)':'var(--g2)';
-          const wv=r.water_req_liters>0?((r.water_liters-r.water_req_liters)/r.water_req_liters*100):null;
-          const wc=wv===null?'var(--gray)':Math.abs(wv)>20?'var(--red)':Math.abs(wv)>10?'var(--amber)':'var(--g2)';
-          return`Feed: ${r.feed_kg_used}kg / Req: ${r.feed_req_kg||'—'}kg${fv!==null?` <span style="color:${fc};font-weight:700">(${fv>0?'+':''}${fv.toFixed(0)}%)</span>`:''} · Water: ${r.water_liters}L / Req: ${r.water_req_liters||'—'}L${wv!==null?` <span style="color:${wc};font-weight:700">(${wv>0?'+':''}${wv.toFixed(0)}%)</span>`:''}`;
-        })()}</div>
+        <div style="font-size:12px;color:var(--gray);margin-top:2px">${r.opening_birds} → ${r.closing_birds} birds</div>
         <div style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap">
           ${r.deaths>0?`<span class="badge ${mBadge}">${r.deaths} death${r.deaths>1?'s':''}</span>`:''}
           ${r.temperature_c?`<span class="${tempCls}" style="font-size:11px">${r.temperature_c}°C</span>`:''}
@@ -848,25 +860,13 @@ function openDailyForm(batchId,editId){
   const lastLog=DB.getDaily().filter(r=>r.batch_id===batchId).sort((a,b)=>b.date.localeCompare(a.date))[0];
   const defOpen=rec?rec.opening_birds:(lastLog?.closing_birds??batch.doc_count);
   const birdType=getBirdType(batch);
-  const phase=getFeedPhaseForBatch(batch,ageDays);
-  const farmFeedRate=(farm?.[`${birdType}_feedRateG_${phase.key}`])||phase.feedGPerBird;
-  const defFeedReq=((defOpen*farmFeedRate)/1000).toFixed(1);
-  const waterRateMl=getWaterRateMl(ageDays,birdType,farm);
-  const defWaterReq=(defOpen*waterRateMl/1000).toFixed(1);
   const target=getTempTarget(ageDays,birdType);
   const hasTarget=!!target;
   const tempLabel=ageDays<=21?'Brooder Temp (°C)':'Temperature (°C)';
-  // When editing: show the rates that were active at time of original save
-  const rateNote=rec?.feed_rate_g?
-    `Feed rate locked at <b>${rec.feed_rate_g}g</b>${rec.water_rate_ml?` · Water locked at <b>${rec.water_rate_ml}ml</b>`:''} per bird (current: ${farmFeedRate}g / ${waterRateMl}ml)`:
-    `Feed: <b>${farmFeedRate}g/bird</b> · Water: <b>${waterRateMl}ml/bird</b> (${phase.label} phase)`;
+  const phase=getFeedPhaseForBatch(batch,ageDays);
   openModal(`<div class="modal-ttl">Daily Log — ${batch.name} <button class="modal-x" onclick="closeModal()">×</button></div>
-    <div style="background:#e8f4fd;border-left:3px solid #4895ef;padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:10px">
-      📅 Logging for <b>yesterday</b>? Change the date — e.g. weigh feed leftovers &amp; read the water meter in the morning, then record as yesterday's figures.<br><span style="display:block;margin-top:4px">⚖️ ${rateNote}</span>
-    </div>
     <div style="background:var(--p5);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--p1);font-weight:700">
-      Day ${ageDays} · ${phase.label} phase · Feed req: ${defFeedReq} kg · Water req: ${defWaterReq} L
-      ${target?` · Temp target: ${target.min}–${target.max}°C`:''}
+      Day ${ageDays} · ${phase.label} phase${target?` · Temp target: ${target.min}–${target.max}°C`:''}
     </div>
     <div class="field"><label>Date</label><input type="date" id="dl_date" value="${rec?rec.date:today}" max="${today}"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
@@ -877,14 +877,6 @@ function openDailyForm(batchId,editId){
     <div class="field"><label>Closing Birds (auto)</label>
       <input type="number" id="dl_close" value="${rec?(rec.opening_birds-(rec.deaths||0)):defOpen}" readonly style="background:#f5f5f5;font-weight:700">
       <div id="dl_cull_note" style="font-size:11px;color:var(--amber);margin-top:4px;display:${(rec?.culls||0)>0?'block':'none'}">⚠ ${rec?.culls||0} culled bird${(rec?.culls||1)>1?'s':''} in isolation — not deducted from closing count. Log their fate (death or return) in a future daily entry.</div></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="field"><label>Feed Used (kg)</label><input type="number" id="dl_feed" value="${rec?.feed_kg_used||''}" min="0" step="0.5" placeholder="${defFeedReq}"></div>
-      <div class="field"><label>Feed Required (kg)</label><input type="number" id="dl_feed_req" value="${rec?.feed_req_kg||defFeedReq}" min="0" step="0.1" placeholder="${defFeedReq}"></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="field"><label>Water Used (L)</label><input type="number" id="dl_water" value="${rec?.water_liters||''}" min="0" step="1" placeholder="${defWaterReq}"></div>
-      <div class="field"><label>Water Required (L)</label><input type="number" id="dl_water_req" value="${rec?.water_req_liters||defWaterReq}" min="0" step="0.1" placeholder="${defWaterReq}"></div>
-    </div>
     ${hasTarget?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>${tempLabel} ${target?`<span style="color:var(--amber);font-weight:800">→ target ${target.min}–${target.max}°C</span>`:''}
         </label><input type="number" id="dl_temp" value="${rec?.temperature_c||''}" min="10" max="45" step="0.5" placeholder="${target?((target.min+target.max)/2):'—'}" oninput="checkTemp(${target?target.min:0},${target?target.max:0})">
@@ -917,21 +909,9 @@ function saveDailyLog(batchId,editId){
   const opening=parseInt(document.getElementById('dl_open').value)||0;
   const deaths=parseInt(document.getElementById('dl_deaths').value)||0;
   const culls=parseInt(document.getElementById('dl_culls').value)||0;
-  const farm=DB.getFarm();
-  const birdType=getBirdType(batch);
-  const phase=getFeedPhaseForBatch(batch,ageDays);
-  const existing=editId?DB.getDaily().find(r=>r.id===editId):null;
-  const feed_rate_g=existing?.feed_rate_g||((farm?.[`${birdType}_feedRateG_${phase.key}`])||phase.feedGPerBird);
-  const water_rate_ml=existing?.water_rate_ml||getWaterRateMl(ageDays,birdType,farm);
   const rec={id:editId||uid(),batch_id:batchId,batch_name:batch.name,
     date:document.getElementById('dl_date').value,age_days:ageDays,
     opening_birds:opening,deaths,culls,closing_birds:Math.max(0,opening-deaths),
-    feed_kg_used:parseFloat(document.getElementById('dl_feed').value)||0,
-    feed_req_kg:parseFloat(document.getElementById('dl_feed_req').value)||0,
-    feed_rate_g,
-    water_liters:parseFloat(document.getElementById('dl_water').value)||0,
-    water_req_liters:parseFloat(document.getElementById('dl_water_req').value)||0,
-    water_rate_ml,
     temperature_c:parseFloat(document.getElementById('dl_temp')?.value)||null,
     humidity_pct:parseFloat(document.getElementById('dl_humid')?.value)||null,
     notes:document.getElementById('dl_notes').value.trim()};
@@ -1054,6 +1034,113 @@ function delWeight(id){
   openModal(`<div class="modal-ttl">Delete? <button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
       <button class="btn btn-danger" onclick="closeModal();DB.delWeight('${id}');toast('Deleted');renderWeight()">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+
+// ═══════════════════════════════════════════════
+// FEED — DAILY FEED USAGE
+// ═══════════════════════════════════════════════
+function renderFeed(){
+  const el=document.getElementById('v-feed'), today=DB.today();
+  const topbar=`<div class="topbar"><div><h1>Feed Log</h1><small>Daily usage by type & phase</small></div></div>`;
+  if(!_activeBatchId||!DB.getBatches().find(b=>b.id===_activeBatchId)){el.innerHTML=topbar+getBatchSelectPrompt();return;}
+  const batch=DB.getBatches().find(b=>b.id===_activeBatchId);
+  const recs=DB.getFeed().filter(r=>r.batch_id===_activeBatchId).sort((a,b)=>b.date.localeCompare(a.date));
+  const todayRec=recs.find(r=>r.date===today);
+  const totalFeed7=recs.filter(r=>{const d=new Date(today);d.setDate(d.getDate()-7);return r.date>d.toISOString().slice(0,10);}).reduce((s,r)=>s+(r.feed_kg_used||0),0);
+  const ageDays=batchAgeInDays(batch)||0;
+  const phase=getFeedPhaseForBatch(batch,ageDays);
+  const farm=DB.getFarm();
+  const birdType=getBirdType(batch);
+  const feedRateG=(farm?.[`${birdType}_feedRateG_${phase.key}`])||phase.feedGPerBird;
+  const logHtml=`<div class="card">
+    <div class="card-title">${todayRec?'Today\'s Feed Log ✓':'Log Feed Usage'}</div>
+    ${todayRec?`
+      ${(()=>{const vr=todayRec.feed_req_kg>0?((todayRec.feed_kg_used-todayRec.feed_req_kg)/todayRec.feed_req_kg*100):0;
+        const vc=Math.abs(vr)>15?'var(--red)':Math.abs(vr)>10?'var(--amber)':'var(--g2)';
+        return`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+          <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--p2)">${todayRec.feed_kg_used}</div><div class="kpi-lbl-sm">kg Used</div></div>
+          <div class="kpi-sm"><div class="kpi-val-sm">${todayRec.feed_req_kg}</div><div class="kpi-lbl-sm">kg Required</div></div>
+          <div class="kpi-sm"><div class="kpi-val-sm" style="color:${vc}">${vr>0?'+':''}${vr.toFixed(0)}%</div><div class="kpi-lbl-sm">Variance</div></div>
+        </div>
+        <div style="font-size:12px;color:var(--gray);margin-bottom:10px">${todayRec.feed_type} · ${todayRec.feed_phase}</div>`;})()}
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-amber btn-sm" style="flex:1" onclick="openFeedForm('${todayRec.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" style="flex:1" onclick="delFeedLog('${todayRec.id}')">Delete</button>
+      </div>`:`<button class="btn btn-primary" onclick="openFeedForm()">+ Log Feed Today</button>`}
+  </div>`;
+  const histHtml=recs.filter(r=>r.date!==today).slice(0,30).map(r=>{
+    const vr=r.feed_req_kg>0?((r.feed_kg_used-r.feed_req_kg)/r.feed_req_kg*100):0;
+    const vc=Math.abs(vr)>15?'badge-red':Math.abs(vr)>10?'badge-amber':'badge-green';
+    return`<div class="list-item">
+      <div><div style="font-weight:700;font-size:14px">${fmtDate(r.date)} <span style="font-size:11px;color:var(--gray)">${r.feed_type}</span></div>
+        <div style="font-size:12px;color:var(--gray);margin-top:2px">${r.feed_kg_used} kg used · Req: ${r.feed_req_kg} kg · ${r.feed_phase}</div>
+        <span class="badge ${vc}" style="margin-top:4px">${vr>0?'+':''}${vr.toFixed(0)}%</span></div>
+      <div style="display:flex;gap:5px">
+        ${isLocked(r.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openFeedForm('${r.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="delFeedLog('${r.id}')">✕</button>`}
+      </div></div>`;
+  }).join('');
+  el.innerHTML=topbar+getBatchCtxBar()+`
+    <div class="kpi-row-3">
+      <div class="kpi"><div class="kpi-val">${totalFeed7.toFixed(1)}</div><div class="kpi-lbl">kg Used (7d)</div></div>
+      <div class="kpi"><div class="kpi-val">${feedRateG}</div><div class="kpi-lbl">g/Bird/Day<br><span style="font-size:9px;color:var(--p3);font-weight:500">${phase.label}</span></div></div>
+      <div class="kpi"><div class="kpi-val" style="color:var(--p2)">${getBatchBirdCount(batch)}</div><div class="kpi-lbl">Live Birds</div></div>
+    </div>
+    ${logHtml}
+    <div class="sec-hdr">History</div>
+    <div class="card" style="padding:0;overflow:hidden">${histHtml||'<div class="empty" style="padding:24px"><p>No feed records yet for this batch.</p></div>'}</div>
+    <div style="height:12px"></div>`;
+}
+function openFeedForm(editId){
+  const today=DB.today();
+  const rec=editId?DB.getFeed().find(r=>r.id===editId):null;
+  const batch=DB.getBatches().find(b=>b.id===_activeBatchId); if(!batch)return;
+  const ageDays=batchAgeInDays(batch)||0;
+  const birdType=getBirdType(batch);
+  const phase=getFeedPhaseForBatch(batch,ageDays);
+  const farm=DB.getFarm();
+  const feedRateG=(farm?.[`${birdType}_feedRateG_${phase.key}`])||phase.feedGPerBird;
+  const birds=getBatchBirdCount(batch);
+  const defReq=(birds*feedRateG/1000).toFixed(1);
+  const typeOpts=BROOD_FEED_TYPES.map(t=>`<option value="${t}" ${rec?.feed_type===t?'selected':''}>${t}</option>`).join('');
+  openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Feed Entry <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div style="background:#e8f4fd;border-left:3px solid #4895ef;padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
+      📅 Logging yesterday's feed? Change the date below.<br><span style="margin-top:4px;display:block">⚖️ Phase: <b>${phase.label}</b> · Rate: <b>${feedRateG} g/bird</b> · Req for ${birds} birds: <b>${defReq} kg</b></span>
+    </div>
+    <div class="field"><label>Date</label><input type="date" id="ff_date" value="${rec?rec.date:today}" max="${today}"></div>
+    <div class="field"><label>Feed Type</label><select id="ff_type">${typeOpts}</select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>kg Used</label><input type="number" id="ff_used" value="${rec?.feed_kg_used||''}" min="0" step="0.5" placeholder="${defReq}"></div>
+      <div class="field"><label>kg Required</label><input type="number" id="ff_req" value="${rec?.feed_req_kg||defReq}" min="0" step="0.1" placeholder="${defReq}"></div>
+    </div>
+    <div class="field"><label>Notes <span style="color:var(--gray);font-weight:400">— optional</span></label><textarea id="ff_notes" placeholder="e.g. Switched bags, birds eating well">${rec?.notes||''}</textarea></div>
+    <button class="btn btn-primary" onclick="saveFeedLog('${editId||''}')">Save</button>`);
+}
+function saveFeedLog(editId){
+  const batch=DB.getBatches().find(b=>b.id===_activeBatchId); if(!batch)return;
+  const ageDays=batchAgeInDays(batch)||0;
+  const birdType=getBirdType(batch);
+  const phase=getFeedPhaseForBatch(batch,ageDays);
+  const farm=DB.getFarm();
+  const existing=editId?DB.getFeed().find(r=>r.id===editId):null;
+  const feed_rate_g=existing?.feed_rate_g||((farm?.[`${birdType}_feedRateG_${phase.key}`])||phase.feedGPerBird);
+  const rec={id:editId||uid(),date:document.getElementById('ff_date').value,
+    batch_id:_activeBatchId,batch_name:batch.name,breed:batch.breed,bird_type:birdType,
+    feed_type:document.getElementById('ff_type').value,
+    feed_phase:phase.label,
+    feed_kg_used:parseFloat(document.getElementById('ff_used').value)||0,
+    feed_req_kg:parseFloat(document.getElementById('ff_req').value)||0,
+    feed_rate_g,
+    notes:document.getElementById('ff_notes').value.trim()};
+  if(editId){DB.updFeed(editId,rec);}
+  else{DB.getFeed().filter(r=>r.batch_id===_activeBatchId&&r.date===rec.date).forEach(r=>DB.delFeed(r.id));DB.addFeed(rec);}
+  closeModal();toast('Feed log saved ✓');renderFeed();
+}
+function delFeedLog(id){
+  openModal(`<div class="modal-ttl">Delete? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
+      <button class="btn btn-danger" onclick="closeModal();DB.delFeed('${id}');toast('Deleted');renderFeed()">Delete</button>
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
 }
 
@@ -1429,13 +1516,11 @@ function saveSale(editId){
     due_date:isCredit?(document.getElementById('sf_due')?.value||null):null,
     buyer, notes:document.getElementById('sf_notes').value.trim()};
   if(editId)DB.updSale(editId,rec);else DB.addSale(rec);
-  if(batchId&&batch&&!isCredit){DB.updBatch(batchId,{status:'Sold'});}
+  if(batchId&&batch)syncBatchSoldStatus(batchId);
   closeModal();toast(isCredit?'Credit sale recorded — see Receivables ✓':'Cash sale recorded ✓');renderFinance();
 }
 function markSalePaid(saleId){
-  const sale=DB.getSales().find(s=>s.id===saleId);
   DB.updSale(saleId,{paid:true});
-  if(sale?.batch_id){DB.updBatch(sale.batch_id,{status:'Sold'});}
   toast('Payment received — marked as paid ✓');renderFinance();
 }
 function delSale(id){openModal(`<div class="modal-ttl">Delete? <button class="modal-x" onclick="closeModal()">×</button></div>
@@ -1447,7 +1532,7 @@ function delSale(id){openModal(`<div class="modal-ttl">Delete? <button class="mo
 // ═══════════════════════════════════════════════
 // REPORTS
 // ═══════════════════════════════════════════════
-let REP_TAB='batches';
+let REP_TAB='batches', FEED_RPT_BATCH=null, FEED_CHART_OFFSET=0;
 let GRW_SORT={field:null,dir:'desc'};
 function setGrwSort(field){GRW_SORT=GRW_SORT.field===field?{field,dir:GRW_SORT.dir==='desc'?'asc':'desc'}:{field,dir:'desc'};renderReports();}
 function sortGrowth(arr){
@@ -1474,7 +1559,7 @@ function renderReports(){
       const bExp=expenses.filter(e=>e.batch_id===b.id).reduce((s,e)=>s+(e.amount_ngn||0),0);
       const bSales=sales.filter(s=>s.batch_id===b.id).reduce((s,e)=>s+(e.total_amount_ngn||0),0);
       const totalDeaths=bDaily.reduce((s,r)=>s+(r.deaths||0),0);
-      const totalFeed=bDaily.reduce((s,r)=>s+(r.feed_kg_used||0),0);
+      const totalFeed=DB.getFeed().filter(r=>r.batch_id===b.id).reduce((s,r)=>s+(r.feed_kg_used||0),0);
       const finalBirds=getBatchBirdCount(b);
       const survival=b.doc_count>0?(finalBirds/b.doc_count*100):null;
       const lastW=bWeight[bWeight.length-1];
@@ -1485,7 +1570,8 @@ function renderReports(){
       const liveWtGainKg=lastW?Math.max(0,(lastW.avg_weight_g-DOC_WEIGHT_G)*finalBirds/1000):null;
       const fcr=liveWtGainKg>0?totalFeed/liveWtGainKg:null;
       const adg=lastW&&ageDays>0?(lastW.avg_weight_g-DOC_WEIGHT_G)/ageDays:null;
-      const feedDays=bDaily.filter(r=>r.feed_kg_used>0).length;
+      const bFeedRecs=DB.getFeed().filter(r=>r.batch_id===b.id);
+      const feedDays=bFeedRecs.filter(r=>r.feed_kg_used>0).length;
       const adfi=feedDays>0&&finalBirds>0?(totalFeed*1000)/feedDays/finalBirds:null;
       const fcrColor=fcr===null?'var(--gray)':fcr<=bm.fcrGood?'var(--g2)':fcr<=bm.fcrOk?'var(--amber)':'var(--red)';
       const adgColor=adg===null?'var(--gray)':adg>=bm.adgGood?'var(--g2)':adg>=bm.adgOk?'var(--amber)':'var(--red)';
@@ -1598,6 +1684,116 @@ function renderReports(){
         </div>`).join('');
     }
 
+  } else if(REP_TAB==='feed'){
+    const allFeed=DB.getFeed();
+    const fBatchId=FEED_RPT_BATCH||_activeBatchId||batches[0]?.id;
+    const fBatch=batches.find(b=>b.id===fBatchId)||batches[0];
+    const bFeed=allFeed.filter(r=>r.batch_id===fBatchId).sort((a,b2)=>a.date.localeCompare(b2.date));
+    const batchOpts=batches.map(b=>`<option value="${b.id}" ${b.id===fBatchId?'selected':''}>${b.name}</option>`).join('');
+    const totalFeedKg=bFeed.reduce((s,r)=>s+(r.feed_kg_used||0),0);
+    const totalReqKg=bFeed.reduce((s,r)=>s+(r.feed_req_kg||0),0);
+    // Weekly aggregation from batch start
+    const batchStartDate=fBatch?.start_date||bFeed[0]?.date;
+    const weekMap={};
+    bFeed.forEach(r=>{
+      const diffDays=Math.max(0,Math.floor((new Date(r.date)-new Date(batchStartDate))/86400000));
+      const wk=Math.floor(diffDays/7)+1;
+      if(!weekMap[wk])weekMap[wk]={wk,kg:0,req:0};
+      weekMap[wk].kg+=r.feed_kg_used||0;
+      weekMap[wk].req+=r.feed_req_kg||0;
+    });
+    const allWeeks=Object.values(weekMap).sort((a,b)=>a.wk-b.wk);
+    const PAGE_W=8;
+    const wTotal=allWeeks.length;
+    const wPageEnd=Math.max(0,wTotal-FEED_CHART_OFFSET*PAGE_W);
+    const wPageStart=Math.max(0,wPageEnd-PAGE_W);
+    const chartWeeks=allWeeks.slice(wPageStart,wPageEnd);
+    const hasPrev=wPageStart>0;
+    const hasNext=FEED_CHART_OFFSET>0;
+    const wLblStart=chartWeeks[0]?`Wk ${chartWeeks[0].wk}`:'';
+    const wLblEnd=chartWeeks[chartWeeks.length-1]?`Wk ${chartWeeks[chartWeeks.length-1].wk}`:'';
+    // SVG weekly feed chart
+    const feedChartSvg=(()=>{
+      const n=chartWeeks.length;
+      if(n===0)return'<div style="color:var(--gray);font-size:13px;padding:20px 0">No feed data for this period.</div>';
+      const svgW=600,cH=58,svgH=74,slot=svgW/n,bW=slot*0.52;
+      const maxVal=Math.max(...chartWeeks.map(w=>Math.max(w.kg,w.req||0)),1);
+      const bars=chartWeeks.map((w,i)=>{
+        const x=i*slot+(slot-bW)/2,bH=Math.max(1,(w.kg/maxVal)*cH),y=cH-bH;
+        const vr=w.req>0?(w.kg-w.req)/w.req*100:0;
+        const col=Math.abs(vr)>15?'#c0392b':Math.abs(vr)>10?'#e67e22':'#27ae60';
+        return`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bW.toFixed(1)}" height="${bH.toFixed(1)}" fill="${col}" rx="1.5"/><text x="${(x+bW/2).toFixed(1)}" y="${svgH-1}" text-anchor="middle" font-size="7" fill="#aaa">Wk${w.wk}</text>`;
+      }).join('');
+      const tPts=chartWeeks.map((w,i)=>{
+        if(!w.req)return null;
+        const x=i*slot+slot/2,y=cH-(w.req/maxVal)*cH;
+        return`${x.toFixed(1)},${Math.max(0,y).toFixed(1)}`;
+      }).filter(Boolean);
+      const tLine=tPts.length>0?`<polyline points="${tPts.join(' ')}" fill="none" stroke="#4895ef" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>${tPts.map(pt=>{const[px,py]=pt.split(',');return`<circle cx="${px}" cy="${py}" r="2.5" fill="#4895ef"/>`;}).join('')}`:'';
+      return`<svg viewBox="0 0 ${svgW} ${svgH}" style="width:100%;height:auto;display:block;overflow:visible">
+        <line x1="0" y1="0.5" x2="${svgW}" y2="0.5" stroke="#f0f0f0" stroke-width="1"/>
+        ${bars}${tLine}</svg>`;
+    })();
+    // Feed type donut — SVG with <title> tooltips, no verbose labels
+    const byType={};
+    bFeed.forEach(r=>{byType[r.feed_type]=(byType[r.feed_type]||0)+(r.feed_kg_used||0);});
+    const typeEntries=Object.entries(byType).sort((a,b2)=>b2[1]-a[1]);
+    const totalForPie=typeEntries.reduce((s,[,v])=>s+v,0);
+    const PIE_COLORS=['#8b5cf6','#27ae60','#e67e22','#4895ef','#c0392b','#9b59b6','#f39c12'];
+    const pieSlices=typeEntries.map(([type,kg],i)=>({type,kg,pct:totalForPie>0?kg/totalForPie*100:0,color:PIE_COLORS[i%PIE_COLORS.length]}));
+    const donutSvg=(()=>{
+      if(pieSlices.length===0)return'';
+      const r0=0.95,r1=0.5;
+      let ang=-Math.PI/2;
+      const segs=pieSlices.map(s=>{
+        const sw=(s.pct/100)*2*Math.PI;
+        const a1=ang,a2=ang+sw; ang=a2;
+        const x1=Math.cos(a1)*r0,y1=Math.sin(a1)*r0;
+        const x2=Math.cos(a2)*r0,y2=Math.sin(a2)*r0;
+        const x3=Math.cos(a2)*r1,y3=Math.sin(a2)*r1;
+        const x4=Math.cos(a1)*r1,y4=Math.sin(a1)*r1;
+        const lg=sw>Math.PI?1:0;
+        const d=`M ${x1.toFixed(4)} ${y1.toFixed(4)} A ${r0} ${r0} 0 ${lg} 1 ${x2.toFixed(4)} ${y2.toFixed(4)} L ${x3.toFixed(4)} ${y3.toFixed(4)} A ${r1} ${r1} 0 ${lg} 0 ${x4.toFixed(4)} ${y4.toFixed(4)} Z`;
+        return`<path d="${d}" fill="${s.color}"><title>${s.type}: ${s.kg.toFixed(0)}kg (${s.pct.toFixed(0)}%)</title></path>`;
+      }).join('');
+      return`<svg viewBox="-1 -1 2 2" style="width:110px;height:110px;flex-shrink:0">${segs}</svg>`;
+    })();
+    const donutLegend=pieSlices.map(s=>`<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><div style="width:10px;height:10px;border-radius:2px;background:${s.color};flex-shrink:0"></div><span style="font-size:12px;font-weight:600;color:#444">${s.type}</span></div>`).join('');
+    const donutHtml=typeEntries.length===0
+      ?'<div style="text-align:center;color:var(--gray);padding:16px">No feed logs yet</div>'
+      :`<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">${donutSvg}<div style="flex:1;min-width:100px">${donutLegend}<div style="font-size:11px;color:var(--gray);margin-top:6px">Hover segments for details</div></div></div>`;
+    const navBtnStyle='border:none;background:none;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:6px;line-height:1';
+    const navBtnDis='opacity:.25;cursor:default;pointer-events:none';
+    tabContent=`<div style="margin:12px 16px">
+      <select style="width:100%;padding:10px;border:1.5px solid #ddd;border-radius:10px;font-size:14px" onchange="FEED_RPT_BATCH=this.value;FEED_CHART_OFFSET=0;renderReports()">
+        ${batchOpts}</select></div>
+      <div class="kpi-row-3">
+        <div class="kpi"><div class="kpi-val">${totalFeedKg.toFixed(0)}</div><div class="kpi-lbl">kg Total</div></div>
+        <div class="kpi"><div class="kpi-val">${totalReqKg.toFixed(0)}</div><div class="kpi-lbl">kg Required</div></div>
+        <div class="kpi"><div class="kpi-val">${bFeed.length}</div><div class="kpi-lbl">Log Days</div></div>
+      </div>
+      ${bFeed.length>0?`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px 4px">
+        <span style="font-size:12px;font-weight:800;color:var(--g1);text-transform:uppercase;letter-spacing:.4px">Weekly Feed Usage</span>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button style="${navBtnStyle}${!hasPrev?navBtnDis:''}" onclick="FEED_CHART_OFFSET++;renderReports()" title="Earlier">←</button>
+          <span style="font-size:11px;color:var(--gray);min-width:100px;text-align:center">${wLblStart}${wLblEnd&&wLblEnd!==wLblStart?' – '+wLblEnd:''}</span>
+          <button style="${navBtnStyle}${!hasNext?navBtnDis:''}" onclick="FEED_CHART_OFFSET=Math.max(0,FEED_CHART_OFFSET-1);renderReports()" title="Later">→</button>
+        </div>
+      </div>
+      <div class="card" style="padding:16px">
+        ${feedChartSvg}
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:var(--gray)">
+          <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:12px;height:10px;background:#27ae60;border-radius:2px"></span>On target (≤10%)</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:12px;height:10px;background:#e67e22;border-radius:2px"></span>10–15% off</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:12px;height:10px;background:#c0392b;border-radius:2px"></span>&gt;15% off</span>
+          <span style="display:flex;align-items:center;gap:5px"><svg width="22" height="10" viewBox="0 0 22 10"><line x1="0" y1="5" x2="22" y2="5" stroke="#4895ef" stroke-width="2"/><circle cx="11" cy="5" r="2.5" fill="#4895ef"/></svg>Required (weekly)</span>
+        </div>
+      </div>
+      <div class="sec-hdr">Feed Type Distribution</div>
+      <div class="card">${donutHtml}</div>`
+      :'<div class="empty" style="padding:40px 24px"><p>No feed logs for this batch yet.<br>Log feed in the <b>Feed</b> tab.</p></div>'}`;
+
   } else if(REP_TAB==='growth'){
     const batchSelect=batches[0]?.id;
     const bWeight=weight.filter(r=>batchSelect&&r.batch_id===batchSelect).sort((a,b)=>a.week_num-b.week_num);
@@ -1633,6 +1829,7 @@ function renderReports(){
     <div class="inner-tabs">
       <button class="inner-tab ${REP_TAB==='batches'?'active':''}" onclick="REP_TAB='batches';renderReports()">Batches</button>
       <button class="inner-tab ${REP_TAB==='mortality'?'active':''}" onclick="REP_TAB='mortality';renderReports()">Mortality</button>
+      <button class="inner-tab ${REP_TAB==='feed'?'active':''}" onclick="REP_TAB='feed';renderReports()">🌾 Feed</button>
       <button class="inner-tab ${REP_TAB==='growth'?'active':''}" onclick="REP_TAB='growth';renderReports()">Growth</button>
       <button class="inner-tab ${REP_TAB==='journal'?'active':''}" onclick="REP_TAB='journal';renderReports()">📓 Journal</button>
     </div>

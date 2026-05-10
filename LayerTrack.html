@@ -316,6 +316,18 @@ const FLOCK_STAGES = [
   {maxWeek:75, label:'Declining',  emoji:'🔻',expected:65,warn:48,bg:'#fef3cd',color:'#7d4e00'},
   {maxWeek:999,label:'Late Lay',   emoji:'⏳',expected:50,warn:35,bg:'#fde8ea',color:'#d62839'},
 ];
+// Pullet feed requirement table: index 0 = week 1, index 21 = week 22; week 23+ = full laying (125g)
+const LAYER_FEED_TABLE = [15,25,30,35,37,40,45,50,55,58,60,65,68,70,80,90,100,110,115,115,115,115];
+function getLayerFeedRate(ageWeeks){
+  if(!ageWeeks||ageWeeks<1||ageWeeks>=23) return 125;
+  return LAYER_FEED_TABLE[ageWeeks-1];
+}
+// Pullet water requirement table: index 0 = week 1, index 21 = week 22; week 23+ = full laying (250ml)
+const LAYER_WATER_TABLE = [30,50,60,70,75,80,90,100,110,115,120,130,135,140,160,180,200,220,230,230,230,230];
+function getLayerWaterRate(ageWeeks){
+  if(!ageWeeks||ageWeeks<1||ageWeeks>=23) return 250;
+  return LAYER_WATER_TABLE[ageWeeks-1];
+}
 const FEED_TYPES = ['Chick Mash','Grower Pellets','Pre-Layer Mash','Layer Mash','Concentrate','Other'];
 const EXPENSE_CATS = ['Feed Purchase','Medication','Transport','Generator Fuel','Labour','Litter/Bedding','Chick Purchase','Equipment','Water Purchase','Other'];
 const PRODUCT_TYPES = ['Eggs — Crates','Culled Birds','Cockerels','Manure','Other'];
@@ -1075,11 +1087,14 @@ function renderFeed(){
         <button class="btn btn-danger btn-sm" onclick="delFeed('${r.id}')">✕</button>`}
       </div></div>`;
   }).join('');
+  const _ageW=getFarmAgeWeeks(farm)||0;
+  const _dynRate=getLayerFeedRate(_ageW);
+  const _phaseHint=_ageW>=21?'Laying':'Wk '+_ageW;
   el.innerHTML=`<div class="topbar"><div><h1>Feed Management</h1><small>Daily usage tracking</small></div></div>
     ${getPenCtxBar()}
     <div class="kpi-row-3">
       <div class="kpi"><div class="kpi-val">${totalUsed7.toFixed(0)}</div><div class="kpi-lbl">kg Used (7d)</div></div>
-      <div class="kpi"><div class="kpi-val">${(farm?.feedRateG||110)}</div><div class="kpi-lbl">g/Bird/Day</div></div>
+      <div class="kpi"><div class="kpi-val">${_dynRate}</div><div class="kpi-lbl">g/Bird/Day<br><span style="font-weight:500;font-size:9px;color:var(--g3)">${_phaseHint}</span></div></div>
       <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${closingBirds}</div><div class="kpi-lbl">Active Birds</div></div>
     </div>
     ${logHtml}
@@ -1092,9 +1107,12 @@ function openFeedForm(editId){
   const rec=editId?DB.getFeed().find(r=>r.id===editId):null;
   const lastBird=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date))[0];
   const closingBirds=lastBird?.closing_birds||getFarmTotalBirds(farm)||0;
-  const feedRate=(farm?.feedRateG||110)/1000;
+  const _fw=getFarmAgeWeeks(farm)||0;
+  const feedRateG=getLayerFeedRate(_fw);
+  const feedRate=feedRateG/1000;
   const defReq=(closingBirds*feedRate).toFixed(1);
-  const rateLabel=rec?.feed_rate_g?`Rate locked at <b>${rec.feed_rate_g} g/bird/day</b> (current: ${farm?.feedRateG||110} g)`:`Rate: <b>${farm?.feedRateG||110} g/bird/day</b>`;
+  const _phLabel=_fw>=21?'Laying phase':`Week ${_fw} pullet`;
+  const rateLabel=rec?.feed_rate_g?`Rate locked at <b>${rec.feed_rate_g} g/bird/day</b> (current: ${feedRateG}g)`:`Auto rate: <b>${feedRateG} g/bird/day</b> (${_phLabel})`;
   openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Feed Entry <button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
       📅 Logging yesterday's feed? Change the date — e.g. weigh leftover feed in the morning, then record it as <b>yesterday's</b> consumption.<br><span style="margin-top:4px;display:block">⚖️ ${rateLabel}</span>
@@ -1117,8 +1135,8 @@ function saveFeedLog(editId){
   const ageWeeks=getFarmAgeWeeks(DB.getFarm())||0;
   const farm=DB.getFarm();
   const existing=editId?DB.getFeed().find(r=>r.id===editId):null;
-  // Snapshot feed_rate_g at time of save; preserve existing snapshot on edit
-  const feed_rate_g=existing?.feed_rate_g||(farm?.feedRateG||110);
+  // Snapshot the age-based rate at time of save; preserve existing snapshot on edit
+  const feed_rate_g=existing?.feed_rate_g||getLayerFeedRate(ageWeeks);
   const notes=document.getElementById('ff_notes').value.trim();
   const rec={id:editId||uid(),date,pen_id:_activePenId||undefined,feed_type,feed_kg_used,feed_req_kg,age_weeks:ageWeeks,feed_rate_g,notes};
   if(editId){DB.updFeed(editId,rec);}
@@ -1188,12 +1206,14 @@ function openHealthForm(editId){
   const farm=DB.getFarm();
   const lastBird=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date))[0];
   const closingBirds=lastBird?.closing_birds||getFarmTotalBirds(farm)||0;
-  const waterRateMl=farm?.waterRateMlPerBird||250;
+  const _hw=getFarmAgeWeeks(farm)||0;
+  const waterRateMl=getLayerWaterRate(_hw);
   const defWaterReq=(closingBirds*waterRateMl/1000).toFixed(1);
+  const _wPhLabel=_hw>=23?'Laying phase':`Week ${_hw} pullet`;
   const medOpts=MED_SUGGESTIONS.map(m=>`<option value="${m}">${m}</option>`).join('');
   openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Health Record <button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
-      📅 Water measured in the morning? Log it as <b>yesterday's</b> record by changing the date below.<br><span style="margin-top:4px;display:block">💧 Rate: <b>${waterRateMl} ml/bird/day</b> · Expected for ${closingBirds} birds: <b>${defWaterReq} L</b></span>
+      📅 Water measured in the morning? Log it as <b>yesterday's</b> record by changing the date below.<br><span style="margin-top:4px;display:block">💧 Auto rate: <b>${waterRateMl} ml/bird/day</b> (${_wPhLabel}) · Expected for ${closingBirds} birds: <b>${defWaterReq} L</b></span>
     </div>
     <div class="field"><label>Date</label><input type="date" id="hf_date" value="${rec?rec.date:today}" max="${today}"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -1213,8 +1233,9 @@ function openHealthForm(editId){
 function saveHealthLog(editId){
   const farm=DB.getFarm();
   const existing=editId?DB.getHealth().find(r=>r.id===editId):null;
-  // Snapshot water_rate_ml at time of save; preserve existing snapshot on edit
-  const water_rate_ml=existing?.water_rate_ml||(farm?.waterRateMlPerBird||250);
+  // Snapshot the age-based water rate at time of save; preserve existing snapshot on edit
+  const _saveAgeW=getFarmAgeWeeks(farm)||0;
+  const water_rate_ml=existing?.water_rate_ml||getLayerWaterRate(_saveAgeW);
   const rec={id:editId||uid(),date:document.getElementById('hf_date').value,
     pen_id:_activePenId||undefined,
     water_consumed_liters:parseFloat(document.getElementById('hf_water').value)||0,
@@ -2044,15 +2065,10 @@ function renderSettings(){
     <div class="card">
       <div class="card-title">Farm Details</div>
       <div class="field"><label>Farm Name</label><input type="text" id="s_name" value="${farm.name||''}" placeholder="e.g. Green Valley Farms"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div class="field"><label>Expected Rate (%)</label><input type="number" id="s_exp" value="${farm.expectedRate||85}" min="50" max="100"></div>
-        <div class="field"><label>Warn Below (%)</label><input type="number" id="s_warn" value="${farm.warnRate||70}" min="30" max="99"></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-        <div class="field"><label>Feed Rate (g/bird/day)</label><input type="number" id="s_feed" value="${farm.feedRateG||110}" min="80" max="200"></div>
-        <div class="field"><label>Water Rate (ml/bird/day)</label><input type="number" id="s_water" value="${farm.waterRateMlPerBird||250}" min="100" max="600"></div>
-        <div class="field"><label>Market Price/Crate (₦)</label><input type="number" id="s_mkt" value="${farm.marketPricePerCrate||3500}" min="0" step="100"></div>
-      </div>
+      ${(()=>{const aw=getFarmAgeWeeks(farm)||0;const fr=getLayerFeedRate(aw);const wr=getLayerWaterRate(aw);const ph=aw>=23?'Laying phase':`Week ${aw} pullet`;return`
+      <div style="background:var(--g5);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--g1);margin-bottom:8px">
+        🌾 Feed: <b>${fr} g/bird/day</b> &nbsp;·&nbsp; 💧 Water: <b>${wr} ml/bird/day</b><br><span style="font-weight:500;opacity:.75">${ph} — auto-calculated by flock age</span>
+      </div>`;})()}
       <button class="btn btn-primary" onclick="saveFarm()">Save Farm Details</button>
     </div>
     <div class="sec-hdr" style="margin-top:4px">Pens</div>
@@ -2084,11 +2100,6 @@ function toggleAcc(id){document.getElementById('acc_'+id)?.classList.toggle('ope
 function saveFarm(){
   const farm=DB.getFarm()||{pens:[]};
   farm.name=document.getElementById('s_name').value.trim()||'My Farm';
-  farm.expectedRate=parseInt(document.getElementById('s_exp').value)||85;
-  farm.warnRate=parseInt(document.getElementById('s_warn').value)||70;
-  farm.feedRateG=parseInt(document.getElementById('s_feed').value)||110;
-  farm.waterRateMlPerBird=parseInt(document.getElementById('s_water').value)||250;
-  farm.marketPricePerCrate=parseInt(document.getElementById('s_mkt').value)||3500;
   DB.saveFarm(farm);toast('Farm settings saved ✓');
 }
 function addPen(){
