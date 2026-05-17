@@ -1987,9 +1987,9 @@ function renderReports(){
         ${FIN_MONTH&&FIN_MONTH!==thisMonth?`<button class="btn btn-secondary btn-sm" onclick="FIN_MONTH=null;renderReports()">Clear</button>`:''}
       </div>
       <div class="kpi-row-3">
-        <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${fmtMoney(monthSales)}</div><div class="kpi-lbl">Sales (Month)</div></div>
-        <div class="kpi"><div class="kpi-val" style="color:var(--red)">${fmtMoney(monthExp)}</div><div class="kpi-lbl">Expenses (Month)</div></div>
-        <div class="kpi"><div class="kpi-val" style="color:${monthSales-monthExp>=0?'var(--g2)':'var(--red)'}">${fmtMoney(monthSales-monthExp)}</div><div class="kpi-lbl">Margin</div></div>
+        <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${fmtMoney(monthSales)}</div><div class="kpi-lbl">Sales (${finMonthLabel})</div></div>
+        <div class="kpi"><div class="kpi-val" style="color:var(--red)">${fmtMoney(monthExp)}</div><div class="kpi-lbl">Expenses (${finMonthLabel})</div></div>
+        <div class="kpi"><div class="kpi-val" style="color:${monthSales-monthExp>=0?'var(--g2)':'var(--red)'}">${fmtMoney(monthSales-monthExp)}</div><div class="kpi-lbl">Margin (${finMonthLabel})</div></div>
       </div>
       <div class="kpi-row-2">
         <div class="kpi"><div class="kpi-val">${costPerEgg?'₦'+costPerEgg.toFixed(0):'—'}</div><div class="kpi-lbl">Cost/Egg (All-Time)</div></div>
@@ -2015,12 +2015,12 @@ function renderReports(){
   }
 
   el.innerHTML=`<div class="topbar"><div><h1>Reports</h1><small>${topbarLabel}</small></div></div>
-    <div style="background:var(--white);padding:10px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px">
+    ${REP_TAB==='eggs'?`<div style="background:var(--white);padding:10px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px">
       <span style="font-size:12px;font-weight:700;color:var(--gray);white-space:nowrap">View:</span>
       <select style="flex:1;padding:8px 12px;border:1.5px solid #ddd;border-radius:10px;font-size:14px;font-weight:600;background:var(--white)"
         onchange="ANA_DATE=this.value||null;renderReports()">${dateOpts}</select>
       ${ANA_DATE?`<button class="btn btn-secondary btn-sm" onclick="ANA_DATE=null;renderReports()">Clear</button>`:''}
-    </div>
+    </div>`:''}
     <div class="inner-tabs">
       <button class="inner-tab ${REP_TAB==='eggs'?'active':''}" onclick="REP_TAB='eggs';renderReports()">Eggs</button>
       <button class="inner-tab ${REP_TAB==='flock'?'active':''}" onclick="REP_TAB='flock';renderReports()">Flock</button>
