@@ -316,10 +316,10 @@ const FLOCK_STAGES = [
   {maxWeek:75, label:'Declining',  emoji:'🔻',expected:65,warn:48,bg:'#fef3cd',color:'#7d4e00'},
   {maxWeek:999,label:'Late Lay',   emoji:'⏳',expected:50,warn:35,bg:'#fde8ea',color:'#d62839'},
 ];
-// Pullet feed requirement table: index 0 = week 1, index 21 = week 22; week 23+ = full laying (125g)
+// Pullet feed requirement table: index 0 = week 1, index 21 = week 22; week 23+ = full laying (120g)
 const LAYER_FEED_TABLE = [15,25,30,35,37,40,45,50,55,58,60,65,68,70,80,90,100,110,115,115,115,115];
 function getLayerFeedRate(ageWeeks){
-  if(!ageWeeks||ageWeeks<1||ageWeeks>=23) return 125;
+  if(!ageWeeks||ageWeeks<1||ageWeeks>=23) return 120;
   return LAYER_FEED_TABLE[ageWeeks-1];
 }
 // Pullet water requirement table: index 0 = week 1, index 21 = week 22; week 23+ = full laying (250ml)
@@ -1539,7 +1539,7 @@ function delSale(id){openModal(`<div class="modal-ttl">Delete Sale? <button clas
 // ═══════════════════════════════════════════════
 // REPORTS — MULTI-MODULE ANALYTICS
 // ═══════════════════════════════════════════════
-let REP_TAB='eggs', ANA_TAB='cells', ANA_DATE=null, TREND_MODE='weekly', FEED_CHART_OFFSET=0;
+let REP_TAB='eggs', ANA_TAB='cells', ANA_DATE=null, TREND_MODE='weekly', FEED_CHART_OFFSET=0, FIN_MONTH=null;
 let CELL_SORT={field:null,dir:'desc'};
 function setCellSort(field){CELL_SORT=CELL_SORT.field===field?{field,dir:CELL_SORT.dir==='desc'?'asc':'desc'}:{field,dir:'desc'};renderReports();}
 function sortCells(arr){
@@ -1572,6 +1572,8 @@ function renderReports(){
   const validPenIds=new Set((farm.pens||[]).map(p=>p.id));
   const cols=filterColsByDate(allCols).filter(c=>validPenIds.has(c.penId));
   const modeLabel=anaModeLabel();
+  const finMonthLabel=(()=>{const m=FIN_MONTH||DB.today().slice(0,7);const d=new Date(m+'-01T00:00:00');return d.toLocaleDateString('en-GB',{month:'long',year:'numeric'});})();
+  const topbarLabel=REP_TAB==='finance'?finMonthLabel:modeLabel;
   const dateOpts=`<option value="" ${!ANA_DATE?'selected':''}>All Time</option>
     <optgroup label="─── Quick Range ───">
       <option value="last7" ${ANA_DATE==='last7'?'selected':''}>Last 7 Days</option>
@@ -1957,8 +1959,9 @@ function renderReports(){
   } else if(REP_TAB==='finance'){
     const expenses=DB.getExpenses(), sales=DB.getSales();
     const today=DB.today(), thisMonth=today.slice(0,7);
-    const monthExp=expenses.filter(e=>e.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.amount_ngn||0),0);
-    const monthSales=sales.filter(s=>s.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.total_amount_ngn||0),0);
+    const activeMonth=FIN_MONTH||thisMonth;
+    const monthExp=expenses.filter(e=>e.date.startsWith(activeMonth)).reduce((s,e)=>s+(e.amount_ngn||0),0);
+    const monthSales=sales.filter(s=>s.date.startsWith(activeMonth)).reduce((s,e)=>s+(e.total_amount_ngn||0),0);
     const allExp=expenses.reduce((s,e)=>s+(e.amount_ngn||0),0);
     const allSales=sales.reduce((s,e)=>s+(e.total_amount_ngn||0),0);
     const totalEggsAll=DB.getCols().filter(c=>validPenIds.has(c.penId)).reduce((s,c)=>(c.entries||[]).reduce((ss,e)=>ss+(e.eggs||0),s),0);
@@ -1968,7 +1971,21 @@ function renderReports(){
     expenses.forEach(e=>{catMap[e.category]=(catMap[e.category]||0)+(e.amount_ngn||0);});
     const topCats=Object.entries(catMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
     const maxCat=topCats[0]?.[1]||1;
+    const monthSet=new Set([thisMonth]);
+    expenses.forEach(e=>{if(e.date)monthSet.add(e.date.slice(0,7));});
+    sales.forEach(s=>{if(s.date)monthSet.add(s.date.slice(0,7));});
+    const monthOpts=[...monthSet].sort().reverse().map(m=>{
+      const d=new Date(m+'-01T00:00:00');
+      const lbl=d.toLocaleDateString('en-GB',{month:'long',year:'numeric'})+(m===thisMonth?' (This Month)':'');
+      return`<option value="${m}" ${m===activeMonth?'selected':''}>${lbl}</option>`;
+    }).join('');
     tabContent=`
+      <div style="background:var(--white);padding:10px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px;margin:0 16px 10px;border-radius:var(--radius);box-shadow:var(--shadow)">
+        <span style="font-size:12px;font-weight:700;color:var(--gray);white-space:nowrap">Month:</span>
+        <select style="flex:1;padding:8px 12px;border:1.5px solid #ddd;border-radius:10px;font-size:14px;font-weight:600;background:var(--white)"
+          onchange="FIN_MONTH=this.value;renderReports()">${monthOpts}</select>
+        ${FIN_MONTH&&FIN_MONTH!==thisMonth?`<button class="btn btn-secondary btn-sm" onclick="FIN_MONTH=null;renderReports()">Clear</button>`:''}
+      </div>
       <div class="kpi-row-3">
         <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${fmtMoney(monthSales)}</div><div class="kpi-lbl">Sales (Month)</div></div>
         <div class="kpi"><div class="kpi-val" style="color:var(--red)">${fmtMoney(monthExp)}</div><div class="kpi-lbl">Expenses (Month)</div></div>
@@ -1997,7 +2014,7 @@ function renderReports(){
       </div>`;
   }
 
-  el.innerHTML=`<div class="topbar"><div><h1>Reports</h1><small>${modeLabel}</small></div></div>
+  el.innerHTML=`<div class="topbar"><div><h1>Reports</h1><small>${topbarLabel}</small></div></div>
     <div style="background:var(--white);padding:10px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px">
       <span style="font-size:12px;font-weight:700;color:var(--gray);white-space:nowrap">View:</span>
       <select style="flex:1;padding:8px 12px;border:1.5px solid #ddd;border-radius:10px;font-size:14px;font-weight:600;background:var(--white)"
