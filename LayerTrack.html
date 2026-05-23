@@ -1374,6 +1374,16 @@ function getLegacySaleGroups(){
     };
   }).sort((a,b)=>b.saleCount-a.saleCount);
 }
+function mergeCustomers(sourceId,targetId){
+  if(!sourceId||!targetId||sourceId===targetId)return null;
+  const source=DB.getCustomer(sourceId);
+  const target=DB.getCustomer(targetId);
+  if(!source||!target)return null;
+  const sourceSales=DB.getSales().filter(s=>s.customer_id===sourceId);
+  sourceSales.forEach(s=>{DB.updSale(s.id,{customer_id:targetId,customer:target.name});});
+  DB.delCustomer(sourceId);
+  return {movedSales:sourceSales.length,sourceName:source.name,targetName:target.name};
+}
 function migrateLegacyGroup(normalized,overrides){
   const group=getLegacySaleGroups().find(g=>g.normalized===normalized);
   if(!group)return null;
@@ -1982,8 +1992,9 @@ function renderCustomersTab(){
               ${owing>0
                 ?`<div style="font-size:11px;color:var(--gray)">Owing</div><div style="font-weight:800;color:var(--amber)">${fmtMoney(owing)}</div>`
                 :'<div style="font-size:11px;color:var(--g3);font-weight:600">No debt</div>'}
-              <div style="display:flex;gap:4px;margin-top:6px;justify-content:flex-end">
+              <div style="display:flex;gap:4px;margin-top:6px;justify-content:flex-end;flex-wrap:wrap">
                 <button class="btn btn-secondary btn-sm" onclick="openCustomerForm('${c.id}')">Edit</button>
+                <button class="btn btn-amber btn-sm" onclick="openMergeCustomerModal('${c.id}')">Merge</button>
                 <button class="btn btn-danger btn-sm" onclick="delCustomer('${c.id}')">✕</button>
               </div>
             </div>
@@ -2042,6 +2053,85 @@ function delCustomer(id){
     <div style="display:flex;flex-direction:column;gap:8px">
       <button class="btn btn-danger" onclick="closeModal();DB.delCustomer('${id}');toast('Customer deleted');renderFinance()">Delete</button>
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+
+function openMergeCustomerModal(sourceId){
+  const source=DB.getCustomer(sourceId);
+  if(!source){toast('Customer not found');return;}
+  const sourceSales=DB.getSales().filter(s=>s.customer_id===sourceId).length;
+  const others=DB.getCustomers().filter(c=>c.id!==sourceId).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  const safeName=String(source.name).replace(/</g,'&lt;');
+  const sourceOwing=getCustomerOutstanding(sourceId);
+  const sourceLifetime=getCustomerLifetime(sourceId);
+  if(others.length===0){
+    openModal(`<div class="modal-ttl">Cannot Merge <button class="modal-x" onclick="closeModal()">×</button></div>
+      <p style="font-size:14px;color:var(--gray);margin-bottom:18px">There are no other customers to merge <b>${safeName}</b> into. Create the target customer first, then try again.</p>
+      <button class="btn btn-secondary" onclick="closeModal()">OK</button>`);
+    return;
+  }
+  openModal(`<div class="modal-ttl">Merge ${safeName} into… <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div style="margin:-6px 0 12px;padding:10px 12px;background:var(--g5);border-radius:8px;font-size:13px">
+      <div style="font-weight:700;color:var(--g2)">${safeName}</div>
+      <div style="font-size:12px;color:var(--g1);margin-top:4px">${sourceSales} sale${sourceSales===1?'':'s'} · Lifetime ${fmtMoney(sourceLifetime)}${sourceOwing>0?` · <b style="color:var(--amber)">Owing ${fmtMoney(sourceOwing)}</b>`:''}</div>
+      <div style="font-size:11px;color:var(--gray);margin-top:6px">All sales linked to this customer will be re-linked to the target. This customer record will then be deleted. Sales are not edited financially — bypasses the 7-day lock safely.</div>
+    </div>
+    <div class="field"><label>Search customers</label>
+      <input type="text" id="mc_search" placeholder="Type to filter…" oninput="filterMergeCustomerList()" autocomplete="off"></div>
+    <div id="mc_list" style="max-height:340px;overflow-y:auto;border:1px solid #e0e0e0;border-radius:8px">
+      ${others.map(c=>{
+        const owing=getCustomerOutstanding(c.id);
+        const lifetime=getCustomerLifetime(c.id);
+        const salesCount=DB.getSales().filter(s=>s.customer_id===c.id).length;
+        const dataName=(c.name||'').toLowerCase();
+        const dataPhone=(c.phone||'').toLowerCase();
+        return `<div class="mc-row" data-name="${dataName}" data-phone="${dataPhone}" style="padding:10px 12px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer" onclick="confirmMergeCustomer('${sourceId}','${c.id}')">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:13px">${c.name}</div>
+            <div style="font-size:11px;color:var(--gray);margin-top:2px">${c.customer_type||'—'}${c.phone?' · ☎ '+c.phone:''} · ${salesCount} sale${salesCount===1?'':'s'} · ${fmtMoney(lifetime)}</div>
+          </div>
+          <div style="flex-shrink:0;text-align:right">
+            ${owing>0?`<div style="font-size:11px;color:var(--amber);font-weight:700">Owing ${fmtMoney(owing)}</div>`:''}
+            <div style="font-size:11px;color:var(--blue);font-weight:600;margin-top:2px">Pick →</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`);
+}
+function filterMergeCustomerList(){
+  const q=(document.getElementById('mc_search')?.value||'').trim().toLowerCase();
+  const rows=document.querySelectorAll('.mc-row');
+  rows.forEach(r=>{
+    const n=r.dataset.name||'',p=r.dataset.phone||'';
+    r.style.display=(!q||n.includes(q)||p.includes(q))?'flex':'none';
+  });
+}
+function confirmMergeCustomer(sourceId,targetId){
+  const source=DB.getCustomer(sourceId);
+  const target=DB.getCustomer(targetId);
+  if(!source||!target){toast('Lookup failed');return;}
+  const sourceSales=DB.getSales().filter(s=>s.customer_id===sourceId).length;
+  const sourceOwing=getCustomerOutstanding(sourceId);
+  openModal(`<div class="modal-ttl">Confirm Merge <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--g1);margin-bottom:14px">
+      Re-link <b>${sourceSales}</b> sale${sourceSales===1?'':'s'} from <b>${source.name}</b> to <b>${target.name}</b>, then delete <b>${source.name}</b>?
+    </p>
+    ${sourceOwing>0?`<div style="background:var(--amberBg);border-left:3px solid var(--amber);padding:8px 10px;border-radius:0 6px 6px 0;font-size:12px;color:#7d4e00;margin-bottom:14px">
+      <b>${fmtMoney(sourceOwing)}</b> in outstanding receivables will move to ${target.name}.
+    </div>`:''}
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-primary" onclick="doMergeCustomer('${sourceId}','${targetId}')">Merge into ${target.name}</button>
+      <button class="btn btn-secondary" onclick="openMergeCustomerModal('${sourceId}')">Back</button>
+    </div>`);
+}
+function doMergeCustomer(sourceId,targetId){
+  const result=mergeCustomers(sourceId,targetId);
+  closeModal();
+  if(result){
+    toast(`Merged ${result.sourceName} → ${result.targetName} · ${result.movedSales} sale${result.movedSales===1?'':'s'} re-linked ✓`);
+    renderFinance();
+  } else {
+    toast('Merge failed');
+  }
 }
 
 let MIG_SKIPPED=new Set();
