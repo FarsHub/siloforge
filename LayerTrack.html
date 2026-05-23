@@ -342,8 +342,11 @@ const ADMIN_METHODS = ['Oral (Drinking Water)','Oral (Direct)','Injection','Eye 
 const KEYS = {
   farm:'lt_farm_v1', cols:'lt_cols_v1', birds:'lt_birds_v1',
   feed:'lt_feed_v1', health:'lt_health_v1',
-  expenses:'lt_expenses_v1', sales:'lt_sales_v1', recv:'lt_recv_v1'
+  expenses:'lt_expenses_v1', sales:'lt_sales_v1', recv:'lt_recv_v1',
+  customers:'lt_customers_v1', payments:'lt_payments_v1'
 };
+const CUSTOMER_TYPES=['Wholesaler','Retailer','Institution','Individual'];
+const PAYMENT_METHODS=['Cash','Bank Transfer','POS','Mobile Money','Other'];
 const DB = {
   today(){ return new Date().toISOString().slice(0,10) },
   _get(k){ return CACHE[k]??null },
@@ -387,6 +390,16 @@ const DB = {
   addRecv(r){ this._push(KEYS.recv,r) },
   delRecv(id){ this._del(KEYS.recv,id) },
   updRecv(id,u){ this._upd(KEYS.recv,id,u) },
+  getCustomers(){ return this._arr(KEYS.customers) },
+  getCustomer(id){ return this._arr(KEYS.customers).find(c=>c.id===id)||null },
+  addCustomer(r){ this._push(KEYS.customers,r) },
+  delCustomer(id){ this._del(KEYS.customers,id) },
+  updCustomer(id,u){ this._upd(KEYS.customers,id,u) },
+  getPayments(){ return this._arr(KEYS.payments) },
+  paymentsForSale(saleId){ return this._arr(KEYS.payments).filter(p=>p.sale_id===saleId) },
+  addPayment(r){ this._push(KEYS.payments,r) },
+  delPayment(id){ this._del(KEYS.payments,id) },
+  updPayment(id,u){ this._upd(KEYS.payments,id,u) },
 };
 
 // ═══════════════════════════════════════════════
@@ -1257,12 +1270,85 @@ function delHealth(id){
 }
 
 // ═══════════════════════════════════════════════
+// CUSTOMER + PAYMENT HELPERS
+// ═══════════════════════════════════════════════
+function normalizeCustomerName(s){
+  return String(s||'').toLowerCase().trim().replace(/\s+/g,' ');
+}
+function findCustomerByName(name){
+  const norm=normalizeCustomerName(name);
+  if(!norm)return null;
+  return DB.getCustomers().find(c=>c.name_normalized===norm)||null;
+}
+function levenshtein(a,b){
+  if(a===b)return 0;
+  if(!a.length)return b.length;
+  if(!b.length)return a.length;
+  const v0=new Array(b.length+1).fill(0).map((_,i)=>i);
+  const v1=new Array(b.length+1).fill(0);
+  for(let i=0;i<a.length;i++){
+    v1[0]=i+1;
+    for(let j=0;j<b.length;j++){
+      const cost=a[i]===b[j]?0:1;
+      v1[j+1]=Math.min(v1[j]+1, v0[j+1]+1, v0[j]+cost);
+    }
+    for(let j=0;j<=b.length;j++)v0[j]=v1[j];
+  }
+  return v1[b.length];
+}
+function fuzzyCustomerMatches(name,limit=4){
+  const norm=normalizeCustomerName(name);
+  if(norm.length<2)return [];
+  const customers=DB.getCustomers();
+  const scored=customers.map(c=>{
+    const cn=c.name_normalized||'';
+    const dist=levenshtein(norm,cn);
+    const maxLen=Math.max(norm.length,cn.length);
+    const sim=maxLen?1-dist/maxLen:0;
+    const contains=cn.includes(norm)||norm.includes(cn);
+    return {customer:c, sim, contains};
+  });
+  return scored.filter(s=>s.sim>=0.55||s.contains)
+    .sort((a,b)=>(b.contains-a.contains)||(b.sim-a.sim))
+    .slice(0,limit)
+    .map(s=>s.customer);
+}
+function getSalePayments(saleId){
+  return DB.paymentsForSale(saleId).sort((a,b)=>a.date.localeCompare(b.date));
+}
+function getSalePaid(sale){
+  if(!sale)return 0;
+  const total=Number(sale.total_amount_ngn||0);
+  const fromPayments=getSalePayments(sale.id).reduce((s,p)=>s+Number(p.amount_ngn||0),0);
+  if(fromPayments>0)return Math.min(total,fromPayments);
+  // Legacy fallback: pre-payments-log sales used a `paid` boolean only.
+  if(sale.paid)return total;
+  if(sale.payment_type!=='credit')return total;
+  return 0;
+}
+function getSaleBalance(sale){
+  return Math.max(0, Number(sale?.total_amount_ngn||0) - getSalePaid(sale));
+}
+function getCustomerOutstanding(customerId){
+  if(!customerId)return 0;
+  return DB.getSales()
+    .filter(s=>s.customer_id===customerId&&s.payment_type==='credit')
+    .reduce((sum,s)=>sum+getSaleBalance(s),0);
+}
+function getCustomerLifetime(customerId){
+  if(!customerId)return 0;
+  return DB.getSales()
+    .filter(s=>s.customer_id===customerId)
+    .reduce((sum,s)=>sum+Number(s.total_amount_ngn||0),0);
+}
+
+// ═══════════════════════════════════════════════
 // FINANCE — EXPENSES + SALES + RECEIVABLES
 // ═══════════════════════════════════════════════
 // ── FINANCE ─────────────────────────────────────
 // Sales carry payment_type: 'cash' | 'credit'
-// Credit sales are NOT paid (paid:false) until marked.
-// Receivables tab = sales.filter(credit). No separate receivable store needed.
+// Payments are recorded in lt_payments_v1 — getSaleBalance() derives outstanding.
+// Receivables tab = sales.filter(credit) with positive balance. No separate store needed.
 let FIN_TAB='expenses';
 let _activePenId=null;
 function renderFinance(){
@@ -1273,10 +1359,14 @@ function renderFinance(){
   const monthExp=expenses.filter(e=>e.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.amount_ngn||0),0);
   const monthSales=sales.filter(s=>s.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.total_amount_ngn||0),0);
   const creditSales=sales.filter(s=>s.payment_type==='credit');
-  const unpaidCredit=creditSales.filter(s=>!s.paid);
-  const totalOwed=unpaidCredit.reduce((s,r)=>s+(r.total_amount_ngn||0),0);
+  const unpaidCredit=creditSales.filter(s=>getSaleBalance(s)>0);
+  const totalOwed=unpaidCredit.reduce((s,r)=>s+getSaleBalance(r),0);
   const overdueCount=unpaidCredit.filter(s=>s.due_date&&s.due_date<today).length;
-  const cashCollectedMonth=sales.filter(s=>s.date.startsWith(thisMonth)&&(s.payment_type==='cash'||s.paid)).reduce((s,e)=>s+(e.total_amount_ngn||0),0);
+  const allPayments=DB.getPayments();
+  const salesWithPayments=new Set(allPayments.map(p=>p.sale_id));
+  const cashCollectedMonth=
+    allPayments.filter(p=>p.date&&p.date.startsWith(thisMonth)).reduce((s,p)=>s+Number(p.amount_ngn||0),0)
+    +sales.filter(s=>s.date.startsWith(thisMonth)&&!salesWithPayments.has(s.id)&&(s.payment_type==='cash'||(s.payment_type==='credit'&&s.paid))).reduce((s,e)=>s+Number(e.total_amount_ngn||0),0);
 
   let tabContent='';
   if(FIN_TAB==='expenses'){
@@ -1307,25 +1397,33 @@ function renderFinance(){
           sales.slice(0,50).map(s=>{
             const isCash=!s.payment_type||s.payment_type==='cash';
             const isCredit=s.payment_type==='credit';
-            const overdue=isCredit&&!s.paid&&s.due_date&&s.due_date<today;
+            const bal=getSaleBalance(s);
+            const paid=getSalePaid(s);
+            const fullyPaid=bal<=0.5;
+            const partial=isCredit&&paid>0&&!fullyPaid;
+            const overdue=isCredit&&!fullyPaid&&s.due_date&&s.due_date<today;
             const payBadge=isCash
               ?`<span class="badge badge-green">Cash</span>`
-              :s.paid
+              :fullyPaid
                 ?`<span class="badge badge-green">Credit — Paid ✓</span>`
                 :overdue
                   ?`<span class="badge badge-red">Credit — Overdue</span>`
-                  :`<span class="badge badge-amber">Credit — Pending</span>`;
+                  :partial
+                    ?`<span class="badge badge-amber">Credit — Partial</span>`
+                    :`<span class="badge badge-amber">Credit — Pending</span>`;
+            const custDisplay=s.customer_id?(DB.getCustomer(s.customer_id)?.name||s.customer):s.customer;
             return`<div class="list-item">
               <div style="flex:1">
                 <div style="font-weight:700;font-size:14px">${s.product}</div>
-                <div style="font-size:12px;color:var(--gray);margin-top:2px">${fmtDate(s.date)} · ${s.quantity} × ${fmtMoney(s.unit_price_ngn)}${s.customer?' · '+s.customer:''}</div>
+                <div style="font-size:12px;color:var(--gray);margin-top:2px">${fmtDate(s.date)} · ${s.quantity} × ${fmtMoney(s.unit_price_ngn)}${custDisplay?' · '+custDisplay:''}</div>
                 <div style="margin-top:4px">${payBadge}${isCredit&&s.due_date?`<span style="font-size:11px;color:var(--gray);margin-left:6px">Due ${fmtDate(s.due_date)}</span>`:''}</div>
+                ${partial?`<div style="font-size:11px;color:var(--g1);margin-top:3px">Paid ${fmtMoney(paid)} · Owing <b style="color:var(--amber)">${fmtMoney(bal)}</b></div>`:''}
                 ${s.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:4px">"${s.notes}"</div>`:''}
               </div>
               <div style="text-align:right;flex-shrink:0;margin-left:10px">
                 <div style="font-weight:800;color:var(--g2)">${fmtMoney(s.total_amount_ngn)}</div>
-                <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
-                  ${isCredit&&!s.paid?`<button class="btn btn-primary btn-sm" onclick="markSalePaid('${s.id}')">Paid ✓</button>`:''}
+                <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end;flex-wrap:wrap">
+                  ${isCredit&&!fullyPaid?`<button class="btn btn-primary btn-sm" onclick="openPaymentForm('${s.id}')">+ Payment</button>`:''}
                   ${isLocked(s.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openSaleForm('${s.id}')">Edit</button>
                   <button class="btn btn-danger btn-sm" onclick="delSale('${s.id}')">✕</button>`}
                 </div>
@@ -1374,36 +1472,68 @@ function renderFinance(){
       </div>`;
 
   } else if(FIN_TAB==='recv'){
+    const sortedCredit=creditSales.slice().sort((a,b)=>{
+      const aBal=getSaleBalance(a),bBal=getSaleBalance(b);
+      if((aBal>0)!==(bBal>0))return bBal-aBal;
+      return b.date.localeCompare(a.date);
+    });
     tabContent=`
       ${overdueCount>0?`<div style="margin:12px 16px 0"><div class="alert-item alert-red">⚠ ${overdueCount} overdue payment${overdueCount>1?'s':''} — follow up with customer${overdueCount>1?'s':''}</div></div>`:''}
       <div style="margin:12px 16px 8px;background:var(--blueBg);border-left:3px solid var(--blue);padding:10px 12px;border-radius:0 8px 8px 0;font-size:12px;color:#1a5fa8">
-        Credit sales appear here automatically. To log a new credit sale, go to the <b>Sales</b> tab and select <b>Credit</b> as the payment type — no double entry needed.
+        Credit sales appear here automatically. Tap <b>+ Payment</b> to record installments — the sale auto-closes when the balance hits zero.
       </div>
       <div class="card" style="padding:0;overflow:hidden">
         ${creditSales.length===0
-          ?`<div class="empty" style="padding:24px"><p>No credit sales yet.</p><p style="font-size:12px;margin-top:6px">Record a sale in the Sales tab and select "Credit (pay later)".</p></div>`
-          :creditSales.sort((a,b)=>b.date.localeCompare(a.date)).map(s=>{
-            const overdue=!s.paid&&s.due_date&&s.due_date<today;
-            const statusCls=s.paid?'badge-green':overdue?'badge-red':'badge-amber';
-            const statusTxt=s.paid?'Paid ✓':overdue?'Overdue':'Pending';
-            return`<div class="list-item">
-              <div style="flex:1">
-                <div style="font-weight:700;font-size:14px">${s.customer||'Unknown customer'}</div>
-                <div style="font-size:12px;color:var(--gray)">${s.product} · ${s.quantity} unit${s.quantity>1?'s':''} · ${fmtDate(s.date)}</div>
-                <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
-                  <span class="badge ${statusCls}">${statusTxt}</span>
-                  ${s.due_date?`<span style="font-size:11px;color:${overdue?'var(--red)':'var(--gray)'}">${overdue?'Overdue since ':' Due '}${fmtDate(s.due_date)}</span>`:''}
+          ?`<div class="empty" style="padding:24px"><p>No credit sales yet.</p><p style="font-size:12px;margin-top:6px">Record a sale in the Sales tab and select "Credit / partial".</p></div>`
+          :sortedCredit.map(s=>{
+            const bal=getSaleBalance(s);
+            const paid=getSalePaid(s);
+            const total=Number(s.total_amount_ngn||0);
+            const fullyPaid=bal<=0.5;
+            const overdue=!fullyPaid&&s.due_date&&s.due_date<today;
+            const statusCls=fullyPaid?'badge-green':overdue?'badge-red':paid>0?'badge-amber':'badge-amber';
+            const statusTxt=fullyPaid?'Paid ✓':overdue?'Overdue':paid>0?'Partial':'Pending';
+            const cust=s.customer_id?DB.getCustomer(s.customer_id):null;
+            const custName=cust?.name||s.customer||'Unknown customer';
+            const custSub=cust?`${cust.customer_type||'—'}${cust.phone?' · ☎ '+cust.phone:''}`:'';
+            const payments=getSalePayments(s.id);
+            return`<div class="list-item" style="flex-direction:column;align-items:stretch;gap:8px">
+              <div style="display:flex;justify-content:space-between;gap:10px">
+                <div style="flex:1;min-width:0">
+                  <div style="font-weight:700;font-size:14px">${custName}</div>
+                  ${custSub?`<div style="font-size:11px;color:var(--gray);margin-top:1px">${custSub}</div>`:''}
+                  <div style="font-size:12px;color:var(--gray);margin-top:3px">${s.product} · ${s.quantity} unit${s.quantity>1?'s':''} · ${fmtDate(s.date)}</div>
+                  <div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap">
+                    <span class="badge ${statusCls}">${statusTxt}</span>
+                    ${s.due_date?`<span style="font-size:11px;color:${overdue?'var(--red)':'var(--gray)'}">${overdue?'Overdue since ':'Due '}${fmtDate(s.due_date)}</span>`:''}
+                  </div>
+                </div>
+                <div style="text-align:right;flex-shrink:0">
+                  <div style="font-size:11px;color:var(--gray)">Owing</div>
+                  <div style="font-weight:800;font-size:16px;color:${fullyPaid?'var(--g3)':overdue?'var(--red)':'var(--amber)'}">${fmtMoney(bal)}</div>
+                  <div style="font-size:11px;color:var(--gray);margin-top:2px">of ${fmtMoney(total)}</div>
                 </div>
               </div>
-              <div style="text-align:right;flex-shrink:0;margin-left:10px">
-                <div style="font-weight:800;color:${s.paid?'var(--gray)':overdue?'var(--red)':'var(--amber)'}">${fmtMoney(s.total_amount_ngn)}</div>
-                <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
-                  ${!s.paid?`<button class="btn btn-primary btn-sm" onclick="markSalePaid('${s.id}')">Paid ✓</button>`:''}
-                  ${isLocked(s.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openSaleForm('${s.id}')">Edit</button>`}
-                </div>
-              </div></div>`;
+              ${payments.length>0?`<div style="background:var(--g5);border-radius:8px;padding:8px 10px;font-size:12px">
+                <div style="font-size:11px;color:var(--g1);font-weight:600;margin-bottom:4px">Payments (${payments.length})</div>
+                ${payments.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid #eaeaea">
+                  <span style="color:var(--gray)">${fmtDate(p.date)} · ${p.method}${p.notes?' · '+p.notes:''}</span>
+                  <span style="display:flex;align-items:center;gap:6px">
+                    <b style="color:var(--g3)">${fmtMoney(p.amount_ngn)}</b>
+                    ${isLocked(p.date)?'':`<button class="btn btn-secondary btn-sm" style="padding:2px 6px;font-size:11px" onclick="openPaymentForm('${s.id}','${p.id}')">✎</button>
+                    <button class="btn btn-danger btn-sm" style="padding:2px 6px;font-size:11px" onclick="delPayment('${p.id}','${s.id}')">✕</button>`}
+                  </span>
+                </div>`).join('')}
+              </div>`:''}
+              <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
+                ${!fullyPaid?`<button class="btn btn-primary btn-sm" onclick="openPaymentForm('${s.id}')">+ Record Payment</button>`:''}
+                ${isLocked(s.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openSaleForm('${s.id}')">Edit Sale</button>`}
+              </div>
+            </div>`;
           }).join('')}
       </div>`;
+  } else if(FIN_TAB==='customers'){
+    tabContent=renderCustomersTab();
   }
 
   el.innerHTML=`<div class="topbar"><div><h1>Finance</h1><small>Expenses · Sales · Receivables · Egg Stock</small></div></div>
@@ -1425,6 +1555,7 @@ function renderFinance(){
       <button class="inner-tab ${FIN_TAB==='expenses'?'active':''}" onclick="FIN_TAB='expenses';renderFinance()">Expenses</button>
       <button class="inner-tab ${FIN_TAB==='sales'?'active':''}" onclick="FIN_TAB='sales';renderFinance()">Sales</button>
       <button class="inner-tab ${FIN_TAB==='recv'?'active':''}" onclick="FIN_TAB='recv';renderFinance()">Receivables${overdueCount>0?' 🔴':unpaidCredit.length>0?' ('+unpaidCredit.length+')':''}</button>
+      <button class="inner-tab ${FIN_TAB==='customers'?'active':''}" onclick="FIN_TAB='customers';renderFinance()">Customers</button>
       <button class="inner-tab ${FIN_TAB==='stock'?'active':''}" onclick="FIN_TAB='stock';renderFinance()">Egg Stock</button>
     </div>
     ${tabContent}
@@ -1462,6 +1593,11 @@ function delExpense(id){openModal(`<div class="modal-ttl">Delete Expense? <butto
 function openSaleForm(editId){
   const rec=editId?DB.getSales().find(s=>s.id===editId):null, today=DB.today();
   const isCredit=rec?.payment_type==='credit';
+  let existingCustomer=null;
+  if(rec?.customer_id)existingCustomer=DB.getCustomer(rec.customer_id);
+  else if(rec?.customer)existingCustomer=findCustomerByName(rec.customer);
+  const existingPaid=rec?getSalePaid(rec):0;
+  const existingBalance=rec?getSaleBalance(rec):0;
   openModal(`<div class="modal-ttl">${rec?'Edit':'Record'} Sale <button class="modal-x" onclick="closeModal()">×</button></div>
     <div class="field"><label>Date of Sale</label><input type="date" id="sf_date" value="${rec?rec.date:today}" max="${today}"></div>
     <div class="field"><label>Product</label>
@@ -1474,66 +1610,379 @@ function openSaleForm(editId){
       <input type="number" id="sf_total" value="${rec?.total_amount_ngn||''}" placeholder="Auto-calculated" style="background:#f5f5f5"></div>
     <div class="field"><label>Payment</label>
       <select id="sf_pay" onchange="toggleSalePayFields()">
-        <option value="cash" ${!isCredit?'selected':''}>Cash — collected immediately</option>
-        <option value="credit" ${isCredit?'selected':''}>Credit — customer pays later</option>
+        <option value="cash" ${!isCredit?'selected':''}>Cash — full payment now</option>
+        <option value="credit" ${isCredit?'selected':''}>Credit / partial — pay over time</option>
       </select></div>
-    <div id="sf_credit_fields" style="display:${isCredit?'block':'none'}">
-      <div class="field"><label>Customer Name <span style="color:var(--red)">*</span> <span style="font-size:11px;color:var(--gray);font-weight:400">required for credit</span></label>
-        <input type="text" id="sf_cust" value="${isCredit?rec?.customer||'':'' }" placeholder="e.g. Alhaji Musa"></div>
-      <div class="field"><label>Payment Due Date</label>
-        <input type="date" id="sf_due" value="${rec?.due_date||''}" min="${today}"></div>
+    <div class="field">
+      <label id="sf_cust_lbl">Customer ${isCredit?'<span style="color:var(--red)">*</span>':'<span style="color:var(--gray);font-weight:400">— optional</span>'}</label>
+      <input type="hidden" id="sf_cust_id" value="${existingCustomer?.id||''}">
+      <input type="text" id="sf_cust" value="${existingCustomer?.name||rec?.customer||''}" placeholder="Start typing a name…" oninput="onCustomerNameChange()" autocomplete="off">
+      <div id="sf_cust_panel"></div>
     </div>
-    <div id="sf_cash_fields" style="display:${!isCredit?'block':'none'}">
-      <div class="field"><label>Customer <span style="color:var(--gray);font-weight:400">— optional</span></label>
-        <input type="text" id="sf_cust_cash" value="${!isCredit?rec?.customer||'':'' }" placeholder="Customer name (optional for cash)"></div>
+    <div id="sf_credit_fields" style="display:${isCredit?'block':'none'}">
+      ${editId?`
+        <div style="margin:0 0 10px;padding:10px 12px;background:var(--g5);border-radius:8px;font-size:13px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="color:var(--g1)">Paid so far</span><b style="color:var(--g3)">${fmtMoney(existingPaid)}</b>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="color:var(--g1)">Balance remaining</span><b style="color:${existingBalance>0?'var(--amber)':'var(--g3)'}">${fmtMoney(existingBalance)}</b>
+          </div>
+          <div style="font-size:11px;color:var(--gray);margin-top:6px">To log a new payment, use <b>Record Payment</b> on Receivables.</div>
+        </div>
+        <div class="field"><label>Due date for balance</label>
+          <input type="date" id="sf_due" value="${rec?.due_date||''}" min="${today}"></div>
+      `:`
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="field"><label>Down payment (₦) <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
+            <input type="number" id="sf_down" value="0" min="0" step="100" placeholder="0" oninput="updateSaleBalanceHint()"></div>
+          <div class="field"><label>Due date for balance</label>
+            <input type="date" id="sf_due" value="" min="${today}"></div>
+        </div>
+        <div id="sf_balance_hint" style="margin:-4px 0 10px;font-size:13px;color:var(--gray)"></div>
+      `}
     </div>
     <div class="field"><label>Notes</label><textarea id="sf_notes" placeholder="Optional">${rec?.notes||''}</textarea></div>
     <button class="btn btn-primary" onclick="saveSale('${editId||''}')">Save Sale</button>`);
+  onCustomerNameChange();
+  updateSaleBalanceHint();
+}
+function onCustomerNameChange(){
+  const inputEl=document.getElementById('sf_cust');
+  const panelEl=document.getElementById('sf_cust_panel');
+  const idEl=document.getElementById('sf_cust_id');
+  if(!inputEl||!panelEl||!idEl)return;
+  const typed=inputEl.value;
+  const norm=normalizeCustomerName(typed);
+  if(!norm){panelEl.innerHTML='';idEl.value='';return;}
+  const exact=findCustomerByName(typed);
+  if(exact){
+    idEl.value=exact.id;
+    panelEl.innerHTML=renderCustomerInfoBlock(exact);
+    return;
+  }
+  idEl.value='';
+  const fuzzy=fuzzyCustomerMatches(typed);
+  let html='';
+  if(fuzzy.length){
+    html+=`<div style="margin-top:8px;padding:10px;background:var(--g5);border-radius:8px;border-left:3px solid var(--amber)">
+      <div style="font-size:12px;color:var(--g1);font-weight:600;margin-bottom:6px">Did you mean?</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+      ${fuzzy.map(c=>`<button type="button" class="btn btn-secondary btn-sm" onclick="pickCustomer('${c.id}')">${c.name}${c.customer_type?' · '+c.customer_type:''}</button>`).join('')}
+      </div>
+    </div>`;
+  }
+  const safeName=typed.trim().replace(/</g,'&lt;');
+  html+=`<div style="margin-top:8px;padding:10px;border:1px dashed var(--g3);border-radius:8px">
+    <div style="font-size:12px;color:var(--g1);font-weight:600;margin-bottom:6px">+ New customer: "${safeName}"</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input type="tel" id="sf_new_phone" placeholder="Phone (optional)" autocomplete="off" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px">
+      <select id="sf_new_type" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px">
+        ${CUSTOMER_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('')}
+      </select>
+    </div>
+    <div style="font-size:11px;color:var(--gray);margin-top:6px">A new customer record will be created when you save.</div>
+  </div>`;
+  panelEl.innerHTML=html;
+}
+function pickCustomer(id){
+  const c=DB.getCustomer(id);
+  if(!c)return;
+  document.getElementById('sf_cust').value=c.name;
+  document.getElementById('sf_cust_id').value=c.id;
+  onCustomerNameChange();
+}
+function renderCustomerInfoBlock(c){
+  const outstanding=getCustomerOutstanding(c.id);
+  return `<div style="margin-top:8px;padding:10px;background:var(--blueBg);border-radius:8px;border-left:3px solid var(--blue)">
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
+      <div>
+        <div style="font-weight:700;color:var(--g2)">✓ ${c.name}</div>
+        <div style="color:var(--g1);margin-top:2px">${c.customer_type||'—'}${c.phone?' · ☎ '+c.phone:''}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:var(--gray)">Currently owes</div>
+        <div style="font-weight:800;color:${outstanding>0?'var(--amber)':'var(--g3)'}">${fmtMoney(outstanding)}</div>
+      </div>
+    </div>
+  </div>`;
 }
 function toggleSalePayFields(){
   const isCredit=document.getElementById('sf_pay')?.value==='credit';
-  const cf=document.getElementById('sf_credit_fields'), ca=document.getElementById('sf_cash_fields');
+  const cf=document.getElementById('sf_credit_fields');
+  const lbl=document.getElementById('sf_cust_lbl');
   if(cf)cf.style.display=isCredit?'block':'none';
-  if(ca)ca.style.display=isCredit?'none':'block';
+  if(lbl)lbl.innerHTML='Customer '+(isCredit?'<span style="color:var(--red)">*</span>':'<span style="color:var(--gray);font-weight:400">— optional</span>');
+  updateSaleBalanceHint();
 }
 function calcSaleTotal(){
   const q=parseInt(document.getElementById('sf_qty')?.value,10)||0;
   const p=parseFloat(document.getElementById('sf_price')?.value)||0;
   const t=document.getElementById('sf_total'); if(t)t.value=(q*p).toFixed(0);
+  updateSaleBalanceHint();
+}
+function updateSaleBalanceHint(){
+  const hint=document.getElementById('sf_balance_hint');
+  const totalEl=document.getElementById('sf_total');
+  const downEl=document.getElementById('sf_down');
+  if(!hint||!totalEl||!downEl)return;
+  const total=parseFloat(totalEl.value)||0;
+  const down=parseFloat(downEl.value)||0;
+  if(total<=0){hint.innerHTML='';return;}
+  if(down<=0){
+    hint.innerHTML=`Full <b>${fmtMoney(total)}</b> on credit.`;
+  } else if(down>=total){
+    hint.innerHTML=`<span style="color:var(--amber)">Down payment ≥ total — switch to Cash instead.</span>`;
+  } else {
+    const bal=total-down;
+    hint.innerHTML=`Down <b>${fmtMoney(down)}</b> · Balance <b style="color:var(--amber)">${fmtMoney(bal)}</b>`;
+  }
 }
 function saveSale(editId){
   const payType=document.getElementById('sf_pay').value;
   const isCredit=payType==='credit';
-  const customer=isCredit
-    ?(document.getElementById('sf_cust')?.value.trim()||''  )
-    :(document.getElementById('sf_cust_cash')?.value.trim()||''  );
-  if(isCredit&&!customer){toast('Enter customer name for credit sale');return;}
+  const typedName=(document.getElementById('sf_cust')?.value||'').trim();
+  let customerId=document.getElementById('sf_cust_id')?.value||'';
+  if(isCredit&&!typedName){toast('Enter a customer name for credit sale');return;}
   const qty=parseInt(document.getElementById('sf_qty').value,10)||0;
-  if(!Number.isInteger(qty)||qty<1){toast('Quantity must be a whole number of crates');return;}
+  if(!Number.isInteger(qty)||qty<1){toast('Quantity must be at least 1');return;}
   const price=parseFloat(document.getElementById('sf_price').value)||0;
+  const total=parseFloat(document.getElementById('sf_total').value)||(qty*price);
+  let downPayment=0;
+  if(!editId&&isCredit){
+    downPayment=parseFloat(document.getElementById('sf_down')?.value)||0;
+    if(downPayment<0){toast('Down payment cannot be negative');return;}
+    if(downPayment>=total){toast('Down payment ≥ total — switch to Cash');return;}
+  }
+  const saleDate=document.getElementById('sf_date').value;
+  if(typedName&&!customerId){
+    const exact=findCustomerByName(typedName);
+    if(exact){
+      customerId=exact.id;
+    } else {
+      const phoneEl=document.getElementById('sf_new_phone');
+      const typeEl=document.getElementById('sf_new_type');
+      const newCust={
+        id:uid(),
+        name:typedName,
+        name_normalized:normalizeCustomerName(typedName),
+        phone:phoneEl?phoneEl.value.trim():'',
+        customer_type:typeEl?typeEl.value:'Individual',
+        notes:'',
+        created_at:DB.today()
+      };
+      DB.addCustomer(newCust);
+      customerId=newCust.id;
+    }
+  }
   const existingRec=editId?DB.getSales().find(s=>s.id===editId):null;
   const rec={
     id:editId||uid(),
-    date:document.getElementById('sf_date').value,
+    date:saleDate,
     product:document.getElementById('sf_prod').value,
-    quantity:qty, unit_price_ngn:price,
-    total_amount_ngn:parseFloat(document.getElementById('sf_total').value)||(qty*price),
+    quantity:qty,
+    unit_price_ngn:price,
+    total_amount_ngn:total,
     payment_type:payType,
-    paid:isCredit?(existingRec?.paid||false):true,
+    paid:existingRec?existingRec.paid:!isCredit,
     due_date:isCredit?(document.getElementById('sf_due')?.value||null):null,
-    customer, notes:document.getElementById('sf_notes').value.trim()};
-  if(editId)DB.updSale(editId,rec);else DB.addSale(rec);
-  closeModal();toast(isCredit?'Credit sale recorded — see Receivables ✓':'Cash sale recorded ✓');renderFinance();
+    customer_id:customerId||null,
+    customer:typedName,
+    notes:document.getElementById('sf_notes').value.trim()
+  };
+  if(editId){
+    DB.updSale(editId,rec);
+  } else {
+    DB.addSale(rec);
+    if(!isCredit){
+      DB.addPayment({id:uid(),sale_id:rec.id,date:saleDate,amount_ngn:total,method:'Cash',kind:'sale_payment',notes:'Full payment at sale'});
+    } else if(downPayment>0){
+      DB.addPayment({id:uid(),sale_id:rec.id,date:saleDate,amount_ngn:downPayment,method:'Cash',kind:'down_payment',notes:'Down payment'});
+    }
+  }
+  closeModal();
+  if(!editId&&isCredit&&downPayment>0){
+    toast(`Sale recorded — ${fmtMoney(downPayment)} paid, ${fmtMoney(total-downPayment)} on credit ✓`);
+  } else if(!editId&&isCredit){
+    toast('Credit sale recorded — see Receivables ✓');
+  } else if(!editId){
+    toast('Cash sale recorded ✓');
+  } else {
+    toast('Sale updated ✓');
+  }
+  renderFinance();
 }
-function markSalePaid(saleId){
-  DB.updSale(saleId,{paid:true});
-  toast('Payment received — marked as paid ✓');renderFinance();
+function markSalePaid(saleId){ openPaymentForm(saleId); }
+function openPaymentForm(saleId,paymentEditId){
+  const sale=DB.getSales().find(s=>s.id===saleId);
+  if(!sale){toast('Sale not found');return;}
+  const rec=paymentEditId?DB.paymentsForSale(saleId).find(p=>p.id===paymentEditId):null;
+  const balance=getSaleBalance(sale);
+  const paidSoFar=getSalePaid(sale);
+  const total=Number(sale.total_amount_ngn||0);
+  const today=DB.today();
+  const cust=sale.customer_id?DB.getCustomer(sale.customer_id):null;
+  const custName=cust?.name||sale.customer||'Customer';
+  const defaultAmount=rec?rec.amount_ngn:balance;
+  openModal(`<div class="modal-ttl">${rec?'Edit':'Record'} Payment <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div style="margin:-6px 0 12px;padding:10px 12px;background:var(--g5);border-radius:8px;font-size:13px">
+      <div style="font-weight:700;color:var(--g2)">${custName} · ${sale.product}</div>
+      <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:12px;color:var(--g1)">
+        <span>Total <b>${fmtMoney(total)}</b></span>
+        <span>Paid <b style="color:var(--g3)">${fmtMoney(paidSoFar)}</b></span>
+        <span>Owing <b style="color:${balance>0?'var(--amber)':'var(--g3)'}">${fmtMoney(balance)}</b></span>
+      </div>
+    </div>
+    <div class="field"><label>Payment date</label>
+      <input type="date" id="pf_date" value="${rec?.date||today}" max="${today}"></div>
+    <div class="field"><label>Amount (₦)</label>
+      <input type="number" id="pf_amount" value="${defaultAmount||''}" min="0" step="100" placeholder="0"></div>
+    <div class="field"><label>Method</label>
+      <select id="pf_method">
+        ${PAYMENT_METHODS.map(m=>`<option value="${m}" ${rec?.method===m?'selected':''}>${m}</option>`).join('')}
+      </select></div>
+    <div class="field"><label>Notes <span style="color:var(--gray);font-weight:400">optional</span></label>
+      <textarea id="pf_notes" placeholder="Optional">${rec?.notes||''}</textarea></div>
+    <button class="btn btn-primary" onclick="savePayment('${saleId}','${paymentEditId||''}')">Save Payment</button>`);
+}
+function savePayment(saleId,paymentEditId){
+  const sale=DB.getSales().find(s=>s.id===saleId);
+  if(!sale){toast('Sale not found');closeModal();return;}
+  const amount=parseFloat(document.getElementById('pf_amount').value)||0;
+  if(amount<=0){toast('Amount must be greater than 0');return;}
+  const total=Number(sale.total_amount_ngn||0);
+  const otherPaid=DB.paymentsForSale(saleId)
+    .filter(p=>p.id!==paymentEditId)
+    .reduce((s,p)=>s+Number(p.amount_ngn||0),0);
+  if(otherPaid+amount>total+0.5){
+    toast(`Exceeds outstanding ${fmtMoney(Math.max(0,total-otherPaid))}`);return;
+  }
+  const rec={
+    id:paymentEditId||uid(),
+    sale_id:saleId,
+    date:document.getElementById('pf_date').value,
+    amount_ngn:amount,
+    method:document.getElementById('pf_method').value,
+    kind:paymentEditId?undefined:'sale_payment',
+    notes:document.getElementById('pf_notes').value.trim()
+  };
+  if(paymentEditId){
+    DB.updPayment(paymentEditId,{date:rec.date,amount_ngn:rec.amount_ngn,method:rec.method,notes:rec.notes});
+  } else {
+    DB.addPayment(rec);
+  }
+  const newPaid=otherPaid+amount;
+  if(newPaid>=total-0.5){
+    DB.updSale(saleId,{paid:true});
+    toast('Payment recorded — fully paid ✓');
+  } else {
+    if(sale.paid)DB.updSale(saleId,{paid:false});
+    toast(`Payment recorded — ${fmtMoney(total-newPaid)} still owing`);
+  }
+  closeModal();renderFinance();
+}
+function delPayment(paymentId,saleId){
+  openModal(`<div class="modal-ttl">Delete Payment? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">The outstanding balance will increase by the deleted amount.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();DB.delPayment('${paymentId}');DB.updSale('${saleId}',{paid:false});toast('Payment deleted');renderFinance()">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
 }
 function delSale(id){openModal(`<div class="modal-ttl">Delete Sale? <button class="modal-x" onclick="closeModal()">×</button></div>
-  <p style="font-size:14px;color:var(--gray);margin-bottom:18px">This cannot be undone.</p>
+  <p style="font-size:14px;color:var(--gray);margin-bottom:18px">This cannot be undone. Any linked payments will also be cleared.</p>
   <div style="display:flex;flex-direction:column;gap:8px">
-    <button class="btn btn-danger" onclick="closeModal();DB.delSale('${id}');toast('Deleted');renderFinance()">Delete</button>
+    <button class="btn btn-danger" onclick="closeModal();DB.paymentsForSale('${id}').forEach(p=>DB.delPayment(p.id));DB.delSale('${id}');toast('Deleted');renderFinance()">Delete</button>
     <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);}
+
+function renderCustomersTab(){
+  const customers=DB.getCustomers().slice().sort((a,b)=>{
+    const oa=getCustomerOutstanding(a.id),ob=getCustomerOutstanding(b.id);
+    if(oa!==ob)return ob-oa;
+    return (a.name||'').localeCompare(b.name||'');
+  });
+  return `
+    <div style="margin:12px 16px"><button class="btn btn-primary" onclick="openCustomerForm()">+ Add Customer</button></div>
+    <div style="margin:0 16px 8px;background:var(--g5);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--g1)">
+      Customers are created automatically when you record a credit sale. You can also pre-register regulars here.
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      ${customers.length===0
+        ?'<div class="empty" style="padding:24px"><p>No customers yet.</p><p style="font-size:12px;margin-top:6px">Record a credit sale and a customer record will be created.</p></div>'
+        :customers.map(c=>{
+          const owing=getCustomerOutstanding(c.id);
+          const lifetime=getCustomerLifetime(c.id);
+          const salesCount=DB.getSales().filter(s=>s.customer_id===c.id).length;
+          return `<div class="list-item">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:14px">${c.name}</div>
+              <div style="font-size:12px;color:var(--gray);margin-top:2px">${c.customer_type||'—'}${c.phone?' · ☎ '+c.phone:''}</div>
+              <div style="font-size:11px;color:var(--gray);margin-top:3px">${salesCount} sale${salesCount===1?'':'s'} · Lifetime ${fmtMoney(lifetime)}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;margin-left:10px">
+              ${owing>0
+                ?`<div style="font-size:11px;color:var(--gray)">Owing</div><div style="font-weight:800;color:var(--amber)">${fmtMoney(owing)}</div>`
+                :'<div style="font-size:11px;color:var(--g3);font-weight:600">No debt</div>'}
+              <div style="display:flex;gap:4px;margin-top:6px;justify-content:flex-end">
+                <button class="btn btn-secondary btn-sm" onclick="openCustomerForm('${c.id}')">Edit</button>
+                <button class="btn btn-danger btn-sm" onclick="delCustomer('${c.id}')">✕</button>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+    </div>`;
+}
+function openCustomerForm(editId){
+  const rec=editId?DB.getCustomer(editId):null;
+  openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Customer <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="field"><label>Name <span style="color:var(--red)">*</span></label>
+      <input type="text" id="cf_name" value="${rec?.name||''}" placeholder="e.g. Alhaji Musa"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Phone</label>
+        <input type="tel" id="cf_phone" value="${rec?.phone||''}" placeholder="08031234567"></div>
+      <div class="field"><label>Type</label>
+        <select id="cf_type">
+          ${CUSTOMER_TYPES.map(t=>`<option value="${t}" ${rec?.customer_type===t?'selected':''}>${t}</option>`).join('')}
+        </select></div>
+    </div>
+    <div class="field"><label>Notes <span style="color:var(--gray);font-weight:400">optional</span></label>
+      <textarea id="cf_notes" placeholder="Any notes about this customer">${rec?.notes||''}</textarea></div>
+    <button class="btn btn-primary" onclick="saveCustomer('${editId||''}')">Save</button>`);
+}
+function saveCustomer(editId){
+  const name=document.getElementById('cf_name').value.trim();
+  if(!name){toast('Name is required');return;}
+  const norm=normalizeCustomerName(name);
+  const existing=findCustomerByName(name);
+  if(existing&&existing.id!==editId){toast('A customer with this name already exists');return;}
+  const original=editId?DB.getCustomer(editId):null;
+  const rec={
+    id:editId||uid(),
+    name,
+    name_normalized:norm,
+    phone:document.getElementById('cf_phone').value.trim(),
+    customer_type:document.getElementById('cf_type').value,
+    notes:document.getElementById('cf_notes').value.trim(),
+    created_at:original?.created_at||DB.today()
+  };
+  if(editId){DB.updCustomer(editId,rec);toast('Customer updated ✓');}
+  else{DB.addCustomer(rec);toast('Customer added ✓');}
+  closeModal();renderFinance();
+}
+function delCustomer(id){
+  const c=DB.getCustomer(id);
+  const salesCount=DB.getSales().filter(s=>s.customer_id===id).length;
+  if(salesCount>0){
+    openModal(`<div class="modal-ttl">Cannot Delete <button class="modal-x" onclick="closeModal()">×</button></div>
+      <p style="font-size:14px;color:var(--gray);margin-bottom:18px"><b>${c?.name||'This customer'}</b> has ${salesCount} sale${salesCount===1?'':'s'} linked. Delete or reassign those sales first.</p>
+      <button class="btn btn-secondary" onclick="closeModal()">OK</button>`);
+    return;
+  }
+  openModal(`<div class="modal-ttl">Delete Customer? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">Delete <b>${c?.name||''}</b>? This cannot be undone.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();DB.delCustomer('${id}');toast('Customer deleted');renderFinance()">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
 
 
 // ═══════════════════════════════════════════════
@@ -2247,7 +2696,7 @@ function resetModule(mod){
 }
 function doResetModule(mod){
   const keyMap={cols:KEYS.cols,birds:KEYS.birds,feed:KEYS.feed,health:KEYS.health,finance:'__multi__'};
-  if(mod==='finance'){_deleteCol(KEYS.expenses);_deleteCol(KEYS.sales);_deleteCol(KEYS.recv);}
+  if(mod==='finance'){_deleteCol(KEYS.expenses);_deleteCol(KEYS.sales);_deleteCol(KEYS.recv);_deleteCol(KEYS.customers);_deleteCol(KEYS.payments);}
   else if(keyMap[mod])_deleteCol(keyMap[mod]);
   toast('Data reset ✓');renderSettings();
 }
@@ -2257,6 +2706,7 @@ function exportData(){
   const farm=DB.getFarm(), cols=DB.getCols(), birds=DB.getBirds();
   const feed=DB.getFeed(), health=DB.getHealth(), expenses=DB.getExpenses();
   const sales=DB.getSales();
+  const customers=DB.getCustomers(), payments=DB.getPayments();
   const validPenIds=new Set((farm?.pens||[]).map(p=>p.id));
   // Build daily_egg_production summary
   const eggDayMap={};
@@ -2278,12 +2728,19 @@ function exportData(){
       droppings_observation:h.droppings_observation,vaccination_or_medication:h.vaccination_or_medication,
       admin_method:h.admin_method,notes:h.notes})),
     expenses:expenses.map(e=>({date:e.date,category:e.category,amount_usd:e.amount_usd,amount_ngn:e.amount_ngn,notes:e.notes})),
-    sales:sales.map(s=>({date:s.date,product:s.product,quantity:s.quantity,unit_price:s.unit_price_ngn,
+    sales:sales.map(s=>({id:s.id,date:s.date,product:s.product,quantity:s.quantity,unit_price:s.unit_price_ngn,
       total_amount:s.total_amount_ngn,payment_type:s.payment_type||'cash',paid:s.paid!==false,
-      due_date:s.due_date||null,customer:s.customer,notes:s.notes})),
-    receivables:sales.filter(s=>s.payment_type==='credit').map(s=>({
-      sale_date:s.date,customer:s.customer,product:s.product,quantity:s.quantity,
-      amount_ngn:s.total_amount_ngn,due_date:s.due_date||null,paid:s.paid||false}))
+      amount_paid:getSalePaid(s),balance_due:getSaleBalance(s),
+      due_date:s.due_date||null,customer:s.customer,customer_id:s.customer_id||null,notes:s.notes})),
+    customers:customers.map(c=>({id:c.id,name:c.name,name_normalized:c.name_normalized,phone:c.phone,
+      customer_type:c.customer_type,notes:c.notes,created_at:c.created_at})),
+    payments:payments.map(p=>({id:p.id,sale_id:p.sale_id,date:p.date,amount_ngn:p.amount_ngn,
+      method:p.method,kind:p.kind,notes:p.notes})),
+    receivables:sales.filter(s=>s.payment_type==='credit'&&getSaleBalance(s)>0).map(s=>({
+      sale_id:s.id,sale_date:s.date,customer:s.customer,customer_id:s.customer_id||null,
+      product:s.product,quantity:s.quantity,
+      total_ngn:s.total_amount_ngn,paid_ngn:getSalePaid(s),balance_ngn:getSaleBalance(s),
+      due_date:s.due_date||null}))
   };
   const blob=new Blob([JSON.stringify(bundle,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
@@ -2318,6 +2775,8 @@ function importData(input){
     if(data.health_log?.length){ const m=_mergeById(DB._arr(KEYS.health),data.health_log); DB._set(KEYS.health,m); counts.health=data.health_log.length+' health records merged'; }
     if(data.expenses?.length){ const m=_mergeById(DB._arr(KEYS.expenses),data.expenses); DB._set(KEYS.expenses,m); counts.expenses=data.expenses.length+' expenses merged'; }
     if(data.sales?.length){ const m=_mergeById(DB._arr(KEYS.sales),data.sales); DB._set(KEYS.sales,m); counts.sales=data.sales.length+' sales merged'; }
+    if(data.customers?.length){ const m=_mergeById(DB._arr(KEYS.customers),data.customers); DB._set(KEYS.customers,m); counts.customers=data.customers.length+' customers merged'; }
+    if(data.payments?.length){ const m=_mergeById(DB._arr(KEYS.payments),data.payments); DB._set(KEYS.payments,m); counts.payments=data.payments.length+' payments merged'; }
     // Re-render all tabs so data is visible everywhere
     renderHome(); renderFlock(); renderFeed(); renderHealth(); renderFinance(); renderReports(); renderSettings();
     const lines=Object.values(counts);
