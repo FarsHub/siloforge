@@ -1341,6 +1341,66 @@ function getCustomerLifetime(customerId){
     .filter(s=>s.customer_id===customerId)
     .reduce((sum,s)=>sum+Number(s.total_amount_ngn||0),0);
 }
+function getLegacySaleGroups(){
+  const legacy=DB.getSales().filter(s=>s.customer&&!s.customer_id&&normalizeCustomerName(s.customer));
+  const groups={};
+  legacy.forEach(s=>{
+    const norm=normalizeCustomerName(s.customer);
+    if(!groups[norm]){
+      const variantCounts={};
+      groups[norm]={normalized:norm,sales:[],variants:[],variantCounts};
+    }
+    groups[norm].sales.push(s);
+    const variant=String(s.customer).trim();
+    groups[norm].variantCounts[variant]=(groups[norm].variantCounts[variant]||0)+1;
+  });
+  return Object.values(groups).map(g=>{
+    const variants=Object.entries(g.variantCounts).sort((a,b)=>b[1]-a[1]);
+    const canonical=variants[0]?variants[0][0]:g.normalized;
+    const existingCustomer=findCustomerByName(g.normalized);
+    const lifetime=g.sales.reduce((s,r)=>s+Number(r.total_amount_ngn||0),0);
+    const outstanding=g.sales
+      .filter(s=>s.payment_type==='credit')
+      .reduce((s,r)=>s+getSaleBalance(r),0);
+    return {
+      normalized:g.normalized,
+      sales:g.sales,
+      variants:variants.map(([v,c])=>({label:v,count:c})),
+      canonical,
+      existingCustomer,
+      lifetime,
+      outstanding,
+      saleCount:g.sales.length
+    };
+  }).sort((a,b)=>b.saleCount-a.saleCount);
+}
+function migrateLegacyGroup(normalized,overrides){
+  const group=getLegacySaleGroups().find(g=>g.normalized===normalized);
+  if(!group)return null;
+  let customerId;
+  if(group.existingCustomer){
+    customerId=group.existingCustomer.id;
+    const upd={};
+    if(overrides?.phone&&!group.existingCustomer.phone)upd.phone=overrides.phone;
+    if(overrides?.customer_type&&!group.existingCustomer.customer_type)upd.customer_type=overrides.customer_type;
+    if(Object.keys(upd).length)DB.updCustomer(customerId,upd);
+  } else {
+    const name=overrides?.name?.trim()||group.canonical;
+    const newCust={
+      id:uid(),
+      name,
+      name_normalized:normalizeCustomerName(name),
+      phone:overrides?.phone||'',
+      customer_type:overrides?.customer_type||'Individual',
+      notes:'',
+      created_at:DB.today()
+    };
+    DB.addCustomer(newCust);
+    customerId=newCust.id;
+  }
+  group.sales.forEach(s=>{DB.updSale(s.id,{customer_id:customerId});});
+  return {customerId,saleCount:group.sales.length};
+}
 
 // ═══════════════════════════════════════════════
 // FINANCE — EXPENSES + SALES + RECEIVABLES
@@ -1984,6 +2044,116 @@ function delCustomer(id){
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
 }
 
+let MIG_SKIPPED=new Set();
+function openMigrationModal(){
+  const groups=getLegacySaleGroups().filter(g=>!MIG_SKIPPED.has(g.normalized));
+  const allGroups=getLegacySaleGroups();
+  if(allGroups.length===0){
+    openModal(`<div class="modal-ttl">All Done ✓ <button class="modal-x" onclick="closeModal()">×</button></div>
+      <p style="font-size:14px;color:var(--gray);margin-bottom:18px">No legacy sales left to migrate — every sale is linked to a customer record.</p>
+      <button class="btn btn-primary" onclick="closeModal()">Close</button>`);
+    return;
+  }
+  if(groups.length===0){
+    openModal(`<div class="modal-ttl">All Reviewed <button class="modal-x" onclick="closeModal()">×</button></div>
+      <p style="font-size:14px;color:var(--gray);margin-bottom:18px">All remaining groups are skipped. Reset the skip list to review them again.</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn btn-secondary" onclick="MIG_SKIPPED=new Set();openMigrationModal()">Reset Skipped</button>
+        <button class="btn btn-secondary" onclick="closeModal()">Close</button></div>`);
+    return;
+  }
+  const totalSales=groups.reduce((s,g)=>s+g.saleCount,0);
+  const safeId=s=>String(s).replace(/[^a-z0-9]/gi,'_');
+  const cards=groups.map(g=>{
+    const idSlug=safeId(g.normalized);
+    const ec=g.existingCustomer;
+    const variantsStr=g.variants.map(v=>`"${v.label}"${v.count>1?` (${v.count}×)`:''}`).join(', ');
+    return `<div style="border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:10px;margin-bottom:6px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14px">${ec?ec.name:g.canonical}</div>
+          <div style="font-size:11px;color:var(--gray);margin-top:2px">Spellings: ${variantsStr}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;font-size:12px;color:var(--g1)">
+          <div><b>${g.saleCount}</b> sale${g.saleCount===1?'':'s'}</div>
+          <div style="color:var(--gray)">Lifetime ${fmtMoney(g.lifetime)}</div>
+          ${g.outstanding>0?`<div style="color:var(--amber);font-weight:700">Owing ${fmtMoney(g.outstanding)}</div>`:''}
+        </div>
+      </div>
+      ${ec?`
+        <div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 10px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:8px">
+          ✓ Customer record already exists${ec.customer_type?` (${ec.customer_type})`:''}${ec.phone?` · ☎ ${ec.phone}`:''}. Linking will attach these sales to it.
+        </div>
+      `:`
+        <div class="field" style="margin-bottom:8px"><label style="font-size:11px">Canonical name</label>
+          <input type="text" id="mig_name_${idSlug}" value="${g.canonical.replace(/"/g,'&quot;')}" style="font-size:14px"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div class="field" style="margin-bottom:0"><label style="font-size:11px">Phone</label>
+            <input type="tel" id="mig_phone_${idSlug}" placeholder="optional" style="font-size:14px"></div>
+          <div class="field" style="margin-bottom:0"><label style="font-size:11px">Type</label>
+            <select id="mig_type_${idSlug}" style="font-size:14px">
+              ${CUSTOMER_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('')}
+            </select></div>
+        </div>
+      `}
+      <div style="display:flex;gap:6px;justify-content:flex-end">
+        <button class="btn btn-secondary btn-sm" onclick="skipMigrationGroup('${g.normalized.replace(/'/g,"\\'")}')">Skip</button>
+        <button class="btn btn-primary btn-sm" onclick="migrateGroupFromModal('${g.normalized.replace(/'/g,"\\'")}','${idSlug}')">${ec?'Link':'Create &amp; Link'} ${g.saleCount} sale${g.saleCount===1?'':'s'}</button>
+      </div>
+    </div>`;
+  }).join('');
+  openModal(`<div class="modal-ttl">Migrate Customers <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:13px;color:var(--gray);margin-bottom:12px">
+      ${groups.length} group${groups.length===1?'':'s'} · ${totalSales} sale${totalSales===1?'':'s'} to link.
+      Edit details if needed, then link each one — or use Auto-Migrate to process all remaining with defaults.
+    </p>
+    ${cards}
+    <button class="btn btn-amber" style="width:100%;margin-top:8px" onclick="autoMigrateAll()">Auto-Migrate All Remaining (${groups.length})</button>`);
+}
+function migrateGroupFromModal(normalized,idSlug){
+  const overrides={};
+  const nameEl=document.getElementById('mig_name_'+idSlug);
+  const phoneEl=document.getElementById('mig_phone_'+idSlug);
+  const typeEl=document.getElementById('mig_type_'+idSlug);
+  if(nameEl)overrides.name=nameEl.value.trim();
+  if(phoneEl)overrides.phone=phoneEl.value.trim();
+  if(typeEl)overrides.customer_type=typeEl.value;
+  const result=migrateLegacyGroup(normalized,overrides);
+  if(result){
+    toast(`Linked ${result.saleCount} sale${result.saleCount===1?'':'s'} ✓`);
+    MIG_SKIPPED.delete(normalized);
+    openMigrationModal();
+  } else {
+    toast('Migration failed — group not found');
+  }
+}
+function skipMigrationGroup(normalized){
+  MIG_SKIPPED.add(normalized);
+  openMigrationModal();
+}
+function autoMigrateAll(){
+  const groups=getLegacySaleGroups().filter(g=>!MIG_SKIPPED.has(g.normalized));
+  if(groups.length===0){toast('Nothing to migrate');return;}
+  openModal(`<div class="modal-ttl">Auto-Migrate ${groups.length}? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">
+      This will create customer records for all ${groups.length} remaining groups using the most common spelling as the name and "Individual" as the default type. Phone numbers will be blank — you can fill them later from the Customers tab.
+    </p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-primary" onclick="doAutoMigrateAll()">Migrate All</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+function doAutoMigrateAll(){
+  const groups=getLegacySaleGroups().filter(g=>!MIG_SKIPPED.has(g.normalized));
+  let linked=0,saleCount=0;
+  groups.forEach(g=>{
+    const result=migrateLegacyGroup(g.normalized,{});
+    if(result){linked++;saleCount+=result.saleCount;}
+  });
+  closeModal();
+  toast(`Migrated ${linked} customer${linked===1?'':'s'} · ${saleCount} sale${saleCount===1?'':'s'} linked ✓`);
+  renderSettings();
+}
+
 
 // ═══════════════════════════════════════════════
 // REPORTS — MULTI-MODULE ANALYTICS
@@ -2540,6 +2710,14 @@ function renderSettings(){
     <div class="sec-hdr" style="margin-top:4px">Pens</div>
     ${pensHtml}
     <div style="margin:10px 16px"><button class="btn btn-primary" onclick="addPen()">+ Add New Pen</button></div>
+    ${(()=>{const groups=getLegacySaleGroups();if(!groups.length)return '';const totalSales=groups.reduce((s,g)=>s+g.saleCount,0);return `
+    <div class="card" style="border-left:3px solid var(--amber)">
+      <div class="card-title">Customer Migration</div>
+      <p style="font-size:13px;color:var(--gray);margin-bottom:10px">
+        Found <b>${groups.length}</b> customer name${groups.length===1?'':'s'} across <b>${totalSales}</b> older sale${totalSales===1?'':'s'} that aren't yet linked to customer records. Review and link them to enable history-based credit scoring later.
+      </p>
+      <button class="btn btn-primary" onclick="openMigrationModal()">Review &amp; Migrate ${groups.length}</button>
+    </div>`;})()}
     <div class="card">
       <div class="card-title">Data Export / Import</div>
       <p style="font-size:13px;color:var(--gray);margin-bottom:14px">Export all data as a PostgreSQL-compatible JSON file for analytics.</p>
