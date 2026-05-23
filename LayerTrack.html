@@ -1374,6 +1374,66 @@ function getLegacySaleGroups(){
     };
   }).sort((a,b)=>b.saleCount-a.saleCount);
 }
+// Credit policy — owner-tunable thresholds for the portfolio gate.
+const CREDIT_POLICY_DEFAULTS={basePct:30,targetDaysOnHand:5,flexPctPerDay:5,maxFlexPct:30,velocityWindowDays:14};
+function getCreditPolicy(){
+  const farm=DB.getFarm()||{};
+  const p=farm.creditPolicy||{};
+  return {
+    basePct:Number.isFinite(p.basePct)?p.basePct:CREDIT_POLICY_DEFAULTS.basePct,
+    targetDaysOnHand:Number.isFinite(p.targetDaysOnHand)?p.targetDaysOnHand:CREDIT_POLICY_DEFAULTS.targetDaysOnHand,
+    flexPctPerDay:Number.isFinite(p.flexPctPerDay)?p.flexPctPerDay:CREDIT_POLICY_DEFAULTS.flexPctPerDay,
+    maxFlexPct:Number.isFinite(p.maxFlexPct)?p.maxFlexPct:CREDIT_POLICY_DEFAULTS.maxFlexPct,
+    velocityWindowDays:Number.isFinite(p.velocityWindowDays)?p.velocityWindowDays:CREDIT_POLICY_DEFAULTS.velocityWindowDays
+  };
+}
+function saveCreditPolicy(policy){
+  const farm=DB.getFarm()||{pens:[]};
+  farm.creditPolicy={...getCreditPolicy(),...policy};
+  DB.saveFarm(farm);
+}
+function getRecentCrateVelocity(){
+  const policy=getCreditPolicy();
+  const days=Math.max(1,policy.velocityWindowDays);
+  const cutoff=new Date(DB.today()+'T00:00:00');
+  cutoff.setDate(cutoff.getDate()-days);
+  const cutoffStr=cutoff.toISOString().slice(0,10);
+  const cratesMoved=DB.getSales()
+    .filter(s=>s.product==='Eggs — Crates'&&s.date>=cutoffStr&&s.date<=DB.today())
+    .reduce((sum,s)=>sum+Number(s.quantity||0),0);
+  return cratesMoved/days;
+}
+function getCommittedCreditCrates(){
+  return DB.getSales()
+    .filter(s=>s.product==='Eggs — Crates'&&s.payment_type==='credit')
+    .reduce((sum,s)=>{
+      const total=Number(s.total_amount_ngn||0);
+      if(total<=0)return sum;
+      const bal=getSaleBalance(s);
+      if(bal<=0)return sum;
+      return sum+Number(s.quantity||0)*(bal/total);
+    },0);
+}
+function getCreditEnvelope(){
+  const policy=getCreditPolicy();
+  const stock=getEggStock();
+  const availableCrates=stock.crates;
+  const velocity=getRecentCrateVelocity();
+  const daysOnHand=velocity>0?availableCrates/velocity:Infinity;
+  const target=policy.targetDaysOnHand;
+  const excess=Math.max(0,daysOnHand-target);
+  const rawFlex=excess*policy.flexPctPerDay;
+  const flexPct=Number.isFinite(rawFlex)?Math.min(policy.maxFlexPct,rawFlex):policy.maxFlexPct;
+  const effectivePct=policy.basePct+flexPct;
+  const envelopeCrates=Math.floor(availableCrates*effectivePct/100);
+  const committedCrates=getCommittedCreditCrates();
+  const headroomCrates=envelopeCrates-committedCrates;
+  return {
+    policy,availableCrates,velocity,daysOnHand,
+    basePct:policy.basePct,flexPct,effectivePct,
+    envelopeCrates,committedCrates,headroomCrates
+  };
+}
 function mergeCustomers(sourceId,targetId){
   if(!sourceId||!targetId||sourceId===targetId)return null;
   const source=DB.getCustomer(sourceId);
@@ -1547,9 +1607,27 @@ function renderFinance(){
       if((aBal>0)!==(bBal>0))return bBal-aBal;
       return b.date.localeCompare(a.date);
     });
+    const env=getCreditEnvelope();
+    const utilPct=env.envelopeCrates>0?Math.min(100,env.committedCrates/env.envelopeCrates*100):0;
+    const overEnvelope=env.committedCrates>env.envelopeCrates+0.5;
+    const barColor=overEnvelope?'var(--red)':utilPct>80?'var(--amber)':'var(--g3)';
+    const bannerBg=overEnvelope?'#fde8ea':utilPct>80?'#fef3cd':'var(--g5)';
     tabContent=`
       ${overdueCount>0?`<div style="margin:12px 16px 0"><div class="alert-item alert-red">⚠ ${overdueCount} overdue payment${overdueCount>1?'s':''} — follow up with customer${overdueCount>1?'s':''}</div></div>`:''}
-      <div style="margin:12px 16px 8px;background:var(--blueBg);border-left:3px solid var(--blue);padding:10px 12px;border-radius:0 8px 8px 0;font-size:12px;color:#1a5fa8">
+      <div style="margin:12px 16px 8px;background:${bannerBg};border-radius:10px;padding:12px 14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div style="font-size:11px;font-weight:800;color:var(--g1);text-transform:uppercase;letter-spacing:.4px">Credit pool</div>
+          <div style="font-size:12px;color:var(--g1)">${env.envelopeCrates} crates @ ${env.effectivePct.toFixed(0)}%${env.flexPct>0?` <span style="color:var(--blue)">(flex +${env.flexPct.toFixed(0)}%)</span>`:''}</div>
+        </div>
+        <div style="height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden;margin-bottom:6px">
+          <div style="height:100%;background:${barColor};width:${utilPct.toFixed(1)}%"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--g1)">
+          <span><b>${env.committedCrates.toFixed(1)}</b> / ${env.envelopeCrates} crates committed (${utilPct.toFixed(0)}%)</span>
+          <span style="color:${env.headroomCrates<=0?'var(--red)':env.headroomCrates<env.envelopeCrates*0.2?'var(--amber)':'var(--g3)'};font-weight:700">${env.headroomCrates<0?'Over by ':'Headroom '}${Math.abs(env.headroomCrates).toFixed(1)} crates</span>
+        </div>
+      </div>
+      <div style="margin:0 16px 8px;background:var(--blueBg);border-left:3px solid var(--blue);padding:10px 12px;border-radius:0 8px 8px 0;font-size:12px;color:#1a5fa8">
         Credit sales appear here automatically. Tap <b>+ Payment</b> to record installments — the sale auto-closes when the balance hits zero.
       </div>
       <div class="card" style="padding:0;overflow:hidden">
@@ -1584,6 +1662,9 @@ function renderFinance(){
                   <div style="font-size:11px;color:var(--gray);margin-top:2px">of ${fmtMoney(total)}</div>
                 </div>
               </div>
+              ${s.credit_gate_override_reason?`<div style="background:#fef3cd;border-left:3px solid var(--amber);padding:8px 10px;border-radius:0 6px 6px 0;font-size:11px;color:#7d4e00">
+                ⚠ Credit-pool override: <i>"${String(s.credit_gate_override_reason).replace(/</g,'&lt;')}"</i>
+              </div>`:''}
               ${payments.length>0?`<div style="background:var(--g5);border-radius:8px;padding:8px 10px;font-size:12px">
                 <div style="font-size:11px;color:var(--g1);font-weight:600;margin-bottom:4px">Payments (${payments.length})</div>
                 ${payments.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid #eaeaea">
@@ -1671,7 +1752,7 @@ function openSaleForm(editId){
   openModal(`<div class="modal-ttl">${rec?'Edit':'Record'} Sale <button class="modal-x" onclick="closeModal()">×</button></div>
     <div class="field"><label>Date of Sale</label><input type="date" id="sf_date" value="${rec?rec.date:today}" max="${today}"></div>
     <div class="field"><label>Product</label>
-      <select id="sf_prod">${PRODUCT_TYPES.map(p=>`<option value="${p}" ${rec?.product===p?'selected':''} >${p}</option>`).join('')}</select></div>
+      <select id="sf_prod" onchange="updateCreditCheckPanel('${editId||''}')">${PRODUCT_TYPES.map(p=>`<option value="${p}" ${rec?.product===p?'selected':''} >${p}</option>`).join('')}</select></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Quantity</label><input type="number" id="sf_qty" value="${rec?.quantity||''}" min="1" placeholder="e.g. 10" oninput="calcSaleTotal()"></div>
       <div class="field"><label>Unit Price (₦)</label><input type="number" id="sf_price" value="${rec?.unit_price_ngn||''}" min="0" step="100" placeholder="e.g. 3500" oninput="calcSaleTotal()"></div>
@@ -1705,17 +1786,20 @@ function openSaleForm(editId){
       `:`
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="field"><label>Down payment (₦) <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
-            <input type="number" id="sf_down" value="0" min="0" step="100" placeholder="0" oninput="updateSaleBalanceHint()"></div>
+            <input type="number" id="sf_down" value="0" min="0" step="100" placeholder="0" oninput="updateSaleBalanceHint();updateCreditCheckPanel(window._sf_editId||'')"></div>
           <div class="field"><label>Due date for balance</label>
             <input type="date" id="sf_due" value="" min="${today}"></div>
         </div>
         <div id="sf_balance_hint" style="margin:-4px 0 10px;font-size:13px;color:var(--gray)"></div>
       `}
     </div>
+    <div id="sf_credit_check"></div>
     <div class="field"><label>Notes</label><textarea id="sf_notes" placeholder="Optional">${rec?.notes||''}</textarea></div>
     <button class="btn btn-primary" onclick="saveSale('${editId||''}')">Save Sale</button>`);
+  window._sf_editId=editId||'';
   onCustomerNameChange();
   updateSaleBalanceHint();
+  updateCreditCheckPanel(editId||'');
 }
 function onCustomerNameChange(){
   const inputEl=document.getElementById('sf_cust');
@@ -1754,6 +1838,7 @@ function onCustomerNameChange(){
     <div style="font-size:11px;color:var(--gray);margin-top:6px">A new customer record will be created when you save.</div>
   </div>`;
   panelEl.innerHTML=html;
+  if(typeof updateCreditCheckPanel==='function')updateCreditCheckPanel(window._sf_editId||'');
 }
 function pickCustomer(id){
   const c=DB.getCustomer(id);
@@ -1761,6 +1846,7 @@ function pickCustomer(id){
   document.getElementById('sf_cust').value=c.name;
   document.getElementById('sf_cust_id').value=c.id;
   onCustomerNameChange();
+  updateCreditCheckPanel(window._sf_editId||'');
 }
 function renderCustomerInfoBlock(c){
   const outstanding=getCustomerOutstanding(c.id);
@@ -1784,12 +1870,14 @@ function toggleSalePayFields(){
   if(cf)cf.style.display=isCredit?'block':'none';
   if(lbl)lbl.innerHTML='Customer '+(isCredit?'<span style="color:var(--red)">*</span>':'<span style="color:var(--gray);font-weight:400">— optional</span>');
   updateSaleBalanceHint();
+  updateCreditCheckPanel(window._sf_editId||'');
 }
 function calcSaleTotal(){
   const q=parseInt(document.getElementById('sf_qty')?.value,10)||0;
   const p=parseFloat(document.getElementById('sf_price')?.value)||0;
   const t=document.getElementById('sf_total'); if(t)t.value=(q*p).toFixed(0);
   updateSaleBalanceHint();
+  updateCreditCheckPanel(window._sf_editId||'');
 }
 function updateSaleBalanceHint(){
   const hint=document.getElementById('sf_balance_hint');
@@ -1808,6 +1896,83 @@ function updateSaleBalanceHint(){
     hint.innerHTML=`Down <b>${fmtMoney(down)}</b> · Balance <b style="color:var(--amber)">${fmtMoney(bal)}</b>`;
   }
 }
+function updateCreditCheckPanel(editId){
+  const panel=document.getElementById('sf_credit_check');
+  if(!panel)return;
+  const payType=document.getElementById('sf_pay')?.value;
+  const product=document.getElementById('sf_prod')?.value;
+  const isCredit=payType==='credit';
+  const isEggs=product==='Eggs — Crates';
+  // Preserve any reason already typed before we re-render
+  const priorReasonEl=document.getElementById('sf_override_reason');
+  const priorReason=priorReasonEl?priorReasonEl.value:'';
+  if(!isCredit||!isEggs){panel.innerHTML='';return;}
+  const qty=parseInt(document.getElementById('sf_qty')?.value,10)||0;
+  const total=parseFloat(document.getElementById('sf_total')?.value)||0;
+  const down=parseFloat(document.getElementById('sf_down')?.value)||0;
+  const newCommitCrates=total>0?qty*Math.max(0,(total-down))/total:qty;
+  const env=getCreditEnvelope();
+  let adjustedCommitted=env.committedCrates;
+  if(editId){
+    const existing=DB.getSales().find(s=>s.id===editId);
+    if(existing&&existing.product==='Eggs — Crates'&&existing.payment_type==='credit'){
+      const existingTotal=Number(existing.total_amount_ngn||0);
+      const existingBal=getSaleBalance(existing);
+      if(existingTotal>0&&existingBal>0){
+        adjustedCommitted-=Number(existing.quantity||0)*(existingBal/existingTotal);
+      }
+    }
+  }
+  const adjustedHeadroom=env.envelopeCrates-adjustedCommitted;
+  const newTotalCommitted=adjustedCommitted+newCommitCrates;
+  const exceedsBy=newTotalCommitted-env.envelopeCrates;
+  const overGate=exceedsBy>0.5;
+  const customerId=document.getElementById('sf_cust_id')?.value;
+  const customerOwing=customerId?getCustomerOutstanding(customerId):0;
+  const utilizationPct=env.envelopeCrates>0?(newTotalCommitted/env.envelopeCrates*100):0;
+  const barColor=overGate?'var(--red)':utilizationPct>80?'var(--amber)':'var(--g3)';
+  const bgColor=overGate?'#fde8ea':'var(--g5)';
+  const existingRec=editId?DB.getSales().find(s=>s.id===editId):null;
+  const savedReason=existingRec?.credit_gate_override_reason||'';
+  const reasonValue=priorReason||savedReason;
+  let html=`<div style="margin:8px 0;padding:10px 12px;background:${bgColor};border-radius:8px;border-left:3px solid ${barColor}">
+    <div style="font-size:11px;font-weight:700;color:var(--g1);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Credit Check</div>`;
+  if(customerId){
+    html+=`<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+      <span>This customer currently owes</span>
+      <b style="color:${customerOwing>0?'var(--amber)':'var(--g3)'}">${fmtMoney(customerOwing)}</b>
+    </div>`;
+  }
+  html+=`<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+    <span>Farm credit pool</span>
+    <b>${env.envelopeCrates} crates @ ${env.effectivePct.toFixed(0)}%${env.flexPct>0?` (flex +${env.flexPct.toFixed(0)}%)`:''}</b>
+  </div>
+  <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
+    <span>Headroom before this sale</span>
+    <b style="color:${adjustedHeadroom<=0?'var(--red)':adjustedHeadroom<env.envelopeCrates*0.2?'var(--amber)':'var(--g3)'}">${adjustedHeadroom.toFixed(1)} crates</b>
+  </div>
+  <div style="height:6px;background:#e0e0e0;border-radius:3px;overflow:hidden;margin-bottom:4px">
+    <div style="height:100%;background:${barColor};width:${Math.min(100,Math.max(0,utilizationPct)).toFixed(1)}%"></div>
+  </div>
+  <div style="font-size:11px;color:var(--g1)">
+    After this sale: <b>${newTotalCommitted.toFixed(1)} / ${env.envelopeCrates}</b> crates committed (${utilizationPct.toFixed(0)}%)
+  </div>`;
+  if(overGate){
+    html+=`<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(214,40,57,0.2)">
+      <div style="font-size:12px;color:var(--red);font-weight:700;margin-bottom:6px">
+        ⚠ This sale exceeds the credit pool by ${exceedsBy.toFixed(1)} crate${exceedsBy>=2?'s':''}.
+      </div>
+      <label style="font-size:11px;color:var(--g1);font-weight:600">Reason to proceed <span style="color:var(--red)">*</span></label>
+      <textarea id="sf_override_reason" placeholder="e.g. Trusted long-term customer, will collect by next week…" style="margin-top:4px;width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-family:inherit;font-size:13px;min-height:60px">${reasonValue.replace(/</g,'&lt;')}</textarea>
+    </div>`;
+  } else if(savedReason){
+    html+=`<div style="margin-top:8px;padding-top:8px;border-top:1px solid #eee;font-size:11px;color:var(--gray)">
+      Previous override reason: <i>"${savedReason.replace(/</g,'&lt;')}"</i>
+    </div>`;
+  }
+  html+=`</div>`;
+  panel.innerHTML=html;
+}
 function saveSale(editId){
   const payType=document.getElementById('sf_pay').value;
   const isCredit=payType==='credit';
@@ -1825,6 +1990,29 @@ function saveSale(editId){
     if(downPayment>=total){toast('Down payment ≥ total — switch to Cash');return;}
   }
   const saleDate=document.getElementById('sf_date').value;
+  const product=document.getElementById('sf_prod').value;
+  // Portfolio gate (only credit sales of egg crates draw on the envelope)
+  let overrideReason='';
+  let gateBreached=false;
+  if(isCredit&&product==='Eggs — Crates'){
+    const newCommitCrates=total>0?qty*Math.max(0,(total-downPayment))/total:qty;
+    const env=getCreditEnvelope();
+    let adjustedCommitted=env.committedCrates;
+    if(editId){
+      const ex=DB.getSales().find(s=>s.id===editId);
+      if(ex&&ex.product==='Eggs — Crates'&&ex.payment_type==='credit'){
+        const exTotal=Number(ex.total_amount_ngn||0);
+        const exBal=getSaleBalance(ex);
+        if(exTotal>0&&exBal>0)adjustedCommitted-=Number(ex.quantity||0)*(exBal/exTotal);
+      }
+    }
+    if(adjustedCommitted+newCommitCrates-env.envelopeCrates>0.5){
+      gateBreached=true;
+      const reasonEl=document.getElementById('sf_override_reason');
+      overrideReason=(reasonEl?.value||'').trim();
+      if(!overrideReason){toast('This sale exceeds the credit pool — type a reason to proceed');return;}
+    }
+  }
   if(typedName&&!customerId){
     const exact=findCustomerByName(typedName);
     if(exact){
@@ -1849,7 +2037,7 @@ function saveSale(editId){
   const rec={
     id:editId||uid(),
     date:saleDate,
-    product:document.getElementById('sf_prod').value,
+    product:product,
     quantity:qty,
     unit_price_ngn:price,
     total_amount_ngn:total,
@@ -1858,7 +2046,8 @@ function saveSale(editId){
     due_date:isCredit?(document.getElementById('sf_due')?.value||null):null,
     customer_id:customerId||null,
     customer:typedName,
-    notes:document.getElementById('sf_notes').value.trim()
+    notes:document.getElementById('sf_notes').value.trim(),
+    credit_gate_override_reason:gateBreached?overrideReason:(existingRec?.credit_gate_override_reason||null)
   };
   if(editId){
     DB.updSale(editId,rec);
@@ -2800,6 +2989,37 @@ function renderSettings(){
     <div class="sec-hdr" style="margin-top:4px">Pens</div>
     ${pensHtml}
     <div style="margin:10px 16px"><button class="btn btn-primary" onclick="addPen()">+ Add New Pen</button></div>
+    ${(()=>{
+      const p=getCreditPolicy();
+      const env=getCreditEnvelope();
+      const flexNote=env.flexPct>0?`+${env.flexPct.toFixed(0)}% overstock flex applied`:'no overstock flex right now';
+      const daysOnHandLabel=Number.isFinite(env.daysOnHand)?env.daysOnHand.toFixed(1)+' days':'∞ (no recent sales)';
+      return `
+    <div class="card">
+      <div class="card-title">Credit Policy</div>
+      <p style="font-size:13px;color:var(--gray);margin-bottom:10px">
+        Controls how many crates can sit on credit at once. Default: 30% of stock — the remaining 70% must come back as cash to cover feed.
+        When stock is overstocking (days-on-hand above target), the cap flexes up to avoid spoilage.
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label>Base credit % of stock</label>
+          <input type="number" id="cp_base" value="${p.basePct}" min="0" max="100" step="1"></div>
+        <div class="field"><label>Target days-on-hand</label>
+          <input type="number" id="cp_days" value="${p.targetDaysOnHand}" min="1" max="30" step="1"></div>
+        <div class="field"><label>Flex % per excess day</label>
+          <input type="number" id="cp_flex" value="${p.flexPctPerDay}" min="0" max="20" step="1"></div>
+        <div class="field"><label>Max overstock flex %</label>
+          <input type="number" id="cp_maxflex" value="${p.maxFlexPct}" min="0" max="70" step="1"></div>
+      </div>
+      <div style="background:var(--g5);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--g1);margin:4px 0 10px">
+        <div style="font-weight:700;color:var(--g2);margin-bottom:4px">Current envelope</div>
+        <div>Stock: <b>${env.availableCrates}</b> crates · Days on hand: <b>${daysOnHandLabel}</b> · ${flexNote}</div>
+        <div style="margin-top:3px">Effective cap: <b>${env.effectivePct.toFixed(0)}%</b> = <b>${env.envelopeCrates}</b> crates available for credit</div>
+        <div style="margin-top:3px">Currently committed: <b>${env.committedCrates.toFixed(1)}</b> crates · Headroom: <b style="color:${env.headroomCrates<=0?'var(--red)':env.headroomCrates<env.envelopeCrates*0.2?'var(--amber)':'var(--g3)'}">${env.headroomCrates.toFixed(1)}</b> crates</div>
+      </div>
+      <button class="btn btn-primary" onclick="saveCreditPolicyFromForm()">Save Policy</button>
+    </div>`;
+    })()}
     ${(()=>{const groups=getLegacySaleGroups();if(!groups.length)return '';const totalSales=groups.reduce((s,g)=>s+g.saleCount,0);return `
     <div class="card" style="border-left:3px solid var(--amber)">
       <div class="card-title">Customer Migration</div>
@@ -2835,6 +3055,18 @@ function saveFarm(){
   const farm=DB.getFarm()||{pens:[]};
   farm.name=document.getElementById('s_name').value.trim()||'My Farm';
   DB.saveFarm(farm);toast('Farm settings saved ✓');
+}
+function saveCreditPolicyFromForm(){
+  const base=parseFloat(document.getElementById('cp_base').value);
+  const days=parseFloat(document.getElementById('cp_days').value);
+  const flex=parseFloat(document.getElementById('cp_flex').value);
+  const maxflex=parseFloat(document.getElementById('cp_maxflex').value);
+  if(!Number.isFinite(base)||base<0||base>100){toast('Base % must be 0–100');return;}
+  if(!Number.isFinite(days)||days<1){toast('Target days must be at least 1');return;}
+  if(!Number.isFinite(flex)||flex<0){toast('Flex per day cannot be negative');return;}
+  if(!Number.isFinite(maxflex)||maxflex<0){toast('Max flex cannot be negative');return;}
+  saveCreditPolicy({basePct:base,targetDaysOnHand:days,flexPctPerDay:flex,maxFlexPct:maxflex});
+  toast('Credit policy saved ✓');renderSettings();
 }
 function addPen(){
   const today=DB.today();
