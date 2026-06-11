@@ -2450,14 +2450,14 @@ function sortCells(arr){
 }
 function filterColsByDate(allCols){
   if(!ANA_DATE)return allCols;
-  if(ANA_DATE==='last7'||ANA_DATE==='last30'){
-    const days=ANA_DATE==='last7'?7:30;
+  if(ANA_DATE==='last7'||ANA_DATE==='last14'||ANA_DATE==='last21'||ANA_DATE==='last30'){
+    const days={last7:7,last14:14,last21:21,last30:30}[ANA_DATE];
     const cutoff=new Date();cutoff.setDate(cutoff.getDate()-days);
     return allCols.filter(c=>c.date>=cutoff.toISOString().slice(0,10));
   }
   return allCols.filter(c=>c.date===ANA_DATE);
 }
-function anaModeLabel(){if(!ANA_DATE)return'All Time';if(ANA_DATE==='last7')return'Last 7 Days';if(ANA_DATE==='last30')return'Last 30 Days';return fmtDate(ANA_DATE);}
+function anaModeLabel(){if(!ANA_DATE)return'All Time';if(ANA_DATE==='last7')return'Last 7 Days';if(ANA_DATE==='last14')return'Last 14 Days';if(ANA_DATE==='last21')return'Last 21 Days';if(ANA_DATE==='last30')return'Last 30 Days';return fmtDate(ANA_DATE);}
 
 function renderReports(){
   const el=document.getElementById('v-reports');
@@ -2475,6 +2475,8 @@ function renderReports(){
   const dateOpts=`<option value="" ${!ANA_DATE?'selected':''}>All Time</option>
     <optgroup label="─── Quick Range ───">
       <option value="last7" ${ANA_DATE==='last7'?'selected':''}>Last 7 Days</option>
+      <option value="last14" ${ANA_DATE==='last14'?'selected':''}>Last 14 Days</option>
+      <option value="last21" ${ANA_DATE==='last21'?'selected':''}>Last 21 Days</option>
       <option value="last30" ${ANA_DATE==='last30'?'selected':''}>Last 30 Days</option>
     </optgroup>
     <optgroup label="─── Specific Day ───">
@@ -2484,7 +2486,7 @@ function renderReports(){
   let tabContent='';
   if(REP_TAB==='eggs'){
     // Egg analytics (from PoulTrack)
-    const isSingleDay=!!ANA_DATE&&ANA_DATE!=='last7'&&ANA_DATE!=='last30';
+    const isSingleDay=!!ANA_DATE&&ANA_DATE!=='last7'&&ANA_DATE!=='last14'&&ANA_DATE!=='last21'&&ANA_DATE!=='last30';
     const sessionCol=isSingleDay?'Rounds':'Sessions';
     const cellMap={}, cellDayBirds={};
     cols.forEach(col=>{
