@@ -2438,6 +2438,7 @@ function doAutoMigrateAll(){
 // REPORTS — MULTI-MODULE ANALYTICS
 // ═══════════════════════════════════════════════
 let REP_TAB='eggs', ANA_TAB='cells', ANA_DATE=null, TREND_MODE='weekly', FEED_CHART_OFFSET=0, FIN_MONTH=null;
+let CAL_MONTH=null, CAL_FROM=null, CAL_TO=null;
 let CELL_SORT={field:null,dir:'desc'};
 function setCellSort(field){CELL_SORT=CELL_SORT.field===field?{field,dir:CELL_SORT.dir==='desc'?'asc':'desc'}:{field,dir:'desc'};renderReports();}
 function sortCells(arr){
@@ -2455,9 +2456,88 @@ function filterColsByDate(allCols){
     const cutoff=new Date();cutoff.setDate(cutoff.getDate()-days);
     return allCols.filter(c=>c.date>=cutoff.toISOString().slice(0,10));
   }
+  if(ANA_DATE.startsWith('range:')){
+    const [,from,to]=ANA_DATE.split(':');
+    return allCols.filter(c=>c.date>=from&&c.date<=to);
+  }
   return allCols.filter(c=>c.date===ANA_DATE);
 }
-function anaModeLabel(){if(!ANA_DATE)return'All Time';if(ANA_DATE==='last7')return'Last 7 Days';if(ANA_DATE==='last14')return'Last 14 Days';if(ANA_DATE==='last21')return'Last 21 Days';if(ANA_DATE==='last30')return'Last 30 Days';return fmtDate(ANA_DATE);}
+function anaModeLabel(){if(!ANA_DATE)return'All Time';if(ANA_DATE==='last7')return'Last 7 Days';if(ANA_DATE==='last14')return'Last 14 Days';if(ANA_DATE==='last21')return'Last 21 Days';if(ANA_DATE==='last30')return'Last 30 Days';if(ANA_DATE.startsWith('range:')){const [,from,to]=ANA_DATE.split(':');return `${fmtDate(from)} – ${fmtDate(to)}`;}return fmtDate(ANA_DATE);}
+
+// ── Calendar date picker for the Eggs report (All Time / Quick Range / day / custom range) ──
+function _ymd(y,m,d){return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}
+function openDatePicker(){
+  CAL_FROM=null;CAL_TO=null;
+  if(ANA_DATE&&ANA_DATE.startsWith('range:')){const [,f,t]=ANA_DATE.split(':');CAL_FROM=f;CAL_TO=t;}
+  else if(ANA_DATE&&/^\d{4}-\d{2}-\d{2}$/.test(ANA_DATE)){CAL_FROM=ANA_DATE;}
+  CAL_MONTH=(CAL_FROM||DB.today()).slice(0,7);
+  renderDatePicker();
+}
+function calNav(delta){
+  const [y,m]=CAL_MONTH.split('-').map(Number);
+  const d=new Date(y,m-1+delta,1);
+  CAL_MONTH=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  renderDatePicker();
+}
+function calPick(dateStr){
+  if(!CAL_FROM||(CAL_FROM&&CAL_TO)){CAL_FROM=dateStr;CAL_TO=null;}
+  else if(dateStr<CAL_FROM){CAL_TO=CAL_FROM;CAL_FROM=dateStr;}
+  else{CAL_TO=dateStr;}
+  renderDatePicker();
+}
+function calApply(){
+  if(!CAL_FROM)return;
+  ANA_DATE=(CAL_TO&&CAL_TO!==CAL_FROM)?`range:${CAL_FROM}:${CAL_TO}`:CAL_FROM;
+  closeModal();renderReports();
+}
+function calSet(val){ANA_DATE=val||null;closeModal();renderReports();}
+function renderDatePicker(){
+  const today=DB.today();
+  const [y,m]=CAL_MONTH.split('-').map(Number);
+  const monthLabel=new Date(y,m-1,1).toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+  const firstDow=new Date(y,m-1,1).getDay();
+  const daysInMonth=new Date(y,m,0).getDate();
+  const dataDays=new Set(DB.getCols().map(c=>c.date));
+  const lo=CAL_FROM&&CAL_TO?(CAL_FROM<CAL_TO?CAL_FROM:CAL_TO):CAL_FROM;
+  const hi=CAL_FROM&&CAL_TO?(CAL_FROM<CAL_TO?CAL_TO:CAL_FROM):CAL_FROM;
+  let cells='';
+  for(let i=0;i<firstDow;i++)cells+='<div></div>';
+  for(let d=1;d<=daysInMonth;d++){
+    const ds=_ymd(y,m-1,d), future=ds>today;
+    const isEnd=ds===CAL_FROM||ds===CAL_TO, inRange=lo&&hi&&ds>=lo&&ds<=hi, isToday=ds===today;
+    let style='aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:8px;font-size:14px;font-weight:600;';
+    if(future)style+='color:#ccc;';
+    else if(isEnd)style+='background:var(--g2);color:#fff;cursor:pointer;';
+    else if(inRange)style+='background:var(--g5);color:var(--g1);cursor:pointer;';
+    else style+='color:#1a1a1a;cursor:pointer;';
+    if(isToday&&!isEnd)style+='border:1.5px solid var(--g3);';
+    const dot=(dataDays.has(ds)&&!isEnd&&!future)?`<span style="width:4px;height:4px;border-radius:50%;background:${inRange?'var(--g2)':'var(--g3)'};margin-top:1px"></span>`:'<span style="height:5px"></span>';
+    cells+=`<div style="${style}" ${future?'':`onclick="calPick('${ds}')"`}>${d}${dot}</div>`;
+  }
+  const qbtn=(val,lbl)=>`<button onclick="calSet('${val}')" style="padding:8px 4px;border-radius:8px;border:1.5px solid ${ANA_DATE===val?'var(--g2)':'#ddd'};background:${ANA_DATE===val?'var(--g5)':'var(--white)'};color:var(--g1);font-size:12px;font-weight:700;cursor:pointer">${lbl}</button>`;
+  const selLabel=CAL_FROM?(CAL_TO&&CAL_TO!==CAL_FROM?`${fmtDate(lo)} – ${fmtDate(hi)}`:fmtDate(CAL_FROM)):'Tap a day — or a start then an end day for a range';
+  const wdays=['S','M','T','W','T','F','S'].map(w=>`<div style="text-align:center;font-size:11px;font-weight:800;color:var(--gray);padding:4px 0">${w}</div>`).join('');
+  openModal(`
+    <div class="modal-ttl">Select Period <button class="modal-x" onclick="closeModal()">×</button></div>
+    <button onclick="calSet('')" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid ${!ANA_DATE?'var(--g2)':'#ddd'};background:${!ANA_DATE?'var(--g5)':'var(--white)'};color:var(--g1);font-weight:700;font-size:14px;cursor:pointer;margin-bottom:14px">All Time</button>
+    <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--gray);margin-bottom:8px">Quick Range</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:16px">
+      ${qbtn('last7','7 Days')}${qbtn('last14','14 Days')}${qbtn('last21','21 Days')}${qbtn('last30','30 Days')}
+    </div>
+    <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--gray);margin-bottom:8px">Pick a Day or Range</div>
+    <div style="border:1px solid #eee;border-radius:12px;padding:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <button onclick="calNav(-1)" style="width:34px;height:34px;border-radius:8px;border:none;background:var(--g2);color:#fff;font-size:18px;cursor:pointer">‹</button>
+        <span style="font-weight:800;color:var(--g1);font-size:15px">${monthLabel}</span>
+        <button onclick="calNav(1)" style="width:34px;height:34px;border-radius:8px;border:none;background:var(--g2);color:#fff;font-size:18px;cursor:pointer">›</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr)">${wdays}</div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">${cells}</div>
+    </div>
+    <div style="text-align:center;font-size:13px;font-weight:600;color:${CAL_FROM?'var(--g1)':'var(--gray)'};margin:14px 0 4px">${selLabel}</div>
+    <button class="btn btn-primary" onclick="calApply()" ${CAL_FROM?'':'disabled style="opacity:.5"'}>Apply</button>
+  `);
+}
 
 function renderReports(){
   const el=document.getElementById('v-reports');
@@ -2465,23 +2545,12 @@ function renderReports(){
   if(!farm){el.innerHTML=`<div class="topbar"><div><h1>Reports</h1></div></div><div class="empty"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><h3>No data yet</h3><p>Start logging data to see reports.</p></div>`;return;}
 
   const allCols=DB.getCols();
-  const allDates=[...new Set(allCols.map(c=>c.date))].sort((a,b)=>b.localeCompare(a));
   const farmBirds=getFarmTotalBirds(farm);
   const validPenIds=new Set((farm.pens||[]).map(p=>p.id));
   const cols=filterColsByDate(allCols).filter(c=>validPenIds.has(c.penId));
   const modeLabel=anaModeLabel();
   const finMonthLabel=(()=>{const m=FIN_MONTH||DB.today().slice(0,7);const d=new Date(m+'-01T00:00:00');return d.toLocaleDateString('en-GB',{month:'long',year:'numeric'});})();
   const topbarLabel=REP_TAB==='finance'?finMonthLabel:modeLabel;
-  const dateOpts=`<option value="" ${!ANA_DATE?'selected':''}>All Time</option>
-    <optgroup label="─── Quick Range ───">
-      <option value="last7" ${ANA_DATE==='last7'?'selected':''}>Last 7 Days</option>
-      <option value="last14" ${ANA_DATE==='last14'?'selected':''}>Last 14 Days</option>
-      <option value="last21" ${ANA_DATE==='last21'?'selected':''}>Last 21 Days</option>
-      <option value="last30" ${ANA_DATE==='last30'?'selected':''}>Last 30 Days</option>
-    </optgroup>
-    <optgroup label="─── Specific Day ───">
-      ${allDates.map(d=>`<option value="${d}" ${d===ANA_DATE?'selected':''}>${fmtDate(d)}</option>`).join('')}
-    </optgroup>`;
 
   let tabContent='';
   if(REP_TAB==='eggs'){
@@ -2917,8 +2986,8 @@ function renderReports(){
   el.innerHTML=`<div class="topbar"><div><h1>Reports</h1><small>${topbarLabel}</small></div></div>
     ${REP_TAB==='eggs'?`<div style="background:var(--white);padding:10px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px">
       <span style="font-size:12px;font-weight:700;color:var(--gray);white-space:nowrap">View:</span>
-      <select style="flex:1;padding:8px 12px;border:1.5px solid #ddd;border-radius:10px;font-size:14px;font-weight:600;background:var(--white)"
-        onchange="ANA_DATE=this.value||null;renderReports()">${dateOpts}</select>
+      <button onclick="openDatePicker()" style="flex:1;padding:8px 12px;border:1.5px solid #ddd;border-radius:10px;font-size:14px;font-weight:600;background:var(--white);color:#1a1a1a;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer">
+        <span>${modeLabel}</span><span style="color:var(--g3);font-size:12px">📅 ▾</span></button>
       ${ANA_DATE?`<button class="btn btn-secondary btn-sm" onclick="ANA_DATE=null;renderReports()">Clear</button>`:''}
     </div>`:''}
     <div class="inner-tabs">
