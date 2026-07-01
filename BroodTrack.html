@@ -315,19 +315,41 @@ const BROILER_VACC_SCHEDULE=[
   {dayMin:36, dayMax:42, name:"Coccidiostat 2",      route:"Drinking Water"},
   {dayMin:36, dayMax:42, name:"Dewormer",            route:"Drinking Water"},
 ];
+// Pullet/POL vaccination programme — base encoded from the farm's recommended
+// programme book (images/pullet_meds.png, validated in pullet_meds_reading.txt),
+// WEEK rows converted to days (week N => day N*7), kept in strict age order.
+// Enhancements over the book (approved by farm owner as senior-scientist upgrades):
+//   • Day-1 ND now combined with IB (ND+IB live) + IB boosted on both Lasota doses
+//     — protects the developing oviduct against "false layer" damage.
+//   • Fowl Typhoid 9R prime (wk8) + booster (wk15) — endemic Salmonella in NG.
+//   • Coryza given as prime (wk6) + booster (wk10) instead of a single dose.
+//   • Wk6 "Coccidiosis" reinterpreted as a 2nd coccidiostat course (per owner).
+//   • Arrival glucose+electrolytes step added as the first management step.
+// Scheduling rule baked in: live bacterial 9R is spaced >=3 days from any
+// antibiotic water course (antibiotics kill live bacterial vaccines; viral
+// vaccines are unaffected). Names are unique so per-batch done-marks never collide.
 const LAYER_VACC_SCHEDULE=[
-  {dayMin:1,  dayMax:1,  name:"Marek's Disease",     route:"Subcutaneous",hatchery:true},
-  {dayMin:1,  dayMax:1,  name:"NDV LV1",             route:"Spray / Intranasal"},
-  {dayMin:1,  dayMax:5,  name:"Antibiotics",         route:"Drinking Water"},
-  {dayMin:10, dayMax:10, name:"Gumboro 1 (IBD)",     route:"Drinking Water"},
-  {dayMin:17, dayMax:17, name:"Gumboro 2 (IBD)",     route:"Drinking Water"},
-  {dayMin:21, dayMax:21, name:"Lasota 1 (ND)",       route:"Drinking Water"},
-  {dayMin:15, dayMax:28, name:"Coccidiostat",        route:"Drinking Water"},
-  {dayMin:29, dayMax:42, name:"Antibiotics 2",       route:"Drinking Water"},
-  {dayMin:50, dayMax:56, name:"Fowl Pox",            route:"Wing Web"},
-  {dayMin:70, dayMax:84, name:"Lasota 2 (ND)",       route:"Drinking Water"},
-  {dayMin:91, dayMax:98, name:"Dewormer",            route:"Drinking Water"},
-  {dayMin:112,dayMax:112,name:"EDS + NDV (3-in-1)",  route:"Subcutaneous"},
+  {dayMin:1,  dayMax:1,  name:"Marek's Disease",              route:"Subcutaneous",hatchery:true},
+  {dayMin:1,  dayMax:1,  name:"Glucose + Electrolytes (arrival, first 4–6 hrs)",route:"Drinking Water"},
+  {dayMin:1,  dayMax:1,  name:"ND HB1 + IB (Live)",           route:"Eye Drop / Spray"},
+  {dayMin:1,  dayMax:5,  name:"Antibiotics 1 + Vitamins",     route:"Drinking Water"},
+  {dayMin:10, dayMax:10, name:"Gumboro 1 (IBD)",              route:"Drinking Water"},
+  {dayMin:17, dayMax:17, name:"Gumboro 2 (IBD)",              route:"Drinking Water"},
+  {dayMin:20, dayMax:20, name:"ND Lasota 1 + IB",             route:"Drinking Water"},
+  {dayMin:21, dayMax:21, name:"Coccidiostat 1",               route:"Drinking Water"},
+  {dayMin:35, dayMax:35, name:"Gumboro 3 (IBD)",              route:"Drinking Water"},
+  {dayMin:42, dayMax:42, name:"Coccidiostat 2",               route:"Drinking Water"},
+  {dayMin:42, dayMax:42, name:"Coryza 1 (Pullet)",            route:"Subcutaneous"},
+  {dayMin:49, dayMax:49, name:"Antibiotics 2",                route:"Drinking Water"},
+  {dayMin:56, dayMax:56, name:"Fowl Pox",                     route:"Wing Web"},
+  {dayMin:56, dayMax:56, name:"Fowl Typhoid 9R 1 (prime)",    route:"Subcutaneous / Wing Stab"},
+  {dayMin:63, dayMax:63, name:"Dewormer 1",                   route:"Drinking Water"},
+  {dayMin:70, dayMax:70, name:"ND Lasota 2 + IB",             route:"Drinking Water"},
+  {dayMin:70, dayMax:70, name:"Coryza 2 (Pullet, booster)",   route:"Subcutaneous"},
+  {dayMin:77, dayMax:77, name:"Dewormer 2",                   route:"Drinking Water"},
+  {dayMin:84, dayMax:84, name:"Fowl Cholera (Pullet)",        route:"Subcutaneous"},
+  {dayMin:105,dayMax:105,name:"Fowl Typhoid 9R 2 (booster)",  route:"Subcutaneous / Wing Stab"},
+  {dayMin:112,dayMax:112,name:"EDS + NDV (Killed)",           route:"Subcutaneous"},
 ];
 const VACC_NOTE="Give multivitamins in drinking water after every vaccination, antibiotic, dewormer, or coccidiostat treatment.";
 function getVaccSchedule(birdType){return birdType==='broiler'?BROILER_VACC_SCHEDULE:LAYER_VACC_SCHEDULE;}
@@ -373,7 +395,7 @@ const PULLET_TEMP_TARGETS=[
 ];
 const BROOD_FEED_TYPES=['Starter Mash','Chick Mash','Grower Mash','Finisher Pellets','Pre-Layer Mash','Brooding Mash','Concentrate','Other'];
 const BROOD_EXPENSE_CATS=['DOC Purchase','Feed','Medication','Litter/Bedding','Labour','Equipment','Transport','Brooding Fuel/Power','Other'];
-const MED_SUGGESTIONS=['NDV1-0','NDV LV1','Gumboro 1 (IBD)','Gumboro 2 (IBD)','Lasota 1 (ND)','Lasota 2 (ND)','EDS + NDV (3-in-1)','Fowl Pox Vaccine','Marek\'s Disease Vaccine','Coccidiostat','Dewormer','Antibiotics','Amprolium','Tylosin','Floxinor','Multivitamin','Vitamin C/E','Electrolytes'];
+const MED_SUGGESTIONS=['ND HB1 + IB (Live)','ND Lasota + IB','Lasota (ND)','Gumboro 1 (IBD)','Gumboro 2 (IBD)','Gumboro 3 (IBD)','Fowl Pox Vaccine','Coryza Vaccine','Fowl Cholera Vaccine','Fowl Typhoid 9R','EDS + NDV (Killed)','Marek\'s Disease Vaccine','Coccidiostat','Dewormer','Antibiotics','Amprolium','Tylosin','Floxinor','Glucose + Electrolytes','Multivitamin','Vitamin C/E','Electrolytes'];
 
 // ═══════════════════════════════════════════════
 // DATA LAYER
