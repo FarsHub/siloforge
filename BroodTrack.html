@@ -531,7 +531,7 @@ function getWaterRateMl(ageDays,birdType,farm){
 function getWeightBenchmark(breed,weekNum){
   const bm=BREED_BENCHMARKS[breed]||BREED_BENCHMARKS['Isa Brown'];
   const weeks=Object.keys(bm).map(Number).sort((a,b)=>a-b);
-  const w=weeks.find(w=>weekNum<=w)||weeks[weeks.length-1];
+  const w=weeks.find(w=>weekNum<=w)??weeks[weeks.length-1];
   return bm[w]||null;
 }
 function getActiveBatches(){return DB.getBatches().filter(b=>b.status==='Active');}
