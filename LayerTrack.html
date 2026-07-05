@@ -118,6 +118,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 /* TOAST */
 #toast{position:fixed;bottom:calc(var(--nav-h)+14px);left:50%;transform:translateX(-50%) translateY(16px);background:var(--g1);color:var(--white);padding:11px 18px;border-radius:22px;font-size:14px;font-weight:600;opacity:0;transition:all .28s;z-index:300;white-space:nowrap;pointer-events:none}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.sync-badge{position:fixed;top:8px;right:8px;z-index:400;font-size:11px;font-weight:800;padding:5px 11px;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.sync-badge.pending{background:#fef3cd;color:#7d4e00}
+.sync-badge.err{background:#fde8ea;color:#d62839;cursor:pointer}
 .empty{text-align:center;padding:44px 24px;color:var(--gray)}
 .empty svg{width:52px;height:52px;stroke:var(--g4);margin-bottom:14px;opacity:.5}
 .empty h3{font-size:16px;font-weight:700;margin-bottom:6px;color:var(--g1)}
@@ -147,6 +150,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 </head>
 <body>
 <div id="toast"></div>
+<div id="sync-badge" class="sync-badge" style="display:none" onclick="_clearSyncErr()"></div>
 <div id="overlay" onclick="if(event.target===this)closeModal()">
   <div class="modal" id="modal-body"></div>
 </div>
@@ -196,7 +200,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <div style="background:var(--white);border-radius:var(--radius);padding:32px;width:90%;max-width:340px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.25);margin:16px auto">
     <div style="font-size:48px;margin-bottom:8px">🌿</div>
     <h2 style="color:var(--g1);font-size:22px;margin-bottom:4px">LayerTrack</h2>
-    <p style="color:var(--gray);font-size:13px;margin-bottom:24px">SiloForge Farm Apps</p>
+    <p style="color:var(--gray);font-size:13px;margin-bottom:24px">SiloForge Farm Apps <span id="app-version" style="opacity:.7"></span></p>
     <input id="farm-code-input" type="text" placeholder="FARM CODE" autocomplete="off" autocapitalize="characters" style="width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:20px;text-align:center;letter-spacing:3px;text-transform:uppercase;margin-bottom:12px" oninput="this.value=this.value.toUpperCase().replace(/\s/g,'')" onkeydown="if(event.key==='Enter')doLogin()">
     <button id="login-btn" class="btn btn-primary" style="width:100%;padding:14px;font-size:16px" onclick="doLogin()">Enter Farm</button>
     <p id="login-err" style="color:var(--red);font-size:13px;margin-top:10px;min-height:18px"></p>
@@ -220,6 +224,31 @@ const firebaseConfig={apiKey:"AIzaSyCg7LCTpghu7mkKvHdqWdRmZGfJWkjYH98",authDomai
 firebase.initializeApp(firebaseConfig);
 const db=firebase.firestore();
 db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
+
+// ── SYNC STATUS (honest save + pending indicator) ──
+let SYNC_PENDING=0, SYNC_FAILED=0, LAST_WRITE=Promise.resolve(true);
+function _track(p){
+  SYNC_PENDING++; renderSyncBadge();
+  const t=Promise.resolve(p).then(
+    ()=>{SYNC_PENDING=Math.max(0,SYNC_PENDING-1); renderSyncBadge(); return true;},
+    ()=>{SYNC_PENDING=Math.max(0,SYNC_PENDING-1); SYNC_FAILED++; renderSyncBadge(); return false;}
+  );
+  LAST_WRITE=t; return t;
+}
+function renderSyncBadge(){
+  const el=document.getElementById('sync-badge'); if(!el)return;
+  if(SYNC_FAILED>0){el.textContent='⚠ '+SYNC_FAILED+' not saved — tap'; el.className='sync-badge err'; el.style.display='';}
+  else if(SYNC_PENDING>0){el.textContent='⏳ '+SYNC_PENDING+' unsynced'; el.className='sync-badge pending'; el.style.display='';}
+  else{el.style.display='none';}
+}
+function _clearSyncErr(){SYNC_FAILED=0; renderSyncBadge(); toast('Reopen the app while online to retry any unsynced changes');}
+// Honest save toast: reads the most recent tracked write (LAST_WRITE) and reports
+// what actually happened — cloud-confirmed, pending (offline/slow), or failed.
+function confirmSave(label){
+  const p=LAST_WRITE;
+  Promise.race([Promise.resolve(p).then(ok=>ok?'ok':'fail'), new Promise(r=>setTimeout(()=>r('pending'),2000))])
+    .then(s=>toast(s==='ok'?label+' ✓':s==='fail'?'⚠ '+label+' — not saved to cloud':'⏳ '+label+' on device — will sync when online'));
+}
 
 let FARM_CODE='';
 const CACHE={};
@@ -297,11 +326,15 @@ async function registerFarm(){
 function initApp(){
   const saved=localStorage.getItem('sf_farm_code');
   if(saved)document.getElementById('farm-code-input').value=saved;
+  const vEl=document.getElementById('app-version');
+  if(vEl)vEl.textContent='v'+APP_VERSION;
+  console.log('LayerTrack build v'+APP_VERSION);
 }
 
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
+const APP_VERSION='2026.07.05-b4';  // bump on each deploy; shown on login screen + console
 const ROUNDS = [
   {id:1,label:'1st Pick',sub:'Morning',  cls:'round-1'},
   {id:2,label:'2nd Pick',sub:'Afternoon',cls:'round-2'},
@@ -350,11 +383,11 @@ const PAYMENT_METHODS=['Cash','Bank Transfer','POS','Mobile Money','Other'];
 const DB = {
   today(){ return new Date().toISOString().slice(0,10) },
   _get(k){ return CACHE[k]??null },
-  _set(k,v){ CACHE[k]=v; if(Array.isArray(v))_batchWrite(k,v); else farmDoc(k,'config').set({data:v}).catch(()=>toast('Sync error ⚠')); },
+  _set(k,v){ CACHE[k]=v; return Array.isArray(v)?_track(_batchWrite(k,v)):_track(farmDoc(k,'config').set({data:v})); },
   _arr(k){ return CACHE[k]||[] },
-  _push(k,item){ if(!CACHE[k])CACHE[k]=[]; CACHE[k].push(item); farmDoc(k,item.id).set(item).catch(()=>toast('Sync error ⚠')); },
-  _del(k,id){ CACHE[k]=(CACHE[k]||[]).filter(x=>x.id!==id); farmDoc(k,id).delete().catch(()=>toast('Sync error ⚠')); },
-  _upd(k,id,upd){ CACHE[k]=(CACHE[k]||[]).map(x=>x.id===id?{...x,...upd}:x); farmDoc(k,id).set(upd,{merge:true}).catch(()=>toast('Sync error ⚠')); },
+  _push(k,item){ if(!CACHE[k])CACHE[k]=[]; CACHE[k].push(item); return _track(farmDoc(k,item.id).set(item)); },
+  _del(k,id){ CACHE[k]=(CACHE[k]||[]).filter(x=>x.id!==id); return _track(farmDoc(k,id).delete()); },
+  _upd(k,id,upd){ CACHE[k]=(CACHE[k]||[]).map(x=>x.id===id?{...x,...upd}:x); return _track(farmDoc(k,id).set(upd,{merge:true})); },
   getFarm(){ return this._get(KEYS.farm) },
   saveFarm(f){ this._set(KEYS.farm,f) },
   getCols(){ return this._arr(KEYS.cols) },
@@ -920,7 +953,7 @@ function saveCellBirds(standId,tier,cell,side){
   const n=parseInt(document.getElementById('m_birds').value), farm=DB.getFarm();
   for(const pen of farm.pens||[])for(const line of pen.lines||[])for(const s of line.stands||[])
     if(s.id===standId){if(!s.cellBirds)s.cellBirds={};s.cellBirds[`${tier}_${cell}_${side}`]=n;}
-  DB.saveFarm(farm);SES.farm=farm;closeModal();toast(`Side ${side} · Cell updated to ${n} bird${n!==1?'s':''} ✓`);renderSession();
+  DB.saveFarm(farm);SES.farm=farm;closeModal();confirmSave(`Side ${side} · Cell updated to ${n} bird${n!==1?'s':''}`);renderSession();
 }
 function addNoteModal(){
   const col=DB.getCol(SES.id);
@@ -928,7 +961,7 @@ function addNoteModal(){
     <div class="field"><textarea id="m_note" placeholder="e.g. Water line blocked, sick bird found...">${col?.notes||''}</textarea></div>
     <button class="btn btn-primary" onclick="saveNote()">Save Note</button>`);
 }
-function saveNote(){DB.updateCol(SES.id,{notes:document.getElementById('m_note').value.trim()});closeModal();toast('Note saved ✓');}
+function saveNote(){DB.updateCol(SES.id,{notes:document.getElementById('m_note').value.trim()});closeModal();confirmSave('Note saved');}
 function saveStand(){
   const stand=SES.stands[SES_STAND], standConfig=findStandInFarm(SES.farm,stand.id), entries=[];
   for(let tier=1;tier<=standConfig.tiers;tier++)for(let cell=1;cell<=standConfig.cellsPerTier;cell++){
@@ -940,7 +973,7 @@ function saveStand(){
   if(col){col.entries=[(col.entries||[]).filter(e=>e.standId!==stand.id),...entries].flat();
     if(!col.completedStands.includes(stand.id))col.completedStands.push(stand.id);
     DB.updateCol(SES.id,{entries:col.entries,completedStands:col.completedStands});SES.completedStands=col.completedStands;}
-  if(SES_STAND<SES.stands.length-1){SES_STAND++;toast(`Stand ${SES_STAND} saved ✓`);renderSession();window.scrollTo(0,0);}
+  if(SES_STAND<SES.stands.length-1){SES_STAND++;confirmSave(`Stand ${SES_STAND} saved`);renderSession();window.scrollTo(0,0);}
   else{toast('Pass complete! 🎉',3000);SES=null;SES_STAND=0;go('eggs');}
 }
 function exitSession(){
@@ -1050,13 +1083,13 @@ function saveBirdLog(editId){
   const rec={id:editId||uid(),date,pen_id:_activePenId||undefined,opening_birds:opening,deaths,culls,
     closing_birds:Math.max(0,opening-deaths),age_weeks,notes};
   if(editId)DB.updBird(editId,rec); else DB.addBird(rec);
-  closeModal();toast('Bird status saved ✓');renderFlock();
+  closeModal();confirmSave('Bird status saved');renderFlock();
 }
 function delBirdLog(id){
   openModal(`<div class="modal-ttl">Delete Record? <button class="modal-x" onclick="closeModal()">×</button></div>
     <p style="font-size:14px;color:var(--gray);margin-bottom:18px">This cannot be undone.</p>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn btn-danger" onclick="closeModal();DB.delBird('${id}');toast('Deleted');renderFlock()">Delete</button>
+      <button class="btn btn-danger" onclick="closeModal();DB.delBird('${id}');confirmSave('Deleted');renderFlock()">Delete</button>
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
 }
 
@@ -1154,13 +1187,13 @@ function saveFeedLog(editId){
   const rec={id:editId||uid(),date,pen_id:_activePenId||undefined,feed_type,feed_kg_used,feed_req_kg,age_weeks:ageWeeks,feed_rate_g,notes};
   if(editId){DB.updFeed(editId,rec);}
   else{DB.getFeed().filter(r=>r.date===date&&r.feed_type===feed_type&&(r.pen_id||null)===(_activePenId||null)).forEach(r=>DB.delFeed(r.id));DB.addFeed(rec);}
-  closeModal();toast('Feed log saved ✓');renderFeed();
+  closeModal();confirmSave('Feed log saved');renderFeed();
 }
 function delFeed(id){
   openModal(`<div class="modal-ttl">Delete? <button class="modal-x" onclick="closeModal()">×</button></div>
     <p style="font-size:14px;color:var(--gray);margin-bottom:18px">This cannot be undone.</p>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn btn-danger" onclick="closeModal();DB.delFeed('${id}');toast('Deleted');renderFeed()">Delete</button>
+      <button class="btn btn-danger" onclick="closeModal();DB.delFeed('${id}');confirmSave('Deleted');renderFeed()">Delete</button>
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
 }
 
@@ -1259,13 +1292,13 @@ function saveHealthLog(editId){
     admin_method:document.getElementById('hf_admin').value,
     notes:document.getElementById('hf_notes').value.trim()};
   if(editId)DB.updHealth(editId,rec);else DB.addHealth(rec);
-  closeModal();toast('Health log saved ✓');renderHealth();
+  closeModal();confirmSave('Health log saved');renderHealth();
 }
 function delHealth(id){
   openModal(`<div class="modal-ttl">Delete? <button class="modal-x" onclick="closeModal()">×</button></div>
     <p style="font-size:14px;color:var(--gray);margin-bottom:18px">This cannot be undone.</p>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn btn-danger" onclick="closeModal();DB.delHealth('${id}');toast('Deleted');renderHealth()">Delete</button>
+      <button class="btn btn-danger" onclick="closeModal();DB.delHealth('${id}');confirmSave('Deleted');renderHealth()">Delete</button>
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
 }
 
@@ -1733,12 +1766,12 @@ function saveExpense(editId){
     amount_usd:parseFloat(document.getElementById('ef_usd').value)||0,
     notes:document.getElementById('ef_notes').value.trim()};
   if(editId)DB.updExpense(editId,rec);else DB.addExpense(rec);
-  closeModal();toast('Expense saved ✓');renderFinance();
+  closeModal();confirmSave('Expense saved');renderFinance();
 }
 function delExpense(id){openModal(`<div class="modal-ttl">Delete Expense? <button class="modal-x" onclick="closeModal()">×</button></div>
   <p style="font-size:14px;color:var(--gray);margin-bottom:18px">This cannot be undone.</p>
   <div style="display:flex;flex-direction:column;gap:8px">
-    <button class="btn btn-danger" onclick="closeModal();DB.delExpense('${id}');toast('Deleted');renderFinance()">Delete</button>
+    <button class="btn btn-danger" onclick="closeModal();DB.delExpense('${id}');confirmSave('Deleted');renderFinance()">Delete</button>
     <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);}
 
 function openSaleForm(editId){
@@ -2061,13 +2094,13 @@ function saveSale(editId){
   }
   closeModal();
   if(!editId&&isCredit&&downPayment>0){
-    toast(`Sale recorded — ${fmtMoney(downPayment)} paid, ${fmtMoney(total-downPayment)} on credit ✓`);
+    confirmSave(`Sale recorded — ${fmtMoney(downPayment)} paid, ${fmtMoney(total-downPayment)} on credit`);
   } else if(!editId&&isCredit){
-    toast('Credit sale recorded — see Receivables ✓');
+    confirmSave('Credit sale recorded — see Receivables');
   } else if(!editId){
-    toast('Cash sale recorded ✓');
+    confirmSave('Cash sale recorded');
   } else {
-    toast('Sale updated ✓');
+    confirmSave('Sale updated');
   }
   renderFinance();
 }
@@ -2133,10 +2166,10 @@ function savePayment(saleId,paymentEditId){
   const newPaid=otherPaid+amount;
   if(newPaid>=total-0.5){
     DB.updSale(saleId,{paid:true});
-    toast('Payment recorded — fully paid ✓');
+    confirmSave('Payment recorded — fully paid');
   } else {
     if(sale.paid)DB.updSale(saleId,{paid:false});
-    toast(`Payment recorded — ${fmtMoney(total-newPaid)} still owing`);
+    confirmSave(`Payment recorded — ${fmtMoney(total-newPaid)} still owing`);
   }
   closeModal();renderFinance();
 }
@@ -2144,13 +2177,13 @@ function delPayment(paymentId,saleId){
   openModal(`<div class="modal-ttl">Delete Payment? <button class="modal-x" onclick="closeModal()">×</button></div>
     <p style="font-size:14px;color:var(--gray);margin-bottom:18px">The outstanding balance will increase by the deleted amount.</p>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn btn-danger" onclick="closeModal();DB.delPayment('${paymentId}');DB.updSale('${saleId}',{paid:false});toast('Payment deleted');renderFinance()">Delete</button>
+      <button class="btn btn-danger" onclick="closeModal();DB.delPayment('${paymentId}');DB.updSale('${saleId}',{paid:false});confirmSave('Payment deleted');renderFinance()">Delete</button>
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
 }
 function delSale(id){openModal(`<div class="modal-ttl">Delete Sale? <button class="modal-x" onclick="closeModal()">×</button></div>
   <p style="font-size:14px;color:var(--gray);margin-bottom:18px">This cannot be undone. Any linked payments will also be cleared.</p>
   <div style="display:flex;flex-direction:column;gap:8px">
-    <button class="btn btn-danger" onclick="closeModal();DB.paymentsForSale('${id}').forEach(p=>DB.delPayment(p.id));DB.delSale('${id}');toast('Deleted');renderFinance()">Delete</button>
+    <button class="btn btn-danger" onclick="closeModal();DB.paymentsForSale('${id}').forEach(p=>DB.delPayment(p.id));DB.delSale('${id}');confirmSave('Deleted');renderFinance()">Delete</button>
     <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);}
 
 function renderCustomersTab(){
@@ -2224,8 +2257,8 @@ function saveCustomer(editId){
     notes:document.getElementById('cf_notes').value.trim(),
     created_at:original?.created_at||DB.today()
   };
-  if(editId){DB.updCustomer(editId,rec);toast('Customer updated ✓');}
-  else{DB.addCustomer(rec);toast('Customer added ✓');}
+  if(editId){DB.updCustomer(editId,rec);confirmSave('Customer updated');}
+  else{DB.addCustomer(rec);confirmSave('Customer added');}
   closeModal();renderFinance();
 }
 function delCustomer(id){
@@ -2240,7 +2273,7 @@ function delCustomer(id){
   openModal(`<div class="modal-ttl">Delete Customer? <button class="modal-x" onclick="closeModal()">×</button></div>
     <p style="font-size:14px;color:var(--gray);margin-bottom:18px">Delete <b>${c?.name||''}</b>? This cannot be undone.</p>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn btn-danger" onclick="closeModal();DB.delCustomer('${id}');toast('Customer deleted');renderFinance()">Delete</button>
+      <button class="btn btn-danger" onclick="closeModal();DB.delCustomer('${id}');confirmSave('Customer deleted');renderFinance()">Delete</button>
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
 }
 
@@ -2316,7 +2349,7 @@ function doMergeCustomer(sourceId,targetId){
   const result=mergeCustomers(sourceId,targetId);
   closeModal();
   if(result){
-    toast(`Merged ${result.sourceName} → ${result.targetName} · ${result.movedSales} sale${result.movedSales===1?'':'s'} re-linked ✓`);
+    confirmSave(`Merged ${result.sourceName} → ${result.targetName} · ${result.movedSales} sale${result.movedSales===1?'':'s'} re-linked`);
     renderFinance();
   } else {
     toast('Merge failed');
@@ -2399,7 +2432,7 @@ function migrateGroupFromModal(normalized,idSlug){
   if(typeEl)overrides.customer_type=typeEl.value;
   const result=migrateLegacyGroup(normalized,overrides);
   if(result){
-    toast(`Linked ${result.saleCount} sale${result.saleCount===1?'':'s'} ✓`);
+    confirmSave(`Linked ${result.saleCount} sale${result.saleCount===1?'':'s'}`);
     MIG_SKIPPED.delete(normalized);
     openMigrationModal();
   } else {
@@ -2429,7 +2462,7 @@ function doAutoMigrateAll(){
     if(result){linked++;saleCount+=result.saleCount;}
   });
   closeModal();
-  toast(`Migrated ${linked} customer${linked===1?'':'s'} · ${saleCount} sale${saleCount===1?'':'s'} linked ✓`);
+  confirmSave(`Migrated ${linked} customer${linked===1?'':'s'} · ${saleCount} sale${saleCount===1?'':'s'} linked`);
   renderSettings();
 }
 
@@ -3004,7 +3037,7 @@ function confirmReset(){
   openModal(`<div class="modal-ttl">Reset Data? <button class="modal-x" onclick="closeModal()">×</button></div>
     <p style="font-size:14px;color:var(--gray);margin-bottom:18px">All egg collection records will be deleted. Farm setup and other logs are kept.</p>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn btn-danger" onclick="closeModal();DB.saveCols([]);toast('Egg records cleared');renderReports()">Delete Egg Records</button>
+      <button class="btn btn-danger" onclick="closeModal();DB.saveCols([]);confirmSave('Egg records cleared');renderReports()">Delete Egg Records</button>
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
 }
 
@@ -3125,7 +3158,7 @@ function toggleAcc(id){document.getElementById('acc_'+id)?.classList.toggle('ope
 function saveFarm(){
   const farm=DB.getFarm()||{pens:[]};
   farm.name=document.getElementById('s_name').value.trim()||'My Farm';
-  DB.saveFarm(farm);toast('Farm settings saved ✓');
+  DB.saveFarm(farm);confirmSave('Farm settings saved');
 }
 function saveCreditPolicyFromForm(){
   const base=parseFloat(document.getElementById('cp_base').value);
@@ -3137,7 +3170,7 @@ function saveCreditPolicyFromForm(){
   if(!Number.isFinite(flex)||flex<0){toast('Flex per day cannot be negative');return;}
   if(!Number.isFinite(maxflex)||maxflex<0){toast('Max flex cannot be negative');return;}
   saveCreditPolicy({basePct:base,targetDaysOnHand:days,flexPctPerDay:flex,maxFlexPct:maxflex});
-  toast('Credit policy saved ✓');renderSettings();
+  confirmSave('Credit policy saved');renderSettings();
 }
 function addPen(){
   const today=DB.today();
@@ -3155,7 +3188,7 @@ function doAddPen(){
   if(!name){toast('Enter pen name');return;}
   const farm=DB.getFarm()||{name:'My Farm',expectedRate:85,warnRate:70,feedRateG:110,marketPricePerCrate:3500,pens:[]};
   (farm.pens=farm.pens||[]).push({id:uid(),name,flockStartDate:document.getElementById('m_fdate').value||null,flockAgeAtArrival:parseInt(document.getElementById('m_farr').value)||0,lines:[]});
-  DB.saveFarm(farm);closeModal();toast(`${name} added ✓`);renderSettings();
+  DB.saveFarm(farm);closeModal();confirmSave(`${name} added`);renderSettings();
 }
 function editPen(penId){
   const farm=DB.getFarm(), pen=farm.pens.find(p=>p.id===penId), today=DB.today(), stage=getPenStage(pen);
@@ -3175,7 +3208,7 @@ function doEditPen(penId){
   pen.name=document.getElementById('m_pname').value.trim()||pen.name;
   pen.flockStartDate=document.getElementById('m_fdate').value||null;
   pen.flockAgeAtArrival=parseInt(document.getElementById('m_farr').value)||0;
-  DB.saveFarm(farm);closeModal();toast('Pen updated ✓');renderSettings();
+  DB.saveFarm(farm);closeModal();confirmSave('Pen updated');renderSettings();
 }
 function deletePen(penId){
   openModal(`<div class="modal-ttl">Delete Pen? <button class="modal-x" onclick="closeModal()">×</button></div>
@@ -3184,7 +3217,7 @@ function deletePen(penId){
       <button class="btn btn-danger" onclick="closeModal();doDeletePen('${penId}')">Delete</button>
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
 }
-function doDeletePen(penId){const farm=DB.getFarm();farm.pens=farm.pens.filter(p=>p.id!==penId);DB.saveFarm(farm);toast('Pen deleted');renderSettings();}
+function doDeletePen(penId){const farm=DB.getFarm();farm.pens=farm.pens.filter(p=>p.id!==penId);DB.saveFarm(farm);confirmSave('Pen deleted');renderSettings();}
 function addLine(penId){
   openModal(`<div class="modal-ttl">Add Line <button class="modal-x" onclick="closeModal()">×</button></div>
     <div class="field"><label>Line Name</label><input type="text" id="m_lname" placeholder="e.g. Line 1 / Row A"></div>
@@ -3195,7 +3228,7 @@ function doAddLine(penId){
   if(!name){toast('Enter line name');return;}
   const farm=DB.getFarm(), pen=farm.pens.find(p=>p.id===penId);
   (pen.lines=pen.lines||[]).push({id:uid(),name,stands:[]});
-  DB.saveFarm(farm);closeModal();toast(`${name} added ✓`);renderSettings();
+  DB.saveFarm(farm);closeModal();confirmSave(`${name} added`);renderSettings();
 }
 function deleteLine(penId,lineId){
   openModal(`<div class="modal-ttl">Delete Line? <button class="modal-x" onclick="closeModal()">×</button></div>
@@ -3204,7 +3237,7 @@ function deleteLine(penId,lineId){
       <button class="btn btn-danger" onclick="closeModal();doDeleteLine('${penId}','${lineId}')">Delete</button>
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
 }
-function doDeleteLine(penId,lineId){const farm=DB.getFarm(),pen=farm.pens.find(p=>p.id===penId);pen.lines=pen.lines.filter(l=>l.id!==lineId);DB.saveFarm(farm);toast('Line deleted');renderSettings();}
+function doDeleteLine(penId,lineId){const farm=DB.getFarm(),pen=farm.pens.find(p=>p.id===penId);pen.lines=pen.lines.filter(l=>l.id!==lineId);DB.saveFarm(farm);confirmSave('Line deleted');renderSettings();}
 function addStand(penId,lineId){
   openModal(`<div class="modal-ttl">Add Stand <button class="modal-x" onclick="closeModal()">×</button></div>
     <div class="field"><label>Stand Name</label><input type="text" id="m_sname" placeholder="e.g. Stand 1"></div>
@@ -3223,7 +3256,7 @@ function doAddStand(penId,lineId){
   (line.stands=line.stands||[]).push({id:uid(),name,tiers:parseInt(document.getElementById('m_tiers').value),
     cellsPerTier:parseInt(document.getElementById('m_cells').value),
     defaultBirds:parseInt(document.getElementById('m_birds').value),cellBirds:{}});
-  DB.saveFarm(farm);closeModal();toast(`${name} added ✓`);renderSettings();
+  DB.saveFarm(farm);closeModal();confirmSave(`${name} added`);renderSettings();
 }
 function editStand(penId,lineId,standId){
   const farm=DB.getFarm(), line=farm.pens.find(p=>p.id===penId)?.lines.find(l=>l.id===lineId);
@@ -3244,7 +3277,7 @@ function doEditStand(penId,lineId,standId){
   s.tiers=parseInt(document.getElementById('m_tiers').value);
   s.cellsPerTier=parseInt(document.getElementById('m_cells').value);
   s.defaultBirds=parseInt(document.getElementById('m_birds').value);
-  DB.saveFarm(farm);closeModal();toast('Stand updated ✓');renderSettings();
+  DB.saveFarm(farm);closeModal();confirmSave('Stand updated');renderSettings();
 }
 function deleteStand(penId,lineId,standId){
   openModal(`<div class="modal-ttl">Delete Stand? <button class="modal-x" onclick="closeModal()">×</button></div>
@@ -3256,7 +3289,7 @@ function deleteStand(penId,lineId,standId){
 function doDeleteStand(penId,lineId,standId){
   const farm=DB.getFarm(), line=farm.pens.find(p=>p.id===penId)?.lines.find(l=>l.id===lineId);
   if(!line)return; line.stands=line.stands.filter(s=>s.id!==standId);
-  DB.saveFarm(farm);toast('Stand deleted');renderSettings();
+  DB.saveFarm(farm);confirmSave('Stand deleted');renderSettings();
 }
 function resetModule(mod){
   openModal(`<div class="modal-ttl">Reset ${mod} data? <button class="modal-x" onclick="closeModal()">×</button></div>
