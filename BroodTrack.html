@@ -169,7 +169,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <div style="background:var(--white);border-radius:var(--radius);padding:32px;width:90%;max-width:340px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.25);margin:16px auto">
     <div style="font-size:48px;margin-bottom:8px">🐣</div>
     <h2 style="color:var(--p2);font-size:22px;margin-bottom:4px">BroodTrack</h2>
-    <p style="color:var(--gray);font-size:13px;margin-bottom:24px">SiloForge Farm Apps</p>
+    <p style="color:var(--gray);font-size:13px;margin-bottom:24px">SiloForge Farm Apps <span id="app-version" style="opacity:.7"></span></p>
     <input id="farm-code-input" type="text" placeholder="FARM CODE" autocomplete="off" autocapitalize="characters" style="width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:20px;text-align:center;letter-spacing:3px;text-transform:uppercase;margin-bottom:12px" oninput="this.value=this.value.toUpperCase().replace(/\s/g,'')" onkeydown="if(event.key==='Enter')doLogin()">
     <button id="login-btn" class="btn btn-primary" style="width:100%;padding:14px;font-size:16px" onclick="doLogin()">Enter Farm</button>
     <p id="login-err" style="color:var(--red);font-size:13px;margin-top:10px;min-height:18px"></p>
@@ -269,11 +269,15 @@ async function registerFarm(){
 function initApp(){
   const saved=localStorage.getItem('sf_farm_code');
   if(saved)document.getElementById('farm-code-input').value=saved;
+  const vEl=document.getElementById('app-version');
+  if(vEl)vEl.textContent='v'+APP_VERSION;
+  console.log('BroodTrack build v'+APP_VERSION);
 }
 
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
+const APP_VERSION='2026.07.05-b3';  // bump on each deploy; shown on login screen + console
 const BREEDS_BY_TYPE={
   broiler:['Arbor Acres','Marshall','Other'],
   pullet:['Isa Brown','Lohmann Brown','Hy-Line Brown','Black Pullet','Other'],
