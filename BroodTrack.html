@@ -306,7 +306,7 @@ function initApp(){
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.07.05-b4';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.07.11-b5';  // bump on each deploy; shown on login screen + console
 const BREEDS_BY_TYPE={
   broiler:['Arbor Acres','Marshall','Other'],
   pullet:['Isa Brown','Lohmann Brown','Hy-Line Brown','Black Pullet','Other'],
@@ -406,6 +406,24 @@ function getFeedPhases(birdType){return birdType==='broiler'?BROILER_FEED_PHASES
 function getFeedPhaseForBatch(batch,ageDays){
   const phases=getFeedPhases(getBirdType(batch));
   return phases.find(p=>ageDays<=p.maxDay)||phases[phases.length-1];
+}
+// Week-by-week feed intake (g/bird/day) transcribed from the farm programme book.
+// Pullet weeks 1–22 explicit; week 23 (125 g) covers the 23–70 laying period.
+// Broiler weeks 1–8 (birds not kept past 8 wk). Week = floor(ageDays/7)+1.
+const PULLET_FEED_BY_WEEK={1:15,2:25,3:30,4:35,5:37,6:40,7:45,8:50,9:55,10:58,11:60,12:65,13:68,14:70,15:80,16:90,17:100,18:110,19:115,20:115,21:115,22:115,23:125};
+const BROILER_FEED_BY_WEEK={1:18,2:45,3:70,4:95,5:120,6:130,7:150,8:165};
+function getFeedByWeekTable(birdType){return birdType==='broiler'?BROILER_FEED_BY_WEEK:birdType==='pullet'?PULLET_FEED_BY_WEEK:null;}
+function getFeedRateForAge(birdType,ageDays){
+  const t=getFeedByWeekTable(birdType); if(!t)return null;      // noiler → no book data
+  const wk=Math.floor((ageDays||0)/7)+1, maxWk=Math.max(...Object.keys(t).map(Number));
+  return t[Math.min(wk,maxWk)];
+}
+// Effective feed rate: book week-value for pullet/broiler; farm override or phase default for noiler.
+function getFeedRateG(batch,ageDays){
+  const bt=getBirdType(batch), book=getFeedRateForAge(bt,ageDays);
+  if(book!=null)return book;
+  const farm=DB.getFarm(), phase=getFeedPhaseForBatch(batch,ageDays);
+  return (farm?.[`${bt}_feedRateG_${phase.key}`])||phase.feedGPerBird;
 }
 function getDefaultWaterRate(birdType,key){
   const d={broiler:{starter:80,chick:150,finisher:220},pullet:{brooding:50,starter:80,grower:120,presale:150},noiler:{brooding:60,grower:120,presale:160}};
@@ -1107,7 +1125,7 @@ function renderFeed(){
   const phase=getFeedPhaseForBatch(batch,ageDays);
   const farm=DB.getFarm();
   const birdType=getBirdType(batch);
-  const feedRateG=(farm?.[`${birdType}_feedRateG_${phase.key}`])||phase.feedGPerBird;
+  const feedRateG=getFeedRateG(batch,ageDays);
   const logHtml=`<div class="card">
     <div class="card-title">${todayRec?'Today\'s Feed Log ✓':'Log Feed Usage'}</div>
     ${todayRec?`
@@ -1155,7 +1173,7 @@ function openFeedForm(editId){
   const birdType=getBirdType(batch);
   const phase=getFeedPhaseForBatch(batch,ageDays);
   const farm=DB.getFarm();
-  const feedRateG=(farm?.[`${birdType}_feedRateG_${phase.key}`])||phase.feedGPerBird;
+  const feedRateG=getFeedRateG(batch,ageDays);
   const birds=getBatchBirdCount(batch);
   const defReq=(birds*feedRateG/1000).toFixed(1);
   const typeOpts=BROOD_FEED_TYPES.map(t=>`<option value="${t}" ${rec?.feed_type===t?'selected':''}>${t}</option>`).join('');
@@ -1179,7 +1197,7 @@ function saveFeedLog(editId){
   const phase=getFeedPhaseForBatch(batch,ageDays);
   const farm=DB.getFarm();
   const existing=editId?DB.getFeed().find(r=>r.id===editId):null;
-  const feed_rate_g=existing?.feed_rate_g||((farm?.[`${birdType}_feedRateG_${phase.key}`])||phase.feedGPerBird);
+  const feed_rate_g=existing?.feed_rate_g||getFeedRateG(batch,ageDays);
   const rec={id:editId||uid(),date:document.getElementById('ff_date').value,
     batch_id:_activeBatchId,batch_name:batch.name,breed:batch.breed,bird_type:birdType,
     feed_type:document.getElementById('ff_type').value,
@@ -1907,11 +1925,20 @@ function renderSettings(){
   const activeNote=activeBatch
     ?`<div style="font-size:12px;color:var(--p2);font-weight:600;margin-bottom:10px">Active batch: ${activeBatch.name} · ${getBirdTypeLabel(getBirdType(activeBatch))}</div>`
     :'';
+  const bookTable=getFeedByWeekTable(st);
+  const maxWk=bookTable?Math.max(...Object.keys(bookTable).map(Number)):0;
+  const bookChartHtml=bookTable?`
+      <div style="font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;margin-bottom:6px">Feed intake — farm book chart (g/bird/day)</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px">
+        ${Object.keys(bookTable).map(Number).map(wk=>`<span class="badge badge-purple" style="font-weight:700">W${wk}${wk===maxWk&&st==='pullet'?'+':''}: ${bookTable[wk]}g</span>`).join('')}
+      </div>
+      <div style="font-size:11px;color:var(--gray);font-style:italic;margin-bottom:12px">Feed follows this weekly chart from the farm book (the book notes it may be adjusted slightly to suit the birds). Water is adjustable below.</div>`:'';
   const phasesGrid=phases.map(p=>{
     const fVal=farm[`${st}_feedRateG_${p.key}`]||p.feedGPerBird;
     const wVal=farm[`${st}_waterRateMl_${p.key}`]||getDefaultWaterRate(st,p.key);
+    const feedCell=bookTable?'':`<div class="field" style="margin-bottom:0"><input type="number" id="s_f_${p.key}" value="${fVal}" min="10" max="300"></div>`;
     return`<div style="font-size:12px;font-weight:700;color:var(--p1);padding-top:6px">${p.label}</div>
-      <div class="field" style="margin-bottom:0"><input type="number" id="s_f_${p.key}" value="${fVal}" min="10" max="300"></div>
+      ${feedCell}
       <div class="field" style="margin-bottom:0"><input type="number" id="s_w_${p.key}" value="${wVal}" min="10" max="600"></div>`;
   }).join('');
   const tabBtn=(t,lbl)=>`<button class="inner-tab ${st===t?'active':''}" onclick="SETTINGS_TYPE='${t}';renderSettings()">${lbl}</button>`;
@@ -1927,13 +1954,14 @@ function renderSettings(){
       <div class="inner-tabs" style="margin:-4px -18px 14px;border-radius:0;border-top:1px solid #eee">
         ${tabBtn('broiler','Broiler')}${tabBtn('pullet','Pullet')}${tabBtn('noiler','Noiler')}
       </div>
-      <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:8px 10px;align-items:end;margin-bottom:6px">
+      ${bookChartHtml}
+      <div style="display:grid;grid-template-columns:${bookTable?'auto 1fr':'auto 1fr 1fr'};gap:8px 10px;align-items:end;margin-bottom:6px">
         <div style="font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;padding-bottom:4px"></div>
-        <div style="font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;padding-bottom:4px">Feed (g)</div>
+        ${bookTable?'':'<div style="font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;padding-bottom:4px">Feed (g)</div>'}
         <div style="font-size:11px;font-weight:800;color:var(--blue);text-transform:uppercase;padding-bottom:4px">Water (ml)</div>
         ${phasesGrid}
       </div>
-      <button class="btn btn-primary" style="margin-top:8px" onclick="saveFeedRates()">Save ${typeLabel} Rates</button>
+      <button class="btn btn-primary" style="margin-top:8px" onclick="saveFeedRates()">Save ${typeLabel} ${bookTable?'Water Rates':'Rates'}</button>
     </div>
     <div class="card">
       <div class="card-title">Data Export / Import</div>
