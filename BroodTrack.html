@@ -306,7 +306,7 @@ function initApp(){
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.07.11-b5';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.07.11-b6';  // bump on each deploy; shown on login screen + console
 const BREEDS_BY_TYPE={
   broiler:['Arbor Acres','Marshall','Other'],
   pullet:['Isa Brown','Lohmann Brown','Hy-Line Brown','Black Pullet','Other'],
@@ -418,17 +418,18 @@ function getFeedRateForAge(birdType,ageDays){
   const wk=Math.floor((ageDays||0)/7)+1, maxWk=Math.max(...Object.keys(t).map(Number));
   return t[Math.min(wk,maxWk)];
 }
-// Effective feed rate: book week-value for pullet/broiler; farm override or phase default for noiler.
-function getFeedRateG(batch,ageDays){
-  const bt=getBirdType(batch), book=getFeedRateForAge(bt,ageDays);
+const DEFAULT_WATER_RATIO=2.5;  // daily water (ml) = feed (g) × ratio; editable per bird type
+// Effective feed rate (g/bird/day) by bird type + age: book week-value for pullet/broiler;
+// farm override or phase default for noiler.
+function getFeedRateGByType(birdType,ageDays,farm){
+  const book=getFeedRateForAge(birdType,ageDays);
   if(book!=null)return book;
-  const farm=DB.getFarm(), phase=getFeedPhaseForBatch(batch,ageDays);
-  return (farm?.[`${bt}_feedRateG_${phase.key}`])||phase.feedGPerBird;
+  const f=farm||DB.getFarm()||{}, phases=getFeedPhases(birdType);
+  const phase=phases.find(p=>ageDays<=p.maxDay)||phases[phases.length-1];
+  return (f[`${birdType}_feedRateG_${phase.key}`])||phase.feedGPerBird;
 }
-function getDefaultWaterRate(birdType,key){
-  const d={broiler:{starter:80,chick:150,finisher:220},pullet:{brooding:50,starter:80,grower:120,presale:150},noiler:{brooding:60,grower:120,presale:160}};
-  return(d[birdType]||d.pullet)[key]||80;
-}
+function getFeedRateG(batch,ageDays){return getFeedRateGByType(getBirdType(batch),ageDays);}
+function getWaterRatio(birdType,farm){const f=farm||DB.getFarm()||{};return f[`${birdType}_waterRatio`]||DEFAULT_WATER_RATIO;}
 const BROILER_TEMP_TARGETS=[
   {maxDay:7,  min:32,max:35,label:'Week 1'},
   {maxDay:14, min:29,max:32,label:'Week 2'},
@@ -573,11 +574,16 @@ function getTempTarget(ageDays,birdType){
   const targets=birdType==='broiler'?BROILER_TEMP_TARGETS:PULLET_TEMP_TARGETS;
   return targets.find(t=>ageDays<=t.maxDay)||null;
 }
+// Daily water requirement (ml/bird/day) = feed intake × the farm's water ratio.
 function getWaterRateMl(ageDays,birdType,farm){
-  const f=farm||DB.getFarm()||{};
-  const phases=getFeedPhases(birdType);
-  const phase=phases.find(p=>ageDays<=p.maxDay)||phases[phases.length-1];
-  return f[`${birdType}_waterRateMl_${phase.key}`]||getDefaultWaterRate(birdType,phase.key);
+  return Math.round(getFeedRateGByType(birdType,ageDays,farm)*getWaterRatio(birdType,farm));
+}
+// Water consumed-vs-required variance → colour + flag. Under-consumption is the health concern.
+function waterVarInfo(c,q){
+  if(!(q>0))return{pct:null,color:'inherit',flag:''};
+  const wv=(c-q)/q*100;
+  const color=wv<=-20?'var(--red)':wv<=-10?'var(--amber)':wv>=10?'var(--blue)':'var(--g2)';
+  return{pct:wv,color,flag:wv<=-20?' ⚠':''};
 }
 function getWeightBenchmark(breed,weekNum){
   const bm=BREED_BENCHMARKS[breed]||BREED_BENCHMARKS['Isa Brown'];
@@ -1238,7 +1244,7 @@ function renderHealth(){
     </div>
     ${todayRec?`<div class="card" style="border-left:4px solid var(--g3)">
       <div class="card-title">Today's Health Log ✓</div>
-      <div style="font-size:14px;font-weight:700">${(()=>{const c=todayRec.water_liters||0;const q=todayRec.water_req_liters||0;const wv=q>0?((c-q)/q*100):null;const wvc=wv===null?'inherit':Math.abs(wv)>20?'var(--red)':Math.abs(wv)>10?'var(--amber)':'var(--g2)';return`Water: ${c||'—'}L${q?` / Req: ${q}L`:''} ${wv!==null?`<span style="color:${wvc}">(${wv>0?'+':''}${wv.toFixed(0)}%)</span>`:''} · Droppings: ${todayRec.droppings}`;})()}</div>
+      <div style="font-size:14px;font-weight:700">${(()=>{const c=todayRec.water_liters||0,q=todayRec.water_req_liters||0,v=waterVarInfo(c,q);return`Water: ${c||'—'}L${q?` / Req: ${q}L`:''} ${v.pct!==null?`<span style="color:${v.color}">(${v.pct>0?'+':''}${v.pct.toFixed(0)}%)${v.flag}</span>`:''} · Droppings: ${todayRec.droppings}`;})()}</div>
       ${todayRec.medication?`<div style="margin-top:6px;font-size:13px;color:var(--p2);font-weight:700">💊 ${todayRec.medication} via ${todayRec.admin_method}</div>`:''}
       ${todayRec.notes?`<div style="margin-top:6px;font-size:12px;color:var(--gray)">${todayRec.notes}</div>`:''}
     </div>`:''}
@@ -1248,7 +1254,7 @@ function renderHealth(){
         const dropCls=r.droppings==='Normal'?'badge-green':r.droppings?'badge-red':'badge-gray';
         return`<div class="list-item">
           <div><div style="font-weight:700;font-size:14px">${fmtDate(r.date)}</div>
-            <div style="font-size:12px;color:var(--gray)">${(()=>{const c=r.water_liters||0;const q=r.water_req_liters||0;const wv=q>0?((c-q)/q*100):null;const wvc=wv===null?'var(--gray)':Math.abs(wv)>20?'var(--red)':Math.abs(wv)>10?'var(--amber)':'var(--g2)';return`Water: ${c||'—'}L${q?` / Req: ${q}L`:''} ${wv!==null?`<span style="color:${wvc};font-weight:700">(${wv>0?'+':''}${wv.toFixed(0)}%)</span>`:''} · ${r.medication||'No meds'}`;})()}</div>
+            <div style="font-size:12px;color:var(--gray)">${(()=>{const c=r.water_liters||0,q=r.water_req_liters||0,v=waterVarInfo(c,q);return`Water: ${c||'—'}L${q?` / Req: ${q}L`:''} ${v.pct!==null?`<span style="color:${v.color};font-weight:700">(${v.pct>0?'+':''}${v.pct.toFixed(0)}%)${v.flag}</span>`:''} · ${r.medication||'No meds'}`;})()}</div>
             <span class="badge ${dropCls}" style="margin-top:4px">${r.droppings||'—'} droppings</span>
             ${r.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:4px">"${r.notes}"</div>`:''}</div>
           <div style="display:flex;gap:4px">
@@ -1265,7 +1271,7 @@ function openHealthForm(editId){
   // Calculate total expected water across all active batches (or selected batch)
   const totalBirds=active.reduce((s,b)=>s+getBatchBirdCount(b),0);
   const avgAge=active.length>0?Math.round(active.reduce((s,b)=>s+(batchAgeInDays(b)||0),0)/active.length):0;
-  const defWaterReq=(totalBirds*getWaterRateMl(avgAge,farm)/1000).toFixed(1);
+  const defWaterReq=(active.reduce((s,b)=>s+getBatchBirdCount(b)*getWaterRateMl(batchAgeInDays(b)||0,getBirdType(b),farm),0)/1000).toFixed(1);
   const medOpts=MED_SUGGESTIONS.map(m=>`<option value="${m}">${m}</option>`).join('');
   const dropOpts=['Normal','Brownish','Greenish','Bloody','Watery','Yellowish'].map(d=>`<option value="${d}" ${rec?.droppings===d?'selected':''}>${d}</option>`).join('');
   const adminOpts=['Oral (Water)','Oral (Direct)','Injection','Eye Drop','Feed Mixing'].map(m=>`<option value="${m}" ${rec?.admin_method===m?'selected':''}>${m}</option>`).join('');
@@ -1294,8 +1300,10 @@ function saveHealth(editId){
   const farm=DB.getFarm();
   const existing=editId?DB.getHealth().find(r=>r.id===editId):null;
   const active=getActiveBatches();
-  const avgAge=active.length>0?Math.round(active.reduce((s,b)=>s+(batchAgeInDays(b)||0),0)/active.length):0;
-  const water_rate_ml=existing?.water_rate_ml||getWaterRateMl(avgAge,farm);
+  const totalBirds=active.reduce((s,b)=>s+getBatchBirdCount(b),0);
+  const water_rate_ml=existing?.water_rate_ml||(batch
+    ? getWaterRateMl(batchAgeInDays(batch)||0,getBirdType(batch),farm)
+    : (totalBirds?Math.round(active.reduce((s,b)=>s+getBatchBirdCount(b)*getWaterRateMl(batchAgeInDays(b)||0,getBirdType(b),farm),0)/totalBirds):0));
   const rec={id:editId||uid(),date:document.getElementById('hf_date').value,
     batch_id:batchId,batch_name:batch?.name||'',
     water_liters:parseFloat(document.getElementById('hf_water').value)||0,
@@ -1933,13 +1941,11 @@ function renderSettings(){
         ${Object.keys(bookTable).map(Number).map(wk=>`<span class="badge badge-purple" style="font-weight:700">W${wk}${wk===maxWk&&st==='pullet'?'+':''}: ${bookTable[wk]}g</span>`).join('')}
       </div>
       <div style="font-size:11px;color:var(--gray);font-style:italic;margin-bottom:12px">Feed follows this weekly chart from the farm book (the book notes it may be adjusted slightly to suit the birds). Water is adjustable below.</div>`:'';
-  const phasesGrid=phases.map(p=>{
+  const ratio=farm[`${st}_waterRatio`]||DEFAULT_WATER_RATIO;
+  const feedGrid=bookTable?'':phases.map(p=>{
     const fVal=farm[`${st}_feedRateG_${p.key}`]||p.feedGPerBird;
-    const wVal=farm[`${st}_waterRateMl_${p.key}`]||getDefaultWaterRate(st,p.key);
-    const feedCell=bookTable?'':`<div class="field" style="margin-bottom:0"><input type="number" id="s_f_${p.key}" value="${fVal}" min="10" max="300"></div>`;
     return`<div style="font-size:12px;font-weight:700;color:var(--p1);padding-top:6px">${p.label}</div>
-      ${feedCell}
-      <div class="field" style="margin-bottom:0"><input type="number" id="s_w_${p.key}" value="${wVal}" min="10" max="600"></div>`;
+      <div class="field" style="margin-bottom:0"><input type="number" id="s_f_${p.key}" value="${fVal}" min="10" max="300"></div>`;
   }).join('');
   const tabBtn=(t,lbl)=>`<button class="inner-tab ${st===t?'active':''}" onclick="SETTINGS_TYPE='${t}';renderSettings()">${lbl}</button>`;
   el.innerHTML=`<div class="topbar"><div><h1>Settings</h1></div></div>
@@ -1955,13 +1961,17 @@ function renderSettings(){
         ${tabBtn('broiler','Broiler')}${tabBtn('pullet','Pullet')}${tabBtn('noiler','Noiler')}
       </div>
       ${bookChartHtml}
-      <div style="display:grid;grid-template-columns:${bookTable?'auto 1fr':'auto 1fr 1fr'};gap:8px 10px;align-items:end;margin-bottom:6px">
+      ${bookTable?'':`<div style="display:grid;grid-template-columns:auto 1fr;gap:8px 10px;align-items:end;margin-bottom:10px">
         <div style="font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;padding-bottom:4px"></div>
-        ${bookTable?'':'<div style="font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;padding-bottom:4px">Feed (g)</div>'}
-        <div style="font-size:11px;font-weight:800;color:var(--blue);text-transform:uppercase;padding-bottom:4px">Water (ml)</div>
-        ${phasesGrid}
+        <div style="font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;padding-bottom:4px">Feed (g)</div>
+        ${feedGrid}
+      </div>`}
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <label style="font-size:13px;font-weight:700;color:var(--p1)">💧 Water = feed ×</label>
+        <input type="number" id="s_wr" value="${ratio}" min="1" max="5" step="0.1" style="width:76px;padding:9px 10px;border:1.5px solid #ddd;border-radius:10px;font-size:15px">
       </div>
-      <button class="btn btn-primary" style="margin-top:8px" onclick="saveFeedRates()">Save ${typeLabel} ${bookTable?'Water Rates':'Rates'}</button>
+      <div style="font-size:11px;color:var(--gray);font-style:italic;margin-bottom:8px">Daily water need = feed intake × this ratio. 2.0–2.5 is typical; use the higher end in hot weather.</div>
+      <button class="btn btn-primary" style="margin-top:4px" onclick="saveFeedRates()">Save ${typeLabel} Settings</button>
     </div>
     <div class="card">
       <div class="card-title">Data Export / Import</div>
@@ -1988,14 +1998,9 @@ function saveFarm(){
 function saveFeedRates(){
   const farm=DB.getFarm()||{};
   const st=SETTINGS_TYPE||'broiler';
-  const phases=getFeedPhases(st);
-  phases.forEach(p=>{
-    const fEl=document.getElementById(`s_f_${p.key}`);
-    const wEl=document.getElementById(`s_w_${p.key}`);
-    if(fEl)farm[`${st}_feedRateG_${p.key}`]=parseInt(fEl.value)||p.feedGPerBird;
-    if(wEl)farm[`${st}_waterRateMl_${p.key}`]=parseInt(wEl.value)||getDefaultWaterRate(st,p.key);
-  });
-  DB.saveFarm(farm);confirmSave(`${getBirdTypeLabel(st)} rates saved`);
+  getFeedPhases(st).forEach(p=>{const fEl=document.getElementById(`s_f_${p.key}`);if(fEl)farm[`${st}_feedRateG_${p.key}`]=parseInt(fEl.value)||p.feedGPerBird;});
+  const wrEl=document.getElementById('s_wr');if(wrEl)farm[`${st}_waterRatio`]=parseFloat(wrEl.value)||DEFAULT_WATER_RATIO;
+  DB.saveFarm(farm);confirmSave(`${getBirdTypeLabel(st)} settings saved`);
 }
 function exportData(){
   const bundle={exported_at:new Date().toISOString(),source:'BroodTrack',version:'1.0',
