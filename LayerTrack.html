@@ -256,17 +256,42 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   .rd-count{font-size:28px}
   .rd-row{grid-template-columns:80px 1fr}
 }
-/* margin:0 is what suppresses the browser's own header and footer — Chrome
-   draws the date, tab title and URL in the page margin, and a customer's
-   receipt should not carry them. The page's real margins come from
-   .rd-scroll below instead. */
-@page{size:auto;margin:0}
+/* Quarto, 8 x 10 in. CSS has no named quarto size so the dimensions are
+   explicit; Chrome honours them for Save as PDF, though a paper size chosen
+   in the print dialog still wins.
+   margin:0 is what suppresses the browser's own header and footer — Chrome
+   draws the date, tab title and URL into the page margin, which has no place
+   on a customer's receipt. Real margins come from .rd-scroll below.
+   Sizing is measured, not guessed: the page is 960px tall at 96dpi, leaving
+   908px inside 7mm padding. The longest realistic document — part paid, so it
+   carries a paid line, a balance block and bank details, with a long buyer
+   name — measures 823px under the rhythm below. That is ~85px, roughly four
+   lines, of headroom. Re-measure before loosening any of this; at the screen
+   rhythm the same document is 979px and breaks to a second sheet. */
+@page{size:203mm 254mm;margin:0}
 @media print{
   body>*{display:none!important}
   .rd-ov{display:flex!important;position:static;background:#fff;height:auto}
   .rd-bar{display:none!important}
-  .rd-scroll{overflow:visible;padding:11mm 9mm}
-  .rd{box-shadow:none;max-width:none;margin:0}
+  .rd-scroll{overflow:visible;padding:7mm}
+  .rd{box-shadow:none;max-width:none;margin:0;break-inside:avoid}
+  /* Screen spacing is sized for thumbs; print needs none of it, and the height
+     that saves is what keeps the document on one sheet. */
+  .rd-pad{padding:11px 18px}
+  .rd-id{padding:7px 18px 8px}
+  .rd-party{padding:8px 18px 2px}
+  .rd-fields{padding:7px 18px 9px;gap:3px}
+  .rd-hero{padding:10px 18px 11px}
+  .rd-settle{padding:9px 18px}
+  .rd-payto{padding:8px 18px}
+  .rd-terms{padding:8px 18px 9px}
+  .rd-issuer{padding:7px 18px 8px}
+  .rd-stub{padding:7px 18px 9px}
+  .rd-sep{margin:8px 0 7px}
+  .rd-owed{padding:9px 12px;margin-top:8px}
+  .rd-count{font-size:28px}
+  .rd-total{font-size:30px}
+  .rd-owed-amt{font-size:23px}
   .rd-band,.rd-hero,.rd-owed,.rd-payto,.rd-stub-amt,.rd-owed-amt,.rd-type,.rd-paid{
     -webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
@@ -459,7 +484,7 @@ function initApp(){
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.08.07-b6';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.08.07-b7';  // bump on each deploy; shown on login screen + console
 const ROUNDS = [
   {id:1,label:'1st Pick',sub:'Morning',  cls:'round-1'},
   {id:2,label:'2nd Pick',sub:'Afternoon',cls:'round-2'},
