@@ -1,0 +1,108 @@
+
+/* ═══ RECEIPT / INVOICE DOCUMENT ═══════════════════════════════════════
+   Shared source of truth for the document styles in LayerTrack.html and
+   BroodTrack.html — injected into both by inject_receipt_css.py.
+   Built as a dispatch note rather than a corporate invoice: the count and
+   the amount lead, because that is what a buyer looks for on a phone.
+   Two type weights only, and no number is stated twice.
+   Class prefix rd- so nothing here collides with app styles.          */
+.rd-ov{position:fixed;inset:0;z-index:9500;background:#e7e5e9;display:flex;flex-direction:column}
+.rd-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:10px 12px;background:var(--rd-toolbar);color:#fff;flex-shrink:0}
+.rd-bar-ttl{font-size:14px;font-weight:800;letter-spacing:.01em}
+.rd-bar-btn{background:rgba(255,255,255,.16);color:#fff;border:none;border-radius:8px;
+  padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+.rd-bar-btn:active{background:rgba(255,255,255,.28)}
+.rd-bar-btn.primary{background:#fff;color:var(--rd-toolbar)}
+.rd-scroll{flex:1;overflow-y:auto;padding:16px 14px 40px;-webkit-overflow-scrolling:touch}
+
+.rd{--rd-band:var(--rd-accent);--rd-edge:#dcd8e0;--rd-muted:#6c757d;
+  max-width:420px;margin:0 auto;background:#fff;border-radius:3px;
+  box-shadow:0 1px 3px rgba(23,19,26,.13),0 8px 22px rgba(23,19,26,.07);
+  font-family:'ReceiptSans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  color:#17131a;font-weight:400;line-height:1.4}
+.rd-due{--rd-band:#e9a319}
+.rd *{box-sizing:border-box}
+.rd-band{height:4px;background:var(--rd-band);border-radius:3px 3px 0 0}
+.rd-pad{padding:18px 20px}
+.rd-rule{height:1px;background:var(--rd-edge)}
+.rd-lbl{font-size:9.5px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.11em;color:var(--rd-muted)}
+.rd-m{font-family:'ReceiptMono',ui-monospace,'Cascadia Mono',Consolas,monospace}
+
+.rd-seller{font-size:17px;font-weight:800;letter-spacing:-.015em;color:var(--rd-brand);line-height:1.2}
+.rd-seller-meta{font-size:11.5px;color:var(--rd-muted);line-height:1.65;margin-top:5px}
+
+.rd-id{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;padding:13px 20px 14px}
+.rd-type{font-size:22px;font-weight:800;letter-spacing:.03em;color:var(--rd-band);line-height:1}
+.rd-ref{text-align:right;flex-shrink:0}
+.rd-ref-no{font-size:12.5px;letter-spacing:-.01em}
+.rd-ref-date{font-size:11px;color:var(--rd-muted);margin-top:3px}
+
+.rd-party{padding:15px 20px 4px}
+.rd-party-name{font-size:15px;font-weight:800;margin-top:5px;letter-spacing:-.01em}
+.rd-fields{padding:13px 20px 16px;display:grid;gap:6px}
+.rd-row{display:grid;grid-template-columns:92px 1fr;align-items:baseline;gap:10px}
+.rd-val{font-size:12px;line-height:1.45}
+
+.rd-hero{background:var(--rd-wash);padding:17px 20px 18px}
+.rd-qty{display:flex;align-items:baseline;gap:9px;margin-top:6px;flex-wrap:wrap}
+.rd-count{font-size:32px;font-weight:800;letter-spacing:-.035em;line-height:1;
+  color:var(--rd-brand);font-variant-numeric:tabular-nums}
+.rd-unit{font-size:13px;color:var(--rd-brand);line-height:1.3}
+.rd-math{font-size:11.5px;color:#5d5566;margin-top:8px;font-variant-numeric:tabular-nums}
+.rd-sep{height:1px;background:rgba(23,19,26,.13);margin:14px 0 12px}
+.rd-total{font-size:34px;font-weight:800;letter-spacing:-.035em;line-height:1;
+  margin-top:5px;font-variant-numeric:tabular-nums;word-break:break-word}
+
+.rd-settle{padding:16px 20px}
+.rd-paid{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:800;color:var(--rd-accent)}
+.rd-tick{width:17px;height:17px;flex-shrink:0;color:var(--rd-accent)}
+.rd-paid-sub{font-size:11px;color:var(--rd-muted);margin-top:5px;padding-left:25px}
+.rd-line{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  font-size:12.5px;padding:2px 0;font-variant-numeric:tabular-nums}
+.rd-line span:first-child{color:var(--rd-muted)}
+.rd-owed{background:#fef3cd;border-radius:8px;padding:12px 14px;margin-top:11px}
+.rd-owed-amt{font-size:26px;font-weight:800;color:#8a5c00;letter-spacing:-.03em;
+  line-height:1;margin-top:5px;font-variant-numeric:tabular-nums;word-break:break-word}
+.rd-owed-by{font-size:11px;color:#8a5c00;margin-top:6px}
+
+.rd-payto{padding:15px 20px;background:#fafafb;border-top:1px solid var(--rd-edge)}
+.rd-payto-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:8px}
+.rd-payto-val{font-size:12px;margin-top:2px;word-break:break-word}
+
+.rd-terms{padding:14px 20px 16px}
+.rd-terms-body{font-size:11.5px;line-height:1.6;color:#4a4450;margin-top:6px}
+
+.rd-issuer{padding:12px 20px 14px;border-top:1px solid var(--rd-edge);
+  display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+.rd-issuer-name{font-size:12.5px;font-weight:800;margin-top:4px}
+.rd-issuer-src{font-size:9.5px;color:#a09aa6;text-align:right;flex-shrink:0}
+
+/* Tear-off stub: people crop and forward these on WhatsApp, so the fragment
+   that survives still carries the reference, the status and the amount. */
+.rd-stub{border-top:1.5px dashed #c9c3d0;padding:12px 20px 14px;
+  display:flex;justify-content:space-between;align-items:center;gap:12px}
+.rd-stub-ref{font-size:11.5px;letter-spacing:-.01em}
+.rd-stub-meta{font-size:9.5px;color:var(--rd-muted);margin-top:3px;
+  text-transform:uppercase;letter-spacing:.06em}
+.rd-stub-amt{font-size:14px;text-align:right;flex-shrink:0;
+  font-variant-numeric:tabular-nums;color:var(--rd-accent)}
+.rd-due .rd-stub-amt{color:#8a5c00}
+
+@media (max-width:380px){
+  .rd-pad,.rd-id,.rd-party,.rd-fields,.rd-hero,.rd-settle,.rd-payto,.rd-terms,.rd-issuer,.rd-stub{
+    padding-left:15px;padding-right:15px}
+  .rd-total{font-size:29px}
+  .rd-count{font-size:28px}
+  .rd-row{grid-template-columns:80px 1fr}
+}
+@media print{
+  body>*{display:none!important}
+  .rd-ov{display:flex!important;position:static;background:#fff;height:auto}
+  .rd-bar{display:none!important}
+  .rd-scroll{overflow:visible;padding:0}
+  .rd{box-shadow:none;max-width:none;margin:0}
+  .rd-band,.rd-hero,.rd-owed,.rd-payto,.rd-stub-amt,.rd-owed-amt,.rd-type,.rd-paid{
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
