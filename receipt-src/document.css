@@ -65,6 +65,9 @@
 .rd-owed{background:#fef3cd;border-radius:8px;padding:12px 14px;margin-top:11px}
 .rd-owed-amt{font-size:26px;font-weight:800;color:#8a5c00;letter-spacing:-.03em;
   line-height:1;margin-top:5px;font-variant-numeric:tabular-nums;word-break:break-word}
+/* Used when nothing has been paid, where the balance equals the total and
+   printing it again would be the same number twice. */
+.rd-owed-note{font-size:13.5px;font-weight:800;color:#8a5c00;margin-top:5px;line-height:1.35}
 .rd-owed-by{font-size:11px;color:#8a5c00;margin-top:6px}
 
 .rd-payto{padding:15px 20px;background:#fafafb;border-top:1px solid var(--rd-edge)}
@@ -97,11 +100,16 @@
   .rd-count{font-size:28px}
   .rd-row{grid-template-columns:80px 1fr}
 }
+/* margin:0 is what suppresses the browser's own header and footer — Chrome
+   draws the date, tab title and URL in the page margin, and a customer's
+   receipt should not carry them. The page's real margins come from
+   .rd-scroll below instead. */
+@page{size:auto;margin:0}
 @media print{
   body>*{display:none!important}
   .rd-ov{display:flex!important;position:static;background:#fff;height:auto}
   .rd-bar{display:none!important}
-  .rd-scroll{overflow:visible;padding:0}
+  .rd-scroll{overflow:visible;padding:11mm 9mm}
   .rd{box-shadow:none;max-width:none;margin:0}
   .rd-band,.rd-hero,.rd-owed,.rd-payto,.rd-stub-amt,.rd-owed-amt,.rd-type,.rd-paid{
     -webkit-print-color-adjust:exact;print-color-adjust:exact}
