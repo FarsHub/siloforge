@@ -1,0 +1,32 @@
+name: Check mirror setup
+
+# Manual only. Run this after adding the DATABASE_URL and FIREBASE_SERVICE_ACCOUNT
+# secrets, to confirm both work before the nightly mirror runs for real.
+# It reads only -- it creates no tables and writes no data.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tools/mirror/requirements.txt
+
+      - run: pip install -r tools/mirror/requirements.txt
+
+      - name: Preflight
+        working-directory: tools/mirror
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          # Optional repo variable. Empty falls back to public.
+          PGSCHEMA: ${{ vars.PGSCHEMA }}
+        run: python check_setup.py

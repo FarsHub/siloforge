@@ -377,16 +377,88 @@ let FARM_CODE='';
 const CACHE={};
 function farmRef(col){return db.collection('farms').doc(FARM_CODE).collection(col);}
 function farmDoc(col,id){return farmRef(col).doc(id);}
+// ── RECOVERABLE DELETE (trash) ──
+// Nothing in this app hard-deletes any more. Every delete first copies the record
+// into farms/{code}/trash, so a mistaken tap is undoable from Settings → Recently
+// Deleted for TRASH_TTL_DAYS. Trash is lazy-loaded on demand — never a live
+// listener — so it costs no reads until someone opens the restore list.
+const TRASH_LABELS={
+  bt_batches_v1:'Batch', bt_daily_v1:'Daily log', bt_weight_v1:'Weight record',
+  bt_health_v1:'Health record', bt_expenses_v1:'Expense', bt_sales_v1:'Sale',
+  bt_feed_v1:'Feed record', bt_payments_v1:'Payment'
+};
+const TRASH_TTL_DAYS=60;
+function trashRef(){return db.collection('farms').doc(FARM_CODE).collection('trash_v1');}
+// Copies records into trash. Deliberately throws on failure so callers that await
+// it before deleting fail closed — the original stays put rather than vanishing.
+async function _toTrash(srcKey,recs,label,batchId){
+  const items=(recs||[]).filter(Boolean);
+  if(!items.length)return;
+  const at=new Date().toISOString();
+  for(let i=0;i<items.length;i+=490){
+    const b=db.batch();
+    items.slice(i,i+490).forEach(r=>b.set(trashRef().doc(uid()+Math.random().toString(36).slice(2,6)),
+      {batch_id:batchId,src:srcKey,src_id:r.id||null,label:TRASH_LABELS[srcKey]||label||srcKey,
+       deleted_at:at,payload:r}));
+    await b.commit();
+  }
+}
+async function _trashThenDelete(k,id,rec){
+  if(rec)await _toTrash(k,[rec],k,uid());
+  await farmDoc(k,id).delete();
+  return true;
+}
 async function _batchWrite(k,arr){
   try{
     const snap=await farmRef(k).get();
+    // A full-collection rewrite that drops records is a delete in disguise — trash them.
+    const keep=new Set(arr.map(i=>i.id));
+    const dropped=snap.docs.map(d=>d.data()).filter(r=>r.id&&!keep.has(r.id));
+    if(dropped.length)await _toTrash(k,dropped,k,uid());
     const ops=[...snap.docs.map(d=>({t:'del',r:d.ref})),...arr.map(i=>({t:'set',r:farmRef(k).doc(i.id),d:i}))];
     for(let i=0;i<ops.length;i+=490){const b=db.batch();ops.slice(i,i+490).forEach(o=>o.t==='del'?b.delete(o.r):b.set(o.r,o.d));await b.commit();}
   }catch(e){toast('Sync error ⚠');}
 }
-async function _deleteCol(k){
+// Bulk delete of a whole collection. Copies everything to trash BEFORE deleting,
+// and rethrows so the caller can report an honest failure instead of a false '✓'.
+async function _deleteCol(k,batchId){
+  const snap=await farmRef(k).get();
+  await _toTrash(k,snap.docs.map(d=>d.data()),k,batchId||uid());
   CACHE[k]=[];
-  try{const snap=await farmRef(k).get();if(!snap.empty){const b=db.batch();snap.docs.forEach(d=>b.delete(d.ref));await b.commit();}}catch(e){toast('Sync error ⚠');}
+  for(let i=0;i<snap.docs.length;i+=490){
+    const b=db.batch();snap.docs.slice(i,i+490).forEach(d=>b.delete(d.ref));await b.commit();
+  }
+}
+async function loadTrash(){
+  const snap=await trashRef().orderBy('deleted_at','desc').limit(500).get();
+  return snap.docs.map(d=>({_tid:d.id,...d.data()}));
+}
+// Writes every record of one delete batch back to its original collection, then
+// clears those trash entries. Batches are capped at 245 (2 ops per record).
+async function restoreTrashBatch(batchId){
+  const snap=await trashRef().where('batch_id','==',batchId).get();
+  if(snap.empty)return 0;
+  const docs=snap.docs;
+  for(let i=0;i<docs.length;i+=245){
+    const b=db.batch();
+    docs.slice(i,i+245).forEach(d=>{
+      const t=d.data();
+      const id=t.payload&&t.payload.id||t.src_id;
+      if(t.src&&t.payload&&id)b.set(farmRef(t.src).doc(id),t.payload);
+      b.delete(d.ref);
+    });
+    await b.commit();
+  }
+  return docs.length;
+}
+// Runs once per login. Past the TTL, trash is genuinely gone.
+async function purgeOldTrash(){
+  const cutoff=new Date(Date.now()-TRASH_TTL_DAYS*864e5).toISOString();
+  try{
+    const snap=await trashRef().where('deleted_at','<',cutoff).limit(400).get();
+    if(snap.empty)return;
+    const b=db.batch();snap.docs.forEach(d=>b.delete(d.ref));await b.commit();
+  }catch(e){/* purge is best-effort; never block login on it */}
 }
 const _fsListeners=[];
 function _stopListeners(){_fsListeners.forEach(u=>u());_fsListeners.length=0;}
@@ -420,6 +492,7 @@ async function doLogin(){
     if(!reg.exists){showLoginErr('Farm code not found. Contact your administrator.');btn.textContent='Enter Farm';btn.disabled=false;return;}
     FARM_CODE=code;btn.textContent='Loading data\u2026';
     await loadFromFirestore();
+    purgeOldTrash();
     document.getElementById('login-screen').style.display='none';
     localStorage.setItem('sf_farm_code',code);renderHome();
   }catch(err){showLoginErr('Connection error. Check your internet.');btn.textContent='Enter Farm';btn.disabled=false;}
@@ -456,7 +529,7 @@ function initApp(){
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.08.07-b10';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.09.03-b11';  // bump on each deploy; shown on login screen + console
 const BREEDS_BY_TYPE={
   broiler:['Arbor Acres','Marshall','Other'],
   pullet:['Isa Brown','Lohmann Brown','Hy-Line Brown','Black Pullet','Other'],
@@ -515,6 +588,13 @@ const BROILER_VACC_SCHEDULE=[
 // Fowl Typhoid 9R x2 wing-stab removed (live SG vaccine is SC/IM only); Coryza x2 and
 // EDS+NDV are oil-adjuvant killed, IM or SC per vial label; Fowl Cholera SC assumes the
 // killed bacterin. Coccidiostat 2 (d42) must stay amprolium-type — a sulfa drug kills 9R.
+// Conditional rows (2026-09-07, optional:true + why): a row flagged optional still shows
+// in the schedule and can be ticked, but never raises an overdue/due alert and is never
+// picked as "Next". Antibiotics 2 (d49) — routine antibiotics on a healthy flock breed
+// resistance, so treat on diagnosis only. Fowl Cholera (d84) — Pasteurella bacterin is
+// serotype-specific and short-lived; it is a site-history call, not a universal (farm
+// vet's advice). Fowl Typhoid 9R stays REQUIRED: S. Gallinarum is endemic nationwide and
+// vertically transmitted, so a clean site does not make the flock safe.
 const LAYER_VACC_SCHEDULE=[
   {dayMin:1,  dayMax:1,  name:"Marek's Disease",              route:"Subcutaneous",hatchery:true},
   {dayMin:1,  dayMax:1,  name:"Glucose + Electrolytes (arrival, first 4–6 hrs)",route:"Drinking Water"},
@@ -527,14 +607,16 @@ const LAYER_VACC_SCHEDULE=[
   {dayMin:35, dayMax:35, name:"Gumboro 3 (IBD, intermediate)",route:"Drinking Water"},
   {dayMin:42, dayMax:42, name:"Coccidiostat 2",               route:"Drinking Water"},
   {dayMin:42, dayMax:42, name:"Coryza 1 (Pullet)",            route:"Intramuscular / Subcutaneous"},
-  {dayMin:49, dayMax:49, name:"Antibiotics 2",                route:"Drinking Water"},
+  {dayMin:49, dayMax:49, name:"Antibiotics 2",                route:"Drinking Water",optional:true,
+   why:"Only if birds show illness — routine dosing breeds resistance. Skip if the flock is healthy."},
   {dayMin:56, dayMax:56, name:"Fowl Pox",                     route:"Wing Web"},
   {dayMin:56, dayMax:56, name:"Fowl Typhoid 9R 1 (prime)",    route:"Subcutaneous / IM"},
   {dayMin:63, dayMax:63, name:"Dewormer 1",                   route:"Drinking Water"},
   {dayMin:70, dayMax:70, name:"ND Lasota 2 + IB",             route:"Drinking Water"},
   {dayMin:70, dayMax:70, name:"Coryza 2 (Pullet, booster)",   route:"Intramuscular / Subcutaneous"},
   {dayMin:77, dayMax:77, name:"Dewormer 2",                   route:"Drinking Water"},
-  {dayMin:84, dayMax:84, name:"Fowl Cholera (Pullet)",        route:"Subcutaneous"},
+  {dayMin:84, dayMax:84, name:"Fowl Cholera (Pullet)",        route:"Subcutaneous",optional:true,
+   why:"Only if this site has had cholera before, or birds go on deep litter / range. Cage-reared with rodent control can skip."},
   {dayMin:105,dayMax:105,name:"Fowl Typhoid 9R 2 (booster)",  route:"Subcutaneous / IM"},
   {dayMin:112,dayMax:112,name:"EDS + NDV (Killed)",           route:"Intramuscular / Subcutaneous"},
 ];
@@ -691,7 +773,7 @@ const DB={
   _set(k,v){CACHE[k]=v;return Array.isArray(v)?_track(_batchWrite(k,v)):_track(farmDoc(k,'config').set({data:v}));},
   _arr(k){return CACHE[k]||[]},
   _push(k,i){if(!CACHE[k])CACHE[k]=[];CACHE[k].push(i);return _track(farmDoc(k,i.id).set(i));},
-  _del(k,id){CACHE[k]=(CACHE[k]||[]).filter(x=>x.id!==id);return _track(farmDoc(k,id).delete());},
+  _del(k,id){const rec=(CACHE[k]||[]).find(x=>x.id===id);CACHE[k]=(CACHE[k]||[]).filter(x=>x.id!==id);return _track(_trashThenDelete(k,id,rec));},
   _upd(k,id,u){CACHE[k]=(CACHE[k]||[]).map(x=>x.id===id?{...x,...u}:x);return _track(farmDoc(k,id).set(u,{merge:true}));},
   getFarm(){return this._get(KEYS.farm)},
   saveFarm(f){this._set(KEYS.farm,f)},
@@ -879,8 +961,8 @@ function renderHome(){
     }
     // Upcoming vaccinations
     const vaccStatus=getBatchVaccStatus(b);
-    const overdue=vaccStatus.filter(v=>v.overdue&&!v.hatchery);
-    const dueSoon=vaccStatus.filter(v=>v.due&&!v.done&&!v.overdue&&!v.hatchery);
+    const overdue=vaccStatus.filter(v=>v.overdue&&!v.hatchery&&!v.optional);
+    const dueSoon=vaccStatus.filter(v=>v.due&&!v.done&&!v.overdue&&!v.hatchery&&!v.optional);
     if(overdue.length)alerts.push(`<div class="alert-item alert-red">💉 ${b.name} — ${overdue.length} overdue vaccination${overdue.length>1?'s':''}</div>`);
     if(dueSoon.length)alerts.push(`<div class="alert-item alert-amber">💉 ${b.name} — ${dueSoon[0].name} due by ${fmtDate(dueSoon[0].dueDate)}</div>`);
   });
@@ -933,8 +1015,8 @@ function renderBatches(){
     const ageDays=batchAgeInDays(b), ageWeeks=batchAgeInWeeks(b);
     const birds=getBatchBirdCount(b), survival=b.doc_count>0?(birds/b.doc_count*100):null;
     const vaccStatus=getBatchVaccStatus(b);
-    const overdueVacc=vaccStatus.filter(v=>v.overdue&&!v.hatchery);
-    const nextVacc=vaccStatus.find(v=>!v.done&&!v.hatchery&&!v.overdue&&v.due)||vaccStatus.find(v=>!v.done&&!v.hatchery);
+    const overdueVacc=vaccStatus.filter(v=>v.overdue&&!v.hatchery&&!v.optional);
+    const nextVacc=vaccStatus.find(v=>!v.done&&!v.hatchery&&!v.optional&&!v.overdue&&v.due)||vaccStatus.find(v=>!v.done&&!v.hatchery&&!v.optional);
     const statusCls=b.status==='Active'?'active':b.status==='Sold'?'sold':'closed';
     const statusBadge=b.status==='Active'?'badge-purple':b.status==='Sold'?'badge-green':'badge-gray';
     const vaccRows=vaccStatus.map(v=>`
@@ -942,10 +1024,11 @@ function renderBatches(){
         <div class="vacc-check ${v.done?'done':''}">${v.done?'✓':''}</div>
         <div style="flex:1">
           <div style="font-weight:700;font-size:13px">${v.name}</div>
-          <div style="font-size:11px;color:var(--gray)">${v.hatchery?'Done at hatchery':v.route+' · Due by '+fmtDate(v.dueDate)}</div>
+          <div style="font-size:11px;color:var(--gray)">${v.hatchery?'Done at hatchery':v.route+(v.optional?' · Around '+fmtDate(v.dueDate):' · Due by '+fmtDate(v.dueDate))}</div>
+          ${v.why?`<div style="font-size:11px;color:var(--gray);font-style:italic;margin-top:2px">${v.why}</div>`:''}
         </div>
-        <span class="badge ${v.hatchery?'badge-gray':v.done?'badge-green':v.overdue?'badge-red':v.due?'badge-amber':'badge-gray'}">
-          ${v.hatchery?'Hatchery':v.done?'Done':v.overdue?'Overdue':v.due?'Due Now':'Upcoming'}
+        <span class="badge ${v.hatchery?'badge-gray':v.done?'badge-green':v.optional?'badge-gray':v.overdue?'badge-red':v.due?'badge-amber':'badge-gray'}">
+          ${v.hatchery?'Hatchery':v.done?'Done':v.optional?'If needed':v.overdue?'Overdue':v.due?'Due Now':'Upcoming'}
         </span>
       </div>`).join('');
     const isSelected=_activeBatchId===b.id;
@@ -2584,10 +2667,9 @@ function renderSettings(){
       </div>
     </div>
     <div class="card">
-      <div class="card-title">Danger Zone</div>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <button class="btn btn-danger btn-sm" onclick="resetAll()">Reset All Data (Keep Nothing)</button>
-      </div>
+      <div class="card-title">Recently Deleted</div>
+      <p style="font-size:13px;color:var(--gray);margin-bottom:12px">Anything deleted in the app is kept here for 60 days and can be put back. After that it is permanently removed.</p>
+      <button class="btn btn-secondary" onclick="openTrashModal()">View Recently Deleted</button>
     </div>
     <div style="height:20px"></div>`;
 }
@@ -2709,20 +2791,53 @@ function importData(input){
   };
   reader.readAsText(file);
 }
-function resetAll(){
-  openModal(`<div class="modal-ttl">Reset ALL Data? <button class="modal-x" onclick="closeModal()">×</button></div>
-    <p style="font-size:14px;color:var(--red);font-weight:700;margin-bottom:18px">⚠ This will permanently delete all batches, logs, and financial records. Cannot be undone.</p>
-    <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn btn-danger" onclick="closeModal();doDeleteEverything()">Delete Everything</button>
-      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
-}
-
-async function doDeleteEverything(){
-  for(const k of Object.values(KEYS)){
-    if(k===KEYS.farm){CACHE[k]=null;await farmDoc(k,'config').delete().catch(()=>{});}
-    else{await _deleteCol(k);}
+// ── RECENTLY DELETED (restore UI) ──
+async function openTrashModal(){
+  const shell=body=>`<div class="modal-ttl">Recently Deleted <button class="modal-x" onclick="closeModal()">×</button></div>${body}`;
+  openModal(shell('<p style="font-size:13px;color:var(--gray)">Loading…</p>'));
+  let items;
+  try{items=await loadTrash();}
+  catch(e){
+    openModal(shell(`<p style="font-size:13px;color:var(--red);margin-bottom:12px">Could not load deleted records. Check your connection.</p>
+      <button class="btn btn-secondary" onclick="closeModal()">Close</button>`));
+    return;
   }
-  toast('All data reset');renderHome();
+  if(!items.length){
+    openModal(shell(`<p style="font-size:13px;color:var(--gray);margin-bottom:12px">Nothing has been deleted in the last ${TRASH_TTL_DAYS} days.</p>
+      <button class="btn btn-secondary" onclick="closeModal()">Close</button>`));
+    return;
+  }
+  // One row per delete action, not per record, so a bulk reset reads as a single undoable event.
+  const groups={};
+  items.forEach(t=>{
+    const g=groups[t.batch_id]||(groups[t.batch_id]={id:t.batch_id,at:t.deleted_at,labels:{},n:0});
+    g.n++;g.labels[t.label]=(g.labels[t.label]||0)+1;
+    if(t.deleted_at>g.at)g.at=t.deleted_at;
+  });
+  const rows=Object.values(groups).sort((a,b)=>b.at.localeCompare(a.at)).map(g=>{
+    const what=Object.entries(g.labels).map(([l,c])=>`${c} × ${l}`).join(' · ');
+    const when=new Date(g.at).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+    return `<div class="list-item" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <div><div style="font-weight:600;font-size:13px">${what}</div>
+        <div style="font-size:11px;color:var(--gray)">${when}</div></div>
+      <button class="btn btn-secondary btn-sm" onclick="doRestoreTrash('${g.id}',this)">Restore</button></div>`;
+  }).join('');
+  openModal(shell(`<p style="font-size:12px;color:var(--gray);margin-bottom:10px">Kept for ${TRASH_TTL_DAYS} days, then permanently removed.</p>
+    ${rows}
+    <div id="rt_err" style="color:var(--red);font-size:12px;min-height:16px;margin-top:8px"></div>
+    <button class="btn btn-secondary" style="margin-top:6px" onclick="closeModal()">Close</button>`));
+}
+async function doRestoreTrash(batchId,btn){
+  if(btn){btn.disabled=true;btn.textContent='Restoring…';}
+  try{
+    const n=await restoreTrashBatch(batchId);
+    toast(`${n} record${n===1?'':'s'} restored ✓`);
+    openTrashModal();renderSettings();
+  }catch(e){
+    const el=document.getElementById('rt_err');
+    if(el)el.textContent='Restore failed — check your connection and try again.';
+    if(btn){btn.disabled=false;btn.textContent='Restore';}
+  }
 }
 
 // ═══════════════════════════════════════════════

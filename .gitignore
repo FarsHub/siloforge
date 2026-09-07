@@ -12,3 +12,8 @@ SiloForge-Letterhead.html
 images/
 csv-to-broodtrack.html
 *.csv
+BroodingExpenseBook.xlsx
+# Firebase service-account keys must never be committed
+service-account*.json
+firebase-adminsdk*.json
+__pycache__/

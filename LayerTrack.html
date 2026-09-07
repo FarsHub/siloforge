@@ -60,6 +60,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .sec-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 4px;font-size:12px;font-weight:800;color:var(--g1);text-transform:uppercase;letter-spacing:.4px}
 .list-item{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;background:var(--white);border-bottom:1px solid #f5f5f5}
 .list-item:last-child{border-bottom:none}
+.tbtn{border:1px solid #e3e7e4;background:var(--white);color:var(--gray);font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;cursor:pointer;font-family:inherit}
+.tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:10px}
+table.dtbl{width:100%;border-collapse:collapse;font-size:12px}
+table.dtbl th,table.dtbl td{padding:6px 7px;text-align:right;border-bottom:1px solid #ecefed;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.dtbl th{color:var(--gray);font-size:10px;text-transform:uppercase;letter-spacing:.3px;font-weight:800;border-bottom:1.5px solid #e3e7e4}
+table.dtbl th:first-child,table.dtbl td:first-child{text-align:left;font-variant-numeric:normal}
+table.dtbl tbody tr:last-child td{border-bottom:none}
+.chartbox{position:relative}
+.chartbox svg{width:100%;height:auto;display:block;overflow:visible;touch-action:pan-y}
+.charttt{position:absolute;pointer-events:none;background:var(--white);border:1px solid #e3e7e4;border-radius:9px;box-shadow:0 4px 14px rgba(0,0,0,.13);padding:8px 10px;font-size:12px;opacity:0;transition:opacity .1s;min-width:132px;z-index:5}
+.charttt b{display:block;font-size:10.5px;color:var(--gray);font-weight:700;margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
+.ttr{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:3px}
+.ttr em{font-style:normal;color:var(--gray);font-size:11.5px;display:flex;align-items:center;gap:5px}
+.ttr strong{font-weight:700;font-variant-numeric:tabular-nums;color:var(--g1)}
+.ttk{display:inline-block;width:11px;height:2.5px;border-radius:2px}
 /* COLLECT */
 .collect-hdr{background:var(--g1);color:var(--white);padding:14px 16px;position:sticky;top:0;z-index:10}
 .collect-hdr h2{font-size:16px;font-weight:700}
@@ -404,16 +419,88 @@ let FARM_CODE='';
 const CACHE={};
 function farmRef(col){return db.collection('farms').doc(FARM_CODE).collection(col);}
 function farmDoc(col,id){return farmRef(col).doc(id);}
+// ── RECOVERABLE DELETE (trash) ──
+// Nothing in this app hard-deletes any more. Every delete first copies the record
+// into farms/{code}/trash, so a mistaken tap is undoable from Settings → Recently
+// Deleted for TRASH_TTL_DAYS. Trash is lazy-loaded on demand — never a live
+// listener — so it costs no reads until someone opens the restore list.
+const TRASH_LABELS={
+  lt_cols_v1:'Egg collection', lt_birds_v1:'Flock record', lt_feed_v1:'Feed record',
+  lt_health_v1:'Health record', lt_expenses_v1:'Expense', lt_sales_v1:'Sale',
+  lt_recv_v1:'Receivable', lt_customers_v1:'Customer', lt_payments_v1:'Payment'
+};
+const TRASH_TTL_DAYS=60;
+function trashRef(){return db.collection('farms').doc(FARM_CODE).collection('trash_v1');}
+// Copies records into trash. Deliberately throws on failure so callers that await
+// it before deleting fail closed — the original stays put rather than vanishing.
+async function _toTrash(srcKey,recs,label,batchId){
+  const items=(recs||[]).filter(Boolean);
+  if(!items.length)return;
+  const at=new Date().toISOString();
+  for(let i=0;i<items.length;i+=490){
+    const b=db.batch();
+    items.slice(i,i+490).forEach(r=>b.set(trashRef().doc(uid()+Math.random().toString(36).slice(2,6)),
+      {batch_id:batchId,src:srcKey,src_id:r.id||null,label:TRASH_LABELS[srcKey]||label||srcKey,
+       deleted_at:at,payload:r}));
+    await b.commit();
+  }
+}
+async function _trashThenDelete(k,id,rec){
+  if(rec)await _toTrash(k,[rec],k,uid());
+  await farmDoc(k,id).delete();
+  return true;
+}
 async function _batchWrite(k,arr){
   try{
     const snap=await farmRef(k).get();
+    // A full-collection rewrite that drops records is a delete in disguise — trash them.
+    const keep=new Set(arr.map(i=>i.id));
+    const dropped=snap.docs.map(d=>d.data()).filter(r=>r.id&&!keep.has(r.id));
+    if(dropped.length)await _toTrash(k,dropped,k,uid());
     const ops=[...snap.docs.map(d=>({t:'del',r:d.ref})),...arr.map(i=>({t:'set',r:farmRef(k).doc(i.id),d:i}))];
     for(let i=0;i<ops.length;i+=490){const b=db.batch();ops.slice(i,i+490).forEach(o=>o.t==='del'?b.delete(o.r):b.set(o.r,o.d));await b.commit();}
   }catch(e){toast('Sync error ⚠');}
 }
-async function _deleteCol(k){
+// Bulk delete of a whole collection. Copies everything to trash BEFORE deleting,
+// and rethrows so the caller can report an honest failure instead of a false '✓'.
+async function _deleteCol(k,batchId){
+  const snap=await farmRef(k).get();
+  await _toTrash(k,snap.docs.map(d=>d.data()),k,batchId||uid());
   CACHE[k]=[];
-  try{const snap=await farmRef(k).get();if(!snap.empty){const b=db.batch();snap.docs.forEach(d=>b.delete(d.ref));await b.commit();}}catch(e){toast('Sync error ⚠');}
+  for(let i=0;i<snap.docs.length;i+=490){
+    const b=db.batch();snap.docs.slice(i,i+490).forEach(d=>b.delete(d.ref));await b.commit();
+  }
+}
+async function loadTrash(){
+  const snap=await trashRef().orderBy('deleted_at','desc').limit(500).get();
+  return snap.docs.map(d=>({_tid:d.id,...d.data()}));
+}
+// Writes every record of one delete batch back to its original collection, then
+// clears those trash entries. Batches are capped at 245 (2 ops per record).
+async function restoreTrashBatch(batchId){
+  const snap=await trashRef().where('batch_id','==',batchId).get();
+  if(snap.empty)return 0;
+  const docs=snap.docs;
+  for(let i=0;i<docs.length;i+=245){
+    const b=db.batch();
+    docs.slice(i,i+245).forEach(d=>{
+      const t=d.data();
+      const id=t.payload&&t.payload.id||t.src_id;
+      if(t.src&&t.payload&&id)b.set(farmRef(t.src).doc(id),t.payload);
+      b.delete(d.ref);
+    });
+    await b.commit();
+  }
+  return docs.length;
+}
+// Runs once per login. Past the TTL, trash is genuinely gone.
+async function purgeOldTrash(){
+  const cutoff=new Date(Date.now()-TRASH_TTL_DAYS*864e5).toISOString();
+  try{
+    const snap=await trashRef().where('deleted_at','<',cutoff).limit(400).get();
+    if(snap.empty)return;
+    const b=db.batch();snap.docs.forEach(d=>b.delete(d.ref));await b.commit();
+  }catch(e){/* purge is best-effort; never block login on it */}
 }
 const _fsListeners=[];
 function _stopListeners(){_fsListeners.forEach(u=>u());_fsListeners.length=0;}
@@ -448,6 +535,7 @@ async function doLogin(){
     if(!reg.exists){showLoginErr('Farm code not found. Contact your administrator.');btn.textContent='Enter Farm';btn.disabled=false;return;}
     FARM_CODE=code;btn.textContent='Loading data\u2026';
     await loadFromFirestore();
+    purgeOldTrash();
     document.getElementById('login-screen').style.display='none';
     localStorage.setItem('sf_farm_code',code);renderHome();
   }catch(err){showLoginErr('Connection error. Check your internet.');btn.textContent='Enter Farm';btn.disabled=false;}
@@ -484,7 +572,7 @@ function initApp(){
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.08.07-b7';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.09.06-b10';  // bump on each deploy; shown on login screen + console
 const ROUNDS = [
   {id:1,label:'1st Pick',sub:'Morning',  cls:'round-1'},
   {id:2,label:'2nd Pick',sub:'Afternoon',cls:'round-2'},
@@ -612,7 +700,7 @@ const DB = {
   _set(k,v){ CACHE[k]=v; return Array.isArray(v)?_track(_batchWrite(k,v)):_track(farmDoc(k,'config').set({data:v})); },
   _arr(k){ return CACHE[k]||[] },
   _push(k,item){ if(!CACHE[k])CACHE[k]=[]; CACHE[k].push(item); return _track(farmDoc(k,item.id).set(item)); },
-  _del(k,id){ CACHE[k]=(CACHE[k]||[]).filter(x=>x.id!==id); return _track(farmDoc(k,id).delete()); },
+  _del(k,id){ const rec=(CACHE[k]||[]).find(x=>x.id===id); CACHE[k]=(CACHE[k]||[]).filter(x=>x.id!==id); return _track(_trashThenDelete(k,id,rec)); },
   _upd(k,id,upd){ CACHE[k]=(CACHE[k]||[]).map(x=>x.id===id?{...x,...upd}:x); return _track(farmDoc(k,id).set(upd,{merge:true})); },
   getFarm(){ return this._get(KEYS.farm) },
   saveFarm(f){ this._set(KEYS.farm,f) },
@@ -2979,6 +3067,154 @@ function renderDatePicker(){
   `);
 }
 
+// ═══════════════════════════════════════════════
+// FEED ANALYTICS
+// ═══════════════════════════════════════════════
+// FCR here is kg feed / kg eggs. A laying flock sits around 2.0–2.4; anything
+// near 8 would mean the birds are eating four times their output, so the old
+// "< 8" target could never fail and coloured everything green.
+const EGG_KG = 0.06, FCR_GOOD = 2.2, FCR_WARN = 2.5;
+const FEED_TBL = {log:false, gbd:false, mom:true};
+function toggleFeedTbl(k){ FEED_TBL[k]=!FEED_TBL[k]; renderReports(); }
+function fcrColour(v){ return v==null?'var(--gray)':v<FCR_GOOD?'var(--g2)':v<FCR_WARN?'var(--amber)':'var(--red)'; }
+
+// One row per calendar date, merging feed and egg logs and resolving how many
+// birds were alive that day. Bird records are authoritative; where none exist we
+// back it out of the saved requirement (req kg = birds x rate), then fall back to
+// the configured flock size.
+function feedDailySeries(validPenIds){
+  const farm=DB.getFarm()||{pens:[]};
+  const sortedBirds=DB.getBirds().filter(b=>(b.closing_birds||0)>0).sort((a,b)=>a.date.localeCompare(b.date));
+  const totalNow=getFarmTotalBirds(farm)||0;
+  const map={};
+  const touch=d=>(map[d]=map[d]||{date:d,kg:0,req:0,eggs:0,rate:0,rateN:0,age:null,types:{}});
+  DB.getFeed().forEach(r=>{
+    const d=touch(r.date);
+    d.kg+=r.feed_kg_used||0; d.req+=r.feed_req_kg||0;
+    if(r.feed_type)d.types[r.feed_type]=1;
+    const g=r.feed_rate_g||getLayerFeedRate(r.age_weeks||0);
+    if(g){d.rate+=g;d.rateN++;}
+    if(r.age_weeks!=null)d.age=r.age_weeks;
+  });
+  DB.getCols().filter(c=>validPenIds.has(c.penId)).forEach(c=>{
+    touch(c.date).eggs+=(c.entries||[]).reduce((s,e)=>s+(e.eggs||0),0);
+  });
+  // Bird count per day, in order of trust:
+  //   1. the last flock record on or before that date (carry forward)
+  //   2. the earliest flock record, for days before any record exists — a real
+  //      count from the wrong date still beats today's configured total
+  //   3. back-calculated from the saved requirement (req kg = birds x rate)
+  //   4. the configured flock size, only when no flock records exist at all
+  const firstCount=sortedBirds.length?sortedBirds[0].closing_birds:null;
+  let ptr=0,last=null;
+  return Object.values(map).sort((a,b)=>a.date.localeCompare(b.date)).map(d=>{
+    while(ptr<sortedBirds.length&&sortedBirds[ptr].date<=d.date){last=sortedBirds[ptr].closing_birds;ptr++;}
+    const stdG=d.rateN?Math.round(d.rate/d.rateN):getLayerFeedRate(d.age||0);
+    let birds=last||firstCount;
+    if(!birds&&stdG>0&&d.req>0)birds=Math.round(d.req*1000/stdG);
+    if(!birds)birds=totalNow;
+    return {date:d.date,kg:d.kg,req:d.req,eggs:d.eggs,age:d.age,stdG,birds,
+      types:Object.keys(d.types).join(', '),
+      gPerBird:(birds>0&&d.kg>0)?d.kg*1000/birds:null};
+  });
+}
+
+// Month buckets. Bird-days are accumulated separately for feed and eggs so a day
+// missing one log does not distort the other's per-bird rate.
+function feedMonthlyRows(daily){
+  const m={};
+  daily.forEach(d=>{
+    const k=d.date.slice(0,7);
+    const o=(m[k]=m[k]||{m:k,kg:0,eggs:0,feedBirdDays:0,eggBirdDays:0,ageSum:0,ageN:0,days:0});
+    o.kg+=d.kg; o.eggs+=d.eggs; o.days++;
+    if(d.kg>0)o.feedBirdDays+=d.birds;
+    if(d.eggs>0)o.eggBirdDays+=d.birds;
+    if(d.age!=null){o.ageSum+=d.age;o.ageN++;}
+  });
+  return Object.values(m).sort((a,b)=>a.m.localeCompare(b.m)).map(o=>({
+    m:o.m, kg:o.kg, eggs:o.eggs, days:o.days,
+    age:o.ageN?Math.round(o.ageSum/o.ageN):null,
+    lay:o.eggBirdDays>0?o.eggs/o.eggBirdDays*100:null,
+    gpb:o.feedBirdDays>0?o.kg*1000/o.feedBirdDays:null,
+    gpe:o.eggs>0?o.kg*1000/o.eggs:null,
+    fcr:o.eggs>0?o.kg/(o.eggs*EGG_KG):null
+  }));
+}
+function fmtMonth(m){ return new Date(m+'-01T00:00:00').toLocaleDateString('en-GB',{month:'short',year:'2-digit'}); }
+
+// ── Line chart (shared by feed/bird/day and the FCR trend) ──
+const _FEED_CHARTS={};
+function _niceTicks(min,max,n){
+  const span=max-min||1, raw=span/n, mag=Math.pow(10,Math.floor(Math.log10(raw)));
+  const step=[1,2,2.5,5,10].map(x=>x*mag).find(s=>s>=raw)||10*mag;
+  const lo=Math.floor(min/step)*step, hi=Math.ceil(max/step)*step, out=[];
+  for(let v=lo;v<=hi+1e-9;v+=step)out.push(+v.toFixed(6));
+  return out;
+}
+function lineChartSvg(id,rows,series,opts){
+  opts=opts||{};
+  const dec=opts.dec||0, unit=opts.unit||'', band=opts.band;
+  const W=640,H=190,PL=38,PR=46,PT=12,PB=26,cw=W-PL-PR,ch=H-PT-PB;
+  const all=rows.flatMap(r=>series.map(s=>s.get(r))).filter(v=>v!=null&&isFinite(v));
+  if(!all.length||rows.length<2)return '<div style="color:var(--gray);font-size:13px;padding:20px 0">Not enough data yet.</div>';
+  // Pad the domain so a flat reference line never lands on the axis floor.
+  const dmin=Math.min(...all), dmax=Math.max(...all), pad=(dmax-dmin||1)*0.12;
+  const ticks=_niceTicks(dmin-pad,dmax+pad,4), lo=ticks[0], hi=ticks[ticks.length-1];
+  const yOf=v=>PT+ch-((v-lo)/(hi-lo))*ch, xAt=i=>PL+i*(cw/(rows.length-1));
+  let bandSvg='';
+  if(band){ // clamped, or it paints outside the plot
+    const b0=Math.max(lo,Math.min(band[0],hi)), b1=Math.max(lo,Math.min(band[1],hi));
+    if(b1>b0)bandSvg=`<rect x="${PL}" y="${yOf(b1).toFixed(1)}" width="${cw}" height="${(yOf(b0)-yOf(b1)).toFixed(1)}" fill="#12946a" opacity=".08"/>
+      <text x="${W-PR-2}" y="${(yOf(b1)-4).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--gray)">target &lt; ${band[1]}</text>`;
+  }
+  const grid=ticks.map(t=>`<line x1="${PL}" y1="${yOf(t).toFixed(1)}" x2="${W-PR}" y2="${yOf(t).toFixed(1)}" stroke="#ecefed" stroke-width="1"/>
+    <text x="${PL-6}" y="${(yOf(t)+3.5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="var(--gray)">${t}</text>`).join('');
+  const lines=series.map(s=>{
+    const pts=rows.map((r,i)=>s.get(r)==null?null:`${xAt(i).toFixed(1)},${yOf(s.get(r)).toFixed(1)}`).filter(Boolean).join(' ');
+    return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"${s.dash?' stroke-dasharray="5 3"':''}/>`;
+  }).join('');
+  const ends=series.map(s=>{
+    let i=rows.length-1; while(i>=0&&s.get(rows[i])==null)i--;
+    if(i<0)return '';
+    const v=s.get(rows[i]),x=xAt(i),y=yOf(v);
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4.5" fill="${s.color}" stroke="#fff" stroke-width="2"/>
+      <text x="${(x+9).toFixed(1)}" y="${(y+3.5).toFixed(1)}" font-size="10.5" font-weight="700" fill="var(--g1)">${v.toFixed(dec)}</text>`;
+  }).join('');
+  const step=Math.ceil(rows.length/5);
+  const xlab=rows.map((r,i)=>(i%step===0||i===rows.length-1)
+    ? `<text x="${xAt(i).toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="9.5" fill="var(--gray)">${opts.xOf(r)}</text>`:'').join('');
+  _FEED_CHARTS[id]={rows,series,dec,unit,geom:{W,PL,PR,PT,ch,cw},xOf:opts.xOf,extra:opts.extra};
+  return `<div class="chartbox" id="cb-${id}"><div class="charttt" id="tt-${id}"></div>
+    <svg viewBox="0 0 ${W} ${H}">${bandSvg}${grid}
+      <line id="cx-${id}" x1="0" y1="${PT}" x2="0" y2="${PT+ch}" stroke="#c9d2cd" stroke-width="1" opacity="0"/>
+      ${lines}${ends}${xlab}
+      <rect id="hit-${id}" x="${PL}" y="${PT}" width="${cw}" height="${ch}" fill="transparent"/></svg></div>`;
+}
+// innerHTML wipes listeners, so renderReports re-wires after every paint.
+function wireFeedCharts(){
+  Object.keys(_FEED_CHARTS).forEach(id=>{
+    const c=_FEED_CHARTS[id], box=document.getElementById('cb-'+id), hit=document.getElementById('hit-'+id);
+    if(!box||!hit)return;
+    const tt=document.getElementById('tt-'+id), cx=document.getElementById('cx-'+id), g=c.geom;
+    const move=e=>{
+      const rect=box.getBoundingClientRect();
+      const px=(e.touches?e.touches[0].clientX:e.clientX)-rect.left;
+      const i=Math.max(0,Math.min(c.rows.length-1,Math.round((px/rect.width*g.W-g.PL)/(g.cw/(c.rows.length-1)))));
+      const r=c.rows[i], x=g.PL+i*(g.cw/(c.rows.length-1));
+      cx.setAttribute('x1',x);cx.setAttribute('x2',x);cx.setAttribute('opacity','1');
+      tt.innerHTML=`<b>${c.xOf(r)}</b>`+c.series.map(s=>{
+        const v=s.get(r); if(v==null)return '';
+        return `<div class="ttr"><em><span class="ttk" style="background:${s.color}"></span>${s.name}</em><strong>${v.toFixed(c.dec)}${c.unit}</strong></div>`;
+      }).join('')+(c.extra?c.extra(r):'');
+      tt.style.opacity=1;
+      const lx=x/g.W*rect.width;
+      tt.style.left=Math.max(2,Math.min(rect.width-150,lx-75))+'px';
+      tt.style.top='4px';
+    };
+    hit.addEventListener('pointermove',move);
+    hit.addEventListener('pointerleave',()=>{tt.style.opacity=0;cx.setAttribute('opacity','0');});
+  });
+}
 function renderReports(){
   const el=document.getElementById('v-reports');
   const farm=DB.getFarm();
@@ -3269,9 +3505,11 @@ function renderReports(){
     const totalFeed=last30f.reduce((s,r)=>s+(r.feed_kg_used||0),0);
     const totalReq=last30f.reduce((s,r)=>s+(r.feed_req_kg||0),0);
     const totalEggsForFCR=DB.getCols().filter(c=>validPenIds.has(c.penId)&&c.date>=_cutoff30).reduce((s,c)=>(c.entries||[]).reduce((ss,e)=>ss+(e.eggs||0),s),0);
-    const eggKg=totalEggsForFCR*0.06;
+    const eggKg=totalEggsForFCR*EGG_KG;
     const fcr=eggKg>0?(totalFeed/eggKg):null;
     const gPerEgg=totalEggsForFCR>0?((totalFeed*1000)/totalEggsForFCR):null;
+    // Shared daily series — feeds the per-bird chart and the monthly table
+    const fDaily=feedDailySeries(validPenIds);
     // Chart window — navigable via FEED_CHART_OFFSET
     const _chartEnd=(()=>{const d=new Date(DB.today());d.setDate(d.getDate()-FEED_CHART_OFFSET*30);return d.toISOString().slice(0,10);})();
     const _chartStart=(()=>{const d=new Date(DB.today());d.setDate(d.getDate()-FEED_CHART_OFFSET*30-30);return d.toISOString().slice(0,10);})();
@@ -3281,7 +3519,7 @@ function renderReports(){
       .sort((a,b)=>a[0].localeCompare(b[0]));
     const feedChartSvg=(()=>{
       const n=dailyFeed.length; if(n===0)return'<div style="color:var(--gray);font-size:13px;padding:20px 0">No feed data for this period.</div>';
-      const svgW=600,cH=58,svgH=74,slot=svgW/n,bW=slot*0.52;
+      const svgW=600,cH=58,svgH=74,slot=svgW/n,bW=Math.min(24,slot*0.52);
       const maxVal=Math.max(...dailyFeed.map(([,v])=>Math.max(v.kg,v.req||0)),1);
       const lblStep=Math.ceil(n/12);
       const bars=dailyFeed.map(([,v],i)=>{
@@ -3299,15 +3537,54 @@ function renderReports(){
     })();
     const navBtnStyle='border:none;background:none;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:6px;line-height:1';
     const navBtnDis='opacity:.25;cursor:default;pointer-events:none';
+
+    // ── Feed per bird per day (last 60 logged days) ──
+    const gbdRows=fDaily.filter(d=>d.gPerBird!=null).slice(-60);
+    const gbdSvg=lineChartSvg('gbd',gbdRows,[
+      {name:'Actual',color:'#12946a',get:r=>r.gPerBird},
+      {name:'Breed standard',color:'#4895ef',dash:true,get:r=>r.stdG}
+    ],{dec:0,unit:'g',xOf:r=>fmtDate(r.date).replace(/ \d{4}$/,''),
+       extra:r=>`<div class="ttr"><em>Birds</em><strong>${r.birds}</strong></div>`});
+    const gbdRecent=gbdRows.slice(-7);
+    const gbdNote=(()=>{
+      if(!gbdRecent.length)return '';
+      const a=gbdRecent.reduce((s,r)=>s+r.gPerBird,0)/gbdRecent.length;
+      const s=gbdRecent.reduce((x,r)=>x+r.stdG,0)/gbdRecent.length;
+      const diff=a-s, birds=gbdRecent[gbdRecent.length-1].birds;
+      if(Math.abs(diff)<=2)return `Last 7 logged days averaged <b>${a.toFixed(0)}g</b> against a standard of <b>${s.toFixed(0)}g</b> — on target.`;
+      const kg=Math.abs(diff)/1000*birds*30;
+      return `Last 7 logged days averaged <b>${a.toFixed(0)}g</b> against a standard of <b>${s.toFixed(0)}g</b> —
+        <b style="color:${diff>0?'var(--red)':'var(--amber)'}">${Math.abs(diff).toFixed(0)}g ${diff>0?'over':'under'} per bird</b>.
+        At ${birds} birds that is about <b>${kg.toFixed(0)} kg</b> a month.`;
+    })();
+
+    // ── Month over month ──
+    const mRows=feedMonthlyRows(fDaily).filter(r=>r.kg>0||r.eggs>0).slice(-13);
+    const mFcr=mRows.filter(r=>r.fcr!=null);
+    const momSvg=mFcr.length>1?lineChartSvg('mom',mFcr,[{name:'FCR',color:'#12946a',get:r=>r.fcr}],
+      {dec:2,band:[0,FCR_GOOD],xOf:r=>fmtMonth(r.m),
+       extra:r=>`${r.lay!=null?`<div class="ttr"><em>Lay rate</em><strong>${r.lay.toFixed(0)}%</strong></div>`:''}${r.age!=null?`<div class="ttr"><em>Flock age</em><strong>${r.age} wks</strong></div>`:''}`}):'';
+    const momNote=(()=>{
+      if(mFcr.length<2)return 'Two full months of feed and egg records are needed before a trend means anything.';
+      const full=mFcr.filter(r=>r.days>=20), pool=full.length?full:mFcr;
+      const best=pool.reduce((a,b)=>b.fcr<a.fcr?b:a), now=mFcr[mFcr.length-1];
+      if(best.m===now.m)return `This is the flock's best month so far at <b>${now.fcr.toFixed(2)}</b>.`;
+      const layTxt=(best.lay!=null&&now.lay!=null)?` Lay has moved ${best.lay.toFixed(0)}% → ${now.lay.toFixed(0)}%`:'';
+      const ageTxt=(best.age!=null&&now.age!=null)?` as the flock aged ${best.age} → ${now.age} weeks, which is expected.`:'.';
+      const gTxt=(best.gpb!=null&&now.gpb!=null&&now.gpb-best.gpb>3)
+        ? ` Intake also rose ${best.gpb.toFixed(0)}g → ${now.gpb.toFixed(0)}g per bird, which is not.`:'';
+      return `Best month was <b>${fmtMonth(best.m)}</b> at <b>${best.fcr.toFixed(2)}</b>. Now <b>${now.fcr.toFixed(2)}</b>.${layTxt}${ageTxt}${gTxt}`;
+    })();
+
     tabContent=`
       <div class="kpi-row-3">
         <div class="kpi"><div class="kpi-val">${totalFeed.toFixed(0)}</div><div class="kpi-lbl">kg Used (30d)</div></div>
-        <div class="kpi"><div class="kpi-val" style="color:${fcr&&fcr<8?'var(--g2)':fcr&&fcr<12?'var(--amber)':'var(--red)'}">${fcr?fcr.toFixed(1):'—'}</div><div class="kpi-lbl">FCR (30d)</div></div>
+        <div class="kpi"><div class="kpi-val" style="color:${fcrColour(fcr)}">${fcr?fcr.toFixed(2):'—'}</div><div class="kpi-lbl">FCR (30d)</div></div>
         <div class="kpi"><div class="kpi-val">${gPerEgg?gPerEgg.toFixed(0)+'g':'—'}</div><div class="kpi-lbl">Feed/Egg (30d)</div></div>
       </div>
       <details style="background:var(--blueBg);border:1.5px solid var(--blue);border-radius:var(--radius);padding:10px 14px;margin:0 16px 10px">
         <summary style="font-size:12px;color:#1a5fa8;font-weight:700;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center">FCR Benchmark <span style="font-size:10px;color:#5a9fd4;font-weight:400">tap to expand</span></summary>
-        <div style="font-size:13px;color:var(--gray);margin-top:8px">FCR = kg feed ÷ kg eggs (30-day window). Target: <b>FCR &lt; 8</b> · g feed/egg: <b>110–130g</b>.</div>
+        <div style="font-size:13px;color:var(--gray);margin-top:8px">FCR = kg feed ÷ kg eggs (30-day window). Target: <b>FCR &lt; ${FCR_GOOD}</b> · g feed/egg: <b>110–130g</b>.</div>
       </details>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px 4px">
         <span style="font-size:12px;font-weight:800;color:var(--g1);text-transform:uppercase;letter-spacing:.4px">Daily Feed Usage</span>
@@ -3324,18 +3601,68 @@ function renderReports(){
           <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:12px;height:10px;background:#e67e22;border-radius:2px"></span>10–15% off</span>
           <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:12px;height:10px;background:#c0392b;border-radius:2px"></span>&gt;15% off</span>
           <span style="display:flex;align-items:center;gap:5px"><svg width="22" height="10" viewBox="0 0 22 10"><line x1="0" y1="5" x2="22" y2="5" stroke="#4895ef" stroke-width="2"/><circle cx="11" cy="5" r="2.5" fill="#4895ef"/></svg>Expected (from saved req)</span>
+          <button class="tbtn" style="margin-left:auto" onclick="toggleFeedTbl('log')">${FEED_TBL.log?'Hide table':'Table'}</button>
         </div>
       </div>
+      ${FEED_TBL.log?`
       <div class="sec-hdr">Feed Log · ${fmtDate(_chartStart)} – ${fmtDate(_chartEnd)}</div>
-      <div class="card" style="padding:0;overflow:hidden">
-        ${chartFeed.slice().reverse().slice(0,20).map(r=>{
-          const vr=r.feed_req_kg>0?((r.feed_kg_used-r.feed_req_kg)/r.feed_req_kg*100):0;
-          const bc=Math.abs(vr)>15?'badge-red':Math.abs(vr)>10?'badge-amber':'badge-green';
-          return`<div class="list-item"><div>
-            <div style="font-weight:700;font-size:14px">${fmtDate(r.date)} — ${r.feed_type}</div>
-            <div style="font-size:12px;color:var(--gray)">${r.feed_kg_used}kg used · Req: ${r.feed_req_kg}kg</div></div>
-            <span class="badge ${bc}">${vr>0?'+':''}${vr.toFixed(0)}%</span></div>`;}).join('')||
-          '<div class="empty" style="padding:24px"><p>No feed records.</p></div>'}
+      <div class="card" style="padding:12px 16px">
+        <div class="tscroll"><table class="dtbl">
+          <thead><tr><th>Date</th><th>Type</th><th>Used kg</th><th>Req kg</th><th>Var %</th></tr></thead>
+          <tbody>${chartFeed.slice().reverse().map(r=>{
+            const vr=r.feed_req_kg>0?((r.feed_kg_used-r.feed_req_kg)/r.feed_req_kg*100):0;
+            const col=Math.abs(vr)>15?'var(--red)':Math.abs(vr)>10?'var(--amber)':'var(--g2)';
+            return`<tr><td>${fmtDate(r.date)}</td><td>${r.feed_type||'—'}</td><td>${(r.feed_kg_used||0).toFixed(1)}</td>
+              <td>${(r.feed_req_kg||0).toFixed(1)}</td><td style="color:${col};font-weight:700">${vr>0?'+':''}${vr.toFixed(0)}%</td></tr>`;
+          }).join('')||'<tr><td colspan="5" style="text-align:center;color:var(--gray);padding:18px">No feed records.</td></tr>'}</tbody>
+        </table></div>
+      </div>`:''}
+
+      <div class="sec-hdr">Feed per bird per day</div>
+      <p style="font-size:12px;color:var(--gray);padding:0 16px 6px;margin:0">Grams eaten per bird against the breed standard for the flock's age. Moves before FCR does.</p>
+      <div class="card" style="padding:16px">
+        ${gbdSvg}
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:var(--gray)">
+          <span style="display:flex;align-items:center;gap:5px"><svg width="22" height="10" viewBox="0 0 22 10"><line x1="0" y1="5" x2="22" y2="5" stroke="#12946a" stroke-width="2"/></svg>Actual</span>
+          <span style="display:flex;align-items:center;gap:5px"><svg width="22" height="10" viewBox="0 0 22 10"><line x1="0" y1="5" x2="22" y2="5" stroke="#4895ef" stroke-width="2" stroke-dasharray="5 3"/></svg>Breed standard</span>
+          <button class="tbtn" style="margin-left:auto" onclick="toggleFeedTbl('gbd')">${FEED_TBL.gbd?'Hide table':'Table'}</button>
+        </div>
+        ${gbdNote?`<div style="font-size:12.5px;color:var(--gray);margin-top:10px;padding-top:10px;border-top:1px solid #ecefed">${gbdNote}</div>`:''}
+        ${FEED_TBL.gbd?`<div class="tscroll"><table class="dtbl">
+          <thead><tr><th>Date</th><th>Age wk</th><th>Birds</th><th>Actual g</th><th>Std g</th><th>Diff</th></tr></thead>
+          <tbody>${gbdRows.slice().reverse().map(r=>{
+            const d=r.gPerBird-r.stdG;
+            return`<tr><td>${fmtDate(r.date)}</td><td>${r.age??'—'}</td><td>${r.birds}</td><td>${r.gPerBird.toFixed(0)}</td>
+              <td>${r.stdG}</td><td style="color:${Math.abs(d)>10?'var(--red)':'var(--g2)'};font-weight:700">${d>0?'+':''}${d.toFixed(0)}</td></tr>`;
+          }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--gray);padding:18px">No data.</td></tr>'}</tbody>
+        </table></div>`:''}
+      </div>
+
+      <div class="sec-hdr">Month over month</div>
+      <p style="font-size:12px;color:var(--gray);padding:0 16px 6px;margin:0">FCR read next to flock age and lay rate — FCR is <em>supposed</em> to rise as birds age. The question is whether it is rising faster than age explains.</p>
+      <div class="card" style="padding:16px">
+        ${momSvg}
+        <div style="display:flex;align-items:center;margin-top:8px">
+          <button class="tbtn" style="margin-left:auto" onclick="toggleFeedTbl('mom')">${FEED_TBL.mom?'Hide table':'Table'}</button>
+        </div>
+        ${FEED_TBL.mom?`<div class="tscroll"><table class="dtbl">
+          <thead><tr><th>Month</th><th>FCR</th><th>vs prev</th><th>Age</th><th>Lay %</th><th>g/bird/d</th><th>g/egg</th><th>Feed kg</th><th>Eggs</th></tr></thead>
+          <tbody>${mRows.map((r,i)=>{
+            const prev=(()=>{for(let j=i-1;j>=0;j--)if(mRows[j].fcr!=null)return mRows[j];return null;})();
+            const d=(r.fcr!=null&&prev)?r.fcr-prev.fcr:null;
+            const col=d==null?'var(--gray)':d>0.03?'var(--red)':d<-0.03?'var(--g2)':'var(--gray)';
+            const arrow=d==null?'—':d>0.03?'▲':d<-0.03?'▼':'–';
+            return`<tr${i===mRows.length-1?' style="background:var(--g5)"':''}>
+              <td>${fmtMonth(r.m)}${r.days<20?' *':''}</td>
+              <td style="font-weight:700;color:${fcrColour(r.fcr)}">${r.fcr!=null?r.fcr.toFixed(2):'—'}</td>
+              <td style="color:${col};font-weight:700">${arrow}${d==null?'':' '+(d>0?'+':'')+d.toFixed(2)}</td>
+              <td>${r.age??'—'}</td><td>${r.lay!=null?r.lay.toFixed(0)+'%':'—'}</td>
+              <td>${r.gpb!=null?r.gpb.toFixed(0):'—'}</td><td>${r.gpe!=null?r.gpe.toFixed(0):'—'}</td>
+              <td>${r.kg.toFixed(0)}</td><td>${r.eggs.toLocaleString()}</td></tr>`;
+          }).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--gray);padding:18px">No feed records yet.</td></tr>'}</tbody>
+        </table></div>
+        <div style="font-size:10.5px;color:var(--gray);text-align:right;margin-top:5px">swipe for intake and volumes →</div>`:''}
+        <div style="font-size:12.5px;color:var(--gray);margin-top:10px;padding-top:10px;border-top:1px solid #ecefed">${momNote}${mRows.some(r=>r.days<20)?'<br>* partial month.':''}</div>
       </div>`;
 
   } else if(REP_TAB==='journal'){
@@ -3439,6 +3766,7 @@ function renderReports(){
     </div>
     ${tabContent}
     <div style="height:12px"></div>`;
+  if(REP_TAB==='feed')wireFeedCharts();
 }
 function confirmReset(){
   openModal(`<div class="modal-ttl">Reset Data? <button class="modal-x" onclick="closeModal()">×</button></div>
@@ -3587,8 +3915,15 @@ function renderSettings(){
       </div>
     </div>
     <div class="card">
+      <div class="card-title">Recently Deleted</div>
+      <p style="font-size:13px;color:var(--gray);margin-bottom:12px">Anything deleted in the app — a single record or a bulk reset — is kept here for 60 days and can be put back. After that it is permanently removed.</p>
+      <button class="btn btn-secondary" onclick="openTrashModal()">View Recently Deleted</button>
+    </div>
+    <div class="card">
       <div class="card-title">Danger Zone</div>
-      <div style="display:flex;flex-direction:column;gap:8px">
+      <p style="font-size:13px;color:var(--gray);margin-bottom:12px">Bulk resets are hidden by default. They need a fresh export and the manager PIN, and the records go to Recently Deleted rather than disappearing.</p>
+      <button class="btn btn-secondary btn-sm" id="danger-toggle" onclick="toggleDangerZone()">Show bulk reset options</button>
+      <div id="danger-zone" style="display:none;flex-direction:column;gap:8px;margin-top:10px">
         <button class="btn btn-danger btn-sm" onclick="resetModule('cols')">Reset Egg Collection Records</button>
         <button class="btn btn-danger btn-sm" onclick="resetModule('birds')">Reset Flock Records</button>
         <button class="btn btn-danger btn-sm" onclick="resetModule('feed')">Reset Feed Records</button>
@@ -3757,18 +4092,129 @@ function doDeleteStand(penId,lineId,standId){
   if(!line)return; line.stands=line.stands.filter(s=>s.id!==standId);
   DB.saveFarm(farm);confirmSave('Stand deleted');renderSettings();
 }
+// ── DANGER ZONE (gated bulk reset) ──
+// Bulk resets are the one place a single tap could erase a season of records, so
+// they are gated three ways: an impact summary stating exactly what goes, a fresh
+// export in this session, and the manager PIN. Deletes land in trash either way.
+const MODULE_LABELS={cols:'Egg Collection Records',birds:'Flock Records',feed:'Feed Records',
+  health:'Health Records',finance:'Finance Records (expenses, sales, receivables, customers, payments)'};
+const MODULE_KEYS={cols:[KEYS.cols],birds:[KEYS.birds],feed:[KEYS.feed],health:[KEYS.health],
+  finance:[KEYS.expenses,KEYS.sales,KEYS.recv,KEYS.customers,KEYS.payments]};
+let EXPORTED_THIS_SESSION=false;
+function toggleDangerZone(){
+  const el=document.getElementById('danger-zone');if(!el)return;
+  const open=el.style.display!=='none';
+  el.style.display=open?'none':'flex';
+  const b=document.getElementById('danger-toggle');
+  if(b)b.textContent=open?'Show bulk reset options':'Hide bulk reset options';
+}
+function _moduleImpact(mod){
+  const keys=MODULE_KEYS[mod]||[];
+  let count=0,from=null,to=null;
+  keys.forEach(k=>DB._arr(k).forEach(r=>{
+    count++;const d=r.date;
+    if(d){if(!from||d<from)from=d;if(!to||d>to)to=d;}
+  }));
+  return {keys,count,from,to};
+}
 function resetModule(mod){
-  openModal(`<div class="modal-ttl">Reset ${mod} data? <button class="modal-x" onclick="closeModal()">×</button></div>
-    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">This cannot be undone.</p>
+  const label=MODULE_LABELS[mod]||mod, imp=_moduleImpact(mod);
+  if(!imp.count){
+    openModal(`<div class="modal-ttl">Nothing to delete <button class="modal-x" onclick="closeModal()">×</button></div>
+      <p style="font-size:14px;color:var(--gray);margin-bottom:18px">There are no ${label.toLowerCase()} to reset.</p>
+      <button class="btn btn-secondary" onclick="closeModal()">OK</button>`);
+    return;
+  }
+  const span=imp.from?` covering <b>${fmtDate(imp.from)}</b> → <b>${fmtDate(imp.to)}</b>`:'';
+  openModal(`<div class="modal-ttl">Delete ${label}? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div style="background:#fee2e2;border-left:3px solid var(--red);padding:10px 14px;border-radius:0 8px 8px 0;font-size:13px;color:#7f1d1d;margin-bottom:14px">
+      This deletes <b>${imp.count}</b> record${imp.count===1?'':'s'}${span}.
+    </div>
+    <div style="background:var(--g5);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--g1);margin-bottom:14px">
+      Recoverable for ${TRASH_TTL_DAYS} days from Settings → Recently Deleted.
+    </div>
+    <div class="field"><label>Step 1 — take a fresh export</label>
+      <button class="btn btn-secondary" id="rz_export" onclick="exportData();document.getElementById('rz_export').textContent='Exported ✓'">${EXPORTED_THIS_SESSION?'Exported ✓':'Export All Data (JSON)'}</button></div>
+    <div class="field"><label>Step 2 — manager PIN</label>
+      <input type="password" id="rz_pin" placeholder="Manager PIN" autocomplete="off"></div>
+    <div id="rz_err" style="color:var(--red);font-size:12px;min-height:16px;margin-bottom:8px"></div>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn btn-danger" onclick="closeModal();doResetModule('${mod}')">Delete</button>
+      <button class="btn btn-danger" id="rz_go" onclick="doResetModule('${mod}')">Delete ${imp.count} record${imp.count===1?'':'s'}</button>
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
 }
-function doResetModule(mod){
-  const keyMap={cols:KEYS.cols,birds:KEYS.birds,feed:KEYS.feed,health:KEYS.health,finance:'__multi__'};
-  if(mod==='finance'){_deleteCol(KEYS.expenses);_deleteCol(KEYS.sales);_deleteCol(KEYS.recv);_deleteCol(KEYS.customers);_deleteCol(KEYS.payments);}
-  else if(keyMap[mod])_deleteCol(keyMap[mod]);
-  toast('Data reset ✓');renderSettings();
+async function doResetModule(mod){
+  const errEl=document.getElementById('rz_err'), btn=document.getElementById('rz_go');
+  const setErr=m=>{if(errEl)errEl.textContent=m;};
+  const reset=t=>{if(btn){btn.disabled=false;btn.textContent=t;}};
+  const original=btn?btn.textContent:'Delete';
+  const pin=(document.getElementById('rz_pin')?.value||'').trim();
+  if(!EXPORTED_THIS_SESSION){setErr('Take a fresh export first (step 1).');return;}
+  if(!pin){setErr('Enter the manager PIN.');return;}
+  setErr('');if(btn){btn.disabled=true;btn.textContent='Verifying…';}
+  try{
+    const m=await db.collection('appConfig').doc('master').get();
+    if(!m.exists||m.data().pin!==pin){setErr('Incorrect manager PIN.');reset(original);return;}
+  }catch(e){setErr('Could not verify PIN — check your connection.');reset(original);return;}
+  if(btn)btn.textContent='Deleting…';
+  const imp=_moduleImpact(mod), batchId=uid();
+  let done=0;
+  try{
+    for(const k of imp.keys){await _deleteCol(k,batchId);done++;}
+  }catch(e){
+    setErr(done?'Stopped part-way — check Recently Deleted, then retry.':'Delete failed — nothing was removed.');
+    reset(original);renderSettings();return;
+  }
+  closeModal();
+  toast(`${imp.count} record${imp.count===1?'':'s'} moved to Recently Deleted`);
+  renderSettings();
+}
+// ── RECENTLY DELETED (restore UI) ──
+async function openTrashModal(){
+  const shell=body=>`<div class="modal-ttl">Recently Deleted <button class="modal-x" onclick="closeModal()">×</button></div>${body}`;
+  openModal(shell('<p style="font-size:13px;color:var(--gray)">Loading…</p>'));
+  let items;
+  try{items=await loadTrash();}
+  catch(e){
+    openModal(shell(`<p style="font-size:13px;color:var(--red);margin-bottom:12px">Could not load deleted records. Check your connection.</p>
+      <button class="btn btn-secondary" onclick="closeModal()">Close</button>`));
+    return;
+  }
+  if(!items.length){
+    openModal(shell(`<p style="font-size:13px;color:var(--gray);margin-bottom:12px">Nothing has been deleted in the last ${TRASH_TTL_DAYS} days.</p>
+      <button class="btn btn-secondary" onclick="closeModal()">Close</button>`));
+    return;
+  }
+  // One row per delete action, not per record, so a bulk reset reads as a single undoable event.
+  const groups={};
+  items.forEach(t=>{
+    const g=groups[t.batch_id]||(groups[t.batch_id]={id:t.batch_id,at:t.deleted_at,labels:{},n:0});
+    g.n++;g.labels[t.label]=(g.labels[t.label]||0)+1;
+    if(t.deleted_at>g.at)g.at=t.deleted_at;
+  });
+  const rows=Object.values(groups).sort((a,b)=>b.at.localeCompare(a.at)).map(g=>{
+    const what=Object.entries(g.labels).map(([l,c])=>`${c} × ${l}`).join(' · ');
+    const when=new Date(g.at).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+    return `<div class="list-item" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <div><div style="font-weight:600;font-size:13px">${what}</div>
+        <div style="font-size:11px;color:var(--gray)">${when}</div></div>
+      <button class="btn btn-secondary btn-sm" onclick="doRestoreTrash('${g.id}',this)">Restore</button></div>`;
+  }).join('');
+  openModal(shell(`<p style="font-size:12px;color:var(--gray);margin-bottom:10px">Kept for ${TRASH_TTL_DAYS} days, then permanently removed.</p>
+    ${rows}
+    <div id="rt_err" style="color:var(--red);font-size:12px;min-height:16px;margin-top:8px"></div>
+    <button class="btn btn-secondary" style="margin-top:6px" onclick="closeModal()">Close</button>`));
+}
+async function doRestoreTrash(batchId,btn){
+  if(btn){btn.disabled=true;btn.textContent='Restoring…';}
+  try{
+    const n=await restoreTrashBatch(batchId);
+    toast(`${n} record${n===1?'':'s'} restored ✓`);
+    openTrashModal();renderSettings();
+  }catch(e){
+    const el=document.getElementById('rt_err');
+    if(el)el.textContent='Restore failed — check your connection and try again.';
+    if(btn){btn.disabled=false;btn.textContent='Restore';}
+  }
 }
 
 // Export Data
@@ -3816,7 +4262,7 @@ function exportData(){
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;
   a.download=`LayerTrack_export_${DB.today()}.json`;a.click();
-  URL.revokeObjectURL(url);toast('Export complete ✓');
+  URL.revokeObjectURL(url);EXPORTED_THIS_SESSION=true;toast('Export complete ✓');
 }
 function _mergeById(existing,incoming){
   const map=new Map((existing||[]).map(r=>[r.id,r]));

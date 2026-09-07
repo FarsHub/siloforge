@@ -1,0 +1,51 @@
+name: Mirror Firestore to Postgres
+
+# 01:00 UTC = 02:00 WAT, after the farm day is finished and logged.
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Proceed even if the delete tripwire fires (only after checking why)"
+        type: boolean
+        default: false
+      dry_run:
+        description: "Fetch and report, write nothing"
+        type: boolean
+        default: false
+
+concurrency:
+  group: mirror-to-postgres
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tools/mirror/requirements.txt
+
+      - run: pip install -r tools/mirror/requirements.txt
+
+      - name: Mirror
+        working-directory: tools/mirror
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          # Optional repo variable. Empty falls back to public.
+          PGSCHEMA: ${{ vars.PGSCHEMA }}
+          # Empty on a scheduled run; only workflow_dispatch supplies these.
+          FORCE: ${{ inputs.force }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=""
+          if [ "$FORCE" = "true" ]; then args="$args --force"; fi
+          if [ "$DRY_RUN" = "true" ]; then args="$args --dry-run"; fi
+          python mirror.py $args
