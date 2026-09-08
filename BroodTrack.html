@@ -67,6 +67,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
 .modal-ttl{font-size:17px;font-weight:800;color:var(--p1);margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
 .modal-x{width:30px;height:30px;border-radius:50%;background:#f0f0f0;border:none;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+/* ── Low-feed ticker ──────────────────────────────────────────────────
+   A feed shortage a week out should not have to be discovered by opening a
+   tab, so it rides across the top of every screen until the store is stocked.
+   Deliberately not dismissible: that is the whole point of it. */
+:root{--ticker-h:30px}
+.feed-ticker{position:fixed;top:0;left:0;right:0;height:var(--ticker-h);z-index:150;display:none;align-items:center;background:var(--amberBg);color:#7d4e00;font-size:12.5px;font-weight:700;box-shadow:0 1px 6px rgba(0,0,0,.14);cursor:pointer;overflow:hidden;-webkit-tap-highlight-color:transparent}
+.feed-ticker.urgent{background:var(--red);color:#fff}
+.ft-label{flex-shrink:0;display:flex;align-items:center;height:100%;padding:0 9px;background:rgba(0,0,0,.13);font-size:9.5px;font-weight:800;letter-spacing:.09em;white-space:nowrap}
+.ft-win{flex:1;height:100%;overflow:hidden;position:relative}
+.ft-track{display:flex;align-items:center;height:100%;white-space:nowrap;will-change:transform;animation:ftScroll linear infinite}
+.ft-track>span{padding-right:64px}
+@keyframes ftScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+body.has-ticker{padding-top:var(--ticker-h)}
+body.has-ticker .sync-badge{top:calc(var(--ticker-h) + 8px)}
+/* Motion is decoration here; the text must still be readable without it. */
+@media (prefers-reduced-motion:reduce){
+  .ft-track{animation:none}
+  .ft-track>span:nth-child(2){display:none}
+  .ft-win{overflow-x:auto;scrollbar-width:none}
+  .ft-win::-webkit-scrollbar{display:none}
+}
 #toast{position:fixed;bottom:calc(var(--nav-h)+14px);left:50%;transform:translateX(-50%) translateY(16px);background:var(--p1);color:var(--white);padding:11px 18px;border-radius:22px;font-size:14px;font-weight:600;opacity:0;transition:all .28s;z-index:300;white-space:nowrap;pointer-events:none}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .sync-badge{position:fixed;top:8px;right:8px;z-index:400;font-size:11px;font-weight:800;padding:5px 11px;border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
@@ -268,6 +289,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 </style>
 </head>
 <body>
+<div id="feed-ticker" class="feed-ticker" onclick="openFeedStore()"></div>
 <div id="toast"></div>
 <div id="sync-badge" class="sync-badge" style="display:none" onclick="_clearSyncErr()"></div>
 <div id="overlay" onclick="if(event.target===this)closeModal()">
@@ -385,7 +407,8 @@ function farmDoc(col,id){return farmRef(col).doc(id);}
 const TRASH_LABELS={
   bt_batches_v1:'Batch', bt_daily_v1:'Daily log', bt_weight_v1:'Weight record',
   bt_health_v1:'Health record', bt_expenses_v1:'Expense', bt_sales_v1:'Sale',
-  bt_feed_v1:'Feed record', bt_payments_v1:'Payment'
+  bt_feed_v1:'Feed record', bt_payments_v1:'Payment',
+  bt_feedstock_v1:'Feed store entry'
 };
 const TRASH_TTL_DAYS=60;
 function trashRef(){return db.collection('farms').doc(FARM_CODE).collection('trash_v1');}
@@ -467,6 +490,7 @@ function _reRenderCurrent(){
   if(!name)return;
   ({home:renderHome,batches:renderBatches,daily:renderDaily,feed:renderFeed,weight:renderWeight,
     health:renderHealth,finance:renderFinance,reports:renderReports,settings:renderSettings})[name]?.();
+  renderFeedTicker();
 }
 async function loadFromFirestore(){
   _stopListeners();
@@ -475,9 +499,9 @@ async function loadFromFirestore(){
     const ok=()=>{if(!done){done=true;resolve();}else _reRenderCurrent();};
     const err=()=>{if(!done){done=true;resolve();}};
     if(name==='farm'){
-      _fsListeners.push(farmDoc(k,'config').onSnapshot(doc=>{CACHE[k]=doc.exists?doc.data().data:null;ok();},err));
+      _fsListeners.push(farmDoc(k,'config').onSnapshot(doc=>{CACHE[k]=doc.exists?doc.data().data:null;bumpFeedData();ok();},err));
     }else{
-      _fsListeners.push(farmRef(k).onSnapshot(snap=>{CACHE[k]=snap.docs.map(d=>d.data());ok();},err));
+      _fsListeners.push(farmRef(k).onSnapshot(snap=>{CACHE[k]=snap.docs.map(d=>d.data());bumpFeedData();ok();},err));
     }
   })));
 }
@@ -494,7 +518,7 @@ async function doLogin(){
     await loadFromFirestore();
     purgeOldTrash();
     document.getElementById('login-screen').style.display='none';
-    localStorage.setItem('sf_farm_code',code);renderHome();
+    localStorage.setItem('sf_farm_code',code);renderHome();renderFeedTicker();
   }catch(err){showLoginErr('Connection error. Check your internet.');btn.textContent='Enter Farm';btn.disabled=false;}
 }
 function toggleRegister(){
@@ -529,7 +553,7 @@ function initApp(){
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.09.03-b11';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.09.08-b13';  // bump on each deploy; shown on login screen + console
 const BREEDS_BY_TYPE={
   broiler:['Arbor Acres','Marshall','Other'],
   pullet:['Isa Brown','Lohmann Brown','Hy-Line Brown','Black Pullet','Other'],
@@ -757,6 +781,22 @@ const PULLET_TEMP_TARGETS=[
   {maxDay:84, min:18,max:27,label:'Weeks 9–12'},
 ];
 const BROOD_FEED_TYPES=['Starter Mash','Chick Mash','Grower Mash','Finisher Pellets','Pre-Layer Mash','Brooding Mash','Concentrate','Other'];
+// ── Feed store defaults ─────────────────────────────────────────────────
+// Feed is bought and counted in bags but consumed in kg, so bag size is the
+// hinge between the two. Editable per feed type in Settings; 25 kg is the
+// common sack here.
+const DEFAULT_BAG_KG=25;
+const DEFAULT_FEED_LEAD_DAYS=7;    // notice needed to get a delivery in
+const DEFAULT_FEED_TARGET_DAYS=30; // cover a purchase should buy
+// Which sack each phase of each bird type calls for. Pullets run Starter Mash
+// then Chick Mash then Grower Mash then Pre-Layer, which is the farm's own
+// sequence; broilers finish on Finisher Pellets. Editable per bird type in
+// Settings, and only what differs from these is stored.
+const DEFAULT_BROOD_FEED_TYPES={
+  broiler:{starter:'Starter Mash', chick:'Chick Mash',   finisher:'Finisher Pellets'},
+  pullet: {brooding:'Starter Mash',starter:'Chick Mash', grower:'Grower Mash', presale:'Pre-Layer Mash'},
+  noiler: {brooding:'Starter Mash',grower:'Grower Mash', presale:'Finisher Pellets'},
+};
 const BROOD_EXPENSE_CATS=['DOC Purchase','Feed','Medication','Litter/Bedding','Labour','Equipment','Transport','Brooding Fuel/Power','Other'];
 const MED_SUGGESTIONS=['ND HB1 + IB (Live)','ND Lasota + IB','Lasota (ND)','Gumboro 1 (IBD, intermediate)','Gumboro 2 (IBD, intermediate)','Gumboro 3 (IBD, intermediate)','Fowl Pox Vaccine','Coryza Vaccine','Fowl Cholera Vaccine','Fowl Typhoid 9R','EDS + NDV (Killed)','Marek\'s Disease Vaccine','Coccidiostat','Dewormer','Antibiotics','Amprolium','Tylosin','Floxinor','Glucose + Electrolytes','Multivitamin','Vitamin C/E','Electrolytes'];
 
@@ -765,16 +805,16 @@ const MED_SUGGESTIONS=['ND HB1 + IB (Live)','ND Lasota + IB','Lasota (ND)','Gumb
 // ═══════════════════════════════════════════════
 const KEYS={farm:'bt_farm_v1',batches:'bt_batches_v1',daily:'bt_daily_v1',
   weight:'bt_weight_v1',health:'bt_health_v1',expenses:'bt_expenses_v1',sales:'bt_sales_v1',
-  feed:'bt_feed_v1',payments:'bt_payments_v1'};
+  feed:'bt_feed_v1',payments:'bt_payments_v1',feedstock:'bt_feedstock_v1'};
 const PAYMENT_METHODS=['Cash','Bank Transfer','POS','Mobile Money','Other'];
 const DB={
   today(){return new Date().toISOString().slice(0,10)},
   _get(k){return CACHE[k]??null},
-  _set(k,v){CACHE[k]=v;return Array.isArray(v)?_track(_batchWrite(k,v)):_track(farmDoc(k,'config').set({data:v}));},
+  _set(k,v){CACHE[k]=v;bumpFeedData();return Array.isArray(v)?_track(_batchWrite(k,v)):_track(farmDoc(k,'config').set({data:v}));},
   _arr(k){return CACHE[k]||[]},
-  _push(k,i){if(!CACHE[k])CACHE[k]=[];CACHE[k].push(i);return _track(farmDoc(k,i.id).set(i));},
-  _del(k,id){const rec=(CACHE[k]||[]).find(x=>x.id===id);CACHE[k]=(CACHE[k]||[]).filter(x=>x.id!==id);return _track(_trashThenDelete(k,id,rec));},
-  _upd(k,id,u){CACHE[k]=(CACHE[k]||[]).map(x=>x.id===id?{...x,...u}:x);return _track(farmDoc(k,id).set(u,{merge:true}));},
+  _push(k,i){if(!CACHE[k])CACHE[k]=[];CACHE[k].push(i);bumpFeedData();return _track(farmDoc(k,i.id).set(i));},
+  _del(k,id){const rec=(CACHE[k]||[]).find(x=>x.id===id);CACHE[k]=(CACHE[k]||[]).filter(x=>x.id!==id);bumpFeedData();return _track(_trashThenDelete(k,id,rec));},
+  _upd(k,id,u){CACHE[k]=(CACHE[k]||[]).map(x=>x.id===id?{...x,...u}:x);bumpFeedData();return _track(farmDoc(k,id).set(u,{merge:true}));},
   getFarm(){return this._get(KEYS.farm)},
   saveFarm(f){this._set(KEYS.farm,f)},
   getPayments(){return this._arr(KEYS.payments)},
@@ -810,7 +850,361 @@ const DB={
   addFeed(r){this._push(KEYS.feed,r)},
   updFeed(id,u){this._upd(KEYS.feed,id,u)},
   delFeed(id){this._del(KEYS.feed,id)},
+  getFeedStock(){return this._arr(KEYS.feedstock)},
+  addFeedStock(r){this._push(KEYS.feedstock,r)},
+  updFeedStock(id,u){this._upd(KEYS.feedstock,id,u)},
+  delFeedStock(id){this._del(KEYS.feedstock,id)},
 };
+
+// ═══════════════════════════════════════════════
+// FEED STORE — STOCK, PROGRAMME, COVER, REORDER
+// ═══════════════════════════════════════════════
+// This replaces a manual chore: walk the store, count bags, divide by the
+// flock's daily requirement, work out what to buy. Three things retire it.
+// Purchases come in as bags, daily usage already goes out as kg, and a physical
+// count can be entered by whoever is on the farm as an anchor that resets the
+// book balance to what is actually on the floor.
+//
+// The important part is that feed is not one commodity. A batch walks a
+// programme — Starter, then Chick, then Grower — and each feed is needed only
+// for a window of the bird's life. So "how many days will this last" is the
+// wrong question for every feed except the last one. The right question is
+// whether what is in store covers the rest of the window that feed is needed
+// for. 300 kg of Starter with nine days of Starter left is a surplus, not a
+// crisis, and must not raise an alarm.
+//
+// Everything below is built on one forward walk, a day at a time, that asks of
+// each batch: how old will it be, which feed does the programme call for at
+// that age, and how much will it eat. A batch also stops eating at its target
+// sale age, which is what gives a broiler's Finisher a real end date instead of
+// an imaginary runway.
+function getBagKg(feedType){
+  const v=Number(((DB.getFarm()||{}).feedBagKg||{})[feedType]);
+  return v>0?v:DEFAULT_BAG_KG;
+}
+function getFeedPolicy(){
+  const f=DB.getFarm()||{};
+  const num=(v,d)=>Number(v)>0?Number(v):d;
+  return {leadDays:num(f.feedLeadDays,DEFAULT_FEED_LEAD_DAYS),
+          targetDays:num(f.feedTargetDays,DEFAULT_FEED_TARGET_DAYS)};
+}
+// The farm's feed programme: which feed each phase of each bird type calls for.
+// Phases and their day boundaries already exist per bird type; this maps each to
+// a sack. Stored per bird type so a broiler and a pullet can differ, and
+// editable in Settings.
+function getBroodFeedProgramme(birdType){
+  const farm=DB.getFarm()||{};
+  return getFeedPhases(birdType).map(p=>({
+    ...p,
+    type:(farm[`${birdType}_feedType_${p.key}`]||DEFAULT_BROOD_FEED_TYPES[birdType]?.[p.key]||'').trim()
+  }));
+}
+function broodFeedTypeForAge(birdType,ageDays){
+  const prog=getBroodFeedProgramme(birdType), d=Math.max(0,Number(ageDays)||0);
+  for(const p of prog){ if(d<=p.maxDay)return p.type||null; }
+  return prog[prog.length-1]?.type||null;
+}
+// The phase a batch is on, plus the one after it, for naming a window.
+function broodFeedStageForAge(birdType,ageDays){
+  const prog=getBroodFeedProgramme(birdType), d=Math.max(0,Number(ageDays)||0);
+  for(let i=0;i<prog.length;i++){
+    if(d<=prog[i].maxDay)return {...prog[i],index:i,next:prog[i+1]||null};
+  }
+  return {...prog[prog.length-1],index:prog.length-1,next:null};
+}
+// The last day a batch is still on the farm eating. target_sale_age_weeks is
+// what the farm already records, so it is what decides when demand stops; with
+// none set the batch is treated as staying, and its last feed is open-ended.
+function batchLastFeedDay(batch){
+  const wks=Number(batch.target_sale_age_weeks);
+  if(!Number.isFinite(wks)||wks<=0)return null;
+  return Math.round(wks*7);
+}
+function kgToBags(kg,feedType){
+  const bagKg=getBagKg(feedType), safe=Math.max(0,kg);
+  const bags=Math.floor(safe/bagKg);
+  return {bags,loose:Math.round((safe-bags*bagKg)*10)/10,bagKg};
+}
+// "12 bags · 8 kg" — the way feed is actually spoken about in the store.
+function fmtBags(kg,feedType){
+  const b=kgToBags(kg,feedType);
+  if(b.bags===0)return `${b.loose} kg`;
+  return `${b.bags} bag${b.bags===1?'':'s'}${b.loose>0?` · ${b.loose} kg`:''}`;
+}
+// Bags, rounded up — a store cannot buy two thirds of a sack.
+function bagsFor(kg,feedType){ return Math.ceil(Math.max(0,kg)/getBagKg(feedType)-1e-9); }
+
+// Same-day ordering is fixed rather than left to record order: a count is the
+// morning's truth, then deliveries land, then the birds eat.
+const _FS_RANK={count:0,purchase:1,adjust:1,usage:2};
+// `excludeId` lets a form ask what the books say *without* its own record in the
+// picture, so editing an old count cannot rewrite the variance it once found.
+function feedStockEvents(feedType,excludeId){
+  const ev=[];
+  DB.getFeedStock().forEach(r=>{
+    if(r.feed_type!==feedType||r.id===excludeId)return;
+    ev.push({date:r.date,kind:r.kind||'purchase',kg:Number(r.kg||0),feed_type:r.feed_type,rec:r});
+  });
+  DB.getFeed().forEach(r=>{
+    if(r.feed_type!==feedType)return;
+    if(!(Number(r.feed_kg_used)>0))return;
+    ev.push({date:r.date,kind:'usage',kg:Number(r.feed_kg_used),feed_type:r.feed_type,rec:r});
+  });
+  return ev.sort((a,b)=>String(a.date).localeCompare(String(b.date))
+    ||(_FS_RANK[a.kind]??1)-(_FS_RANK[b.kind]??1)
+    ||String(a.rec.id).localeCompare(String(b.rec.id)));
+}
+// A count is an anchor, not an addition: it overwrites the running figure. That
+// is what lets a physical count correct drift instead of arguing with it, and it
+// means the variance it records is the only honest measure of shrinkage.
+function feedStockLedger(feedType,excludeId){
+  let bal=0;
+  return feedStockEvents(feedType,excludeId).map(e=>{
+    let delta;
+    if(e.kind==='count'){ delta=e.kg-bal; bal=e.kg; }
+    else if(e.kind==='usage'){ delta=-Math.min(e.kg,bal); bal=Math.max(0,bal-e.kg); }
+    else { delta=e.kg; bal+=e.kg; }
+    return {...e,delta,balance:bal};
+  });
+}
+function feedBookKg(feedType,excludeId){
+  const led=feedStockLedger(feedType,excludeId);
+  return led.length?led[led.length-1].balance:0;
+}
+function feedStoreTypes(){
+  const types=new Set();
+  DB.getFeedStock().forEach(r=>{ if(r.feed_type)types.add(r.feed_type); });
+  DB.getFeed().forEach(r=>{ if(r.feed_type&&Number(r.feed_kg_used)>0)types.add(r.feed_type); });
+  return [...types];
+}
+function getFeedStockByType(){
+  return feedStoreTypes().map(t=>{
+    const led=feedStockLedger(t);
+    const counts=led.filter(e=>e.kind==='count');
+    const purchases=led.filter(e=>e.kind==='purchase');
+    const last=led[led.length-1], lastCount=counts[counts.length-1];
+    return {feed_type:t, kg:last?last.balance:0,
+      lastCountDate:lastCount?lastCount.date:null,
+      lastPurchaseDate:purchases.length?purchases[purchases.length-1].date:null,
+      countCount:counts.length,
+      ...kgToBags(last?last.balance:0,t)};
+  }).sort((a,b)=>b.kg-a.kg);
+}
+
+const FEED_HORIZON_DAYS=365;
+// The forward walk. For each day ahead and each active batch: project the age,
+// read the programme for the feed that age calls for, and read the intake table
+// for how much it eats. Bird counts are held flat — modelling future mortality
+// would be guesswork, and erring towards slightly more feed is the safe way.
+function feedDemandSchedule(){
+  const farm=DB.getFarm()||{};
+  const batches=getActiveBatches()
+    .map(b=>({b,birds:getBatchBirdCount(b),age0:batchAgeInDays(b)||0,
+              type:getBirdType(b),lastDay:batchLastFeedDay(b)}))
+    .filter(x=>x.birds>0);
+  const out={};
+  for(let day=0;day<FEED_HORIZON_DAYS;day++){
+    for(const x of batches){
+      const age=x.age0+day;
+      // Sold and gone: stop counting rather than feeding a batch that has left.
+      if(x.lastDay!==null&&age>x.lastDay)continue;
+      const type=broodFeedTypeForAge(x.type,age);
+      if(!type)continue;
+      const kg=x.birds*getFeedRateGByType(x.type,age,farm)/1000;
+      if(kg<=0)continue;
+      const o=out[type]||(out[type]={totalKg:0,byDay:{},firstDay:null,lastDay:null,batches:new Set()});
+      o.totalKg+=kg;
+      o.byDay[day]=(o.byDay[day]||0)+kg;
+      if(o.firstDay===null)o.firstDay=day;
+      o.lastDay=day;
+      o.batches.add(x.b.id);
+    }
+  }
+  Object.values(out).forEach(o=>{
+    o.days=Object.keys(o.byDay).map(Number).sort((a,b)=>a-b).map(d=>({d,kg:o.byDay[d]}));
+    // Still wanted on the last day we looked at, so there is no end in sight.
+    o.openEnded=o.lastDay>=FEED_HORIZON_DAYS-1;
+    o.penCount=o.batches.size;
+  });
+  return out;
+}
+// kg needed over the first `n` calendar days from today.
+function _needKgWithin(demand,n){
+  return demand.days.reduce((s,x)=>x.d<n?s+x.kg:s,0);
+}
+
+// One row per feed type the farm either holds or is going to need, each carrying
+// the verdict that belongs to its own shape: a window to finish, or a runway.
+let _FS_STAMP=0, _FS_MEMO=null;
+function bumpFeedData(){ _FS_STAMP++; _FS_MEMO=null; }
+// Read several times per redraw, and unchanged between writes, so the walk is
+// cached against a counter every mutation path bumps.
+function getFeedStoreStatus(){
+  const key=_FS_STAMP+'|'+DB.today();
+  if(_FS_MEMO&&_FS_MEMO.key===key)return _FS_MEMO.val;
+  const val=_computeFeedStoreStatus();
+  _FS_MEMO={key,val};
+  return val;
+}
+function _computeFeedStoreStatus(){
+  const sched=feedDemandSchedule();
+  const stockMap={};
+  getFeedStockByType().forEach(s=>{ stockMap[s.feed_type]=s; });
+  const {leadDays,targetDays}=getFeedPolicy();
+  const today=DB.today();
+  const types=[...new Set([...Object.keys(sched),...Object.keys(stockMap)])];
+  return types.map(t=>{
+    const s=stockMap[t]||{feed_type:t,kg:0,lastCountDate:null,lastPurchaseDate:null,countCount:0,...kgToBags(0,t)};
+    const d=sched[t];
+    // Held but not on the programme for any current flock. Worth showing, never
+    // worth an alarm — this is what a leftover half-pallet looks like.
+    if(!d){
+      return {...s,feed_type:t,demand:null,openEnded:false,startDay:null,endDay:null,
+        startDate:null,endDate:null,needKg:0,todayKg:0,coverDays:null,runoutDate:null,
+        shortKg:0,surplusKg:s.kg,buyKg:0,buyBags:0,penCount:0,
+        state:s.kg>0.05?'idle':'ok',
+        headline:s.kg>0.05
+          ?`Not on the programme for any active batch — ${fmtBags(s.kg,t)} sitting in store`
+          :'Not currently in use',
+        tickerText:null};
+    }
+    // Walk only the days this feed is actually called for, and note the first
+    // one the store cannot cover.
+    let left=s.kg, covered=0, shortDay=null;
+    for(const day of d.days){
+      if(left<day.kg-1e-9){ shortDay=day.d; break; }
+      left-=day.kg; covered++;
+    }
+    const needKg=d.totalKg;
+    const shortKg=Math.max(0,needKg-s.kg);
+    const surplusKg=Math.max(0,s.kg-needKg);
+    const todayKg=d.byDay[0]||0;
+    const startDate=addDays(today,d.firstDay), endDate=addDays(today,d.lastDay);
+    // A finite window is bought to finish; a runway is bought to a target cover.
+    const buyKg=d.openEnded?Math.max(0,_needKgWithin(d,targetDays)-s.kg):shortKg;
+    // One rule covers running dry today, running dry mid-window, and a feed the
+    // flock has not even started yet: how many days until the store fails it.
+    const state=shortDay===null?(d.openEnded?'ok':'covered')
+      :shortDay<=leadDays?'urgent'
+      :shortDay<=leadDays*2?'soon':'ok';
+    const stage=d.openEnded?null:{endDate};
+    const row={...s,feed_type:t,demand:d,openEnded:d.openEnded,
+      startDay:d.firstDay,endDay:d.lastDay,startDate,endDate,
+      needKg,todayKg,penCount:d.penCount,
+      coverDays:d.firstDay===0?covered:null,
+      runoutDate:shortDay===null?null:addDays(today,shortDay),
+      shortDay,shortKg,surplusKg,buyKg,buyBags:bagsFor(buyKg,t),state,stage};
+    row.headline=_feedHeadline(row);
+    row.tickerText=_feedTickerText(row);
+    return row;
+  }).sort((a,b)=>_feedRank(a)-_feedRank(b)
+    ||((a.shortDay??1e9)-(b.shortDay??1e9))
+    ||b.kg-a.kg);
+}
+const _FEED_STATE_ORDER={urgent:0,soon:1,ok:2,covered:3,idle:4};
+function _feedRank(r){ return _FEED_STATE_ORDER[r.state]??5; }
+// The one sentence each card leads with. Deliberately different per shape: days
+// of cover for a runway, phase completion for a window.
+function _feedHeadline(r){
+  if(r.state==='idle')return r.headline;
+  // A feed the flock has not started on yet is described by when it starts and
+  // whether it is covered — checked before anything else, because "days of
+  // cover" is meaningless for feed nothing is eating today.
+  if(r.startDay>0){
+    const inDays=r.startDay;
+    const when=`Needed from ${fmtDate(r.startDate)} (in ${inDays} day${inDays===1?'':'s'})`;
+    // buyBags, not shortKg: for an open-ended feed the "shortfall" is a whole
+    // year's requirement, which is no use to anyone standing in a feed store.
+    if(r.buyBags<=0)return `${when} — already covered`;
+    return `${when} — buy ${r.buyBags} bag${r.buyBags===1?'':'s'}`;
+  }
+  if(r.openEnded){
+    if(r.shortDay===null)return 'Over a year of cover';
+    if(r.coverDays===0)return 'Out of feed — buy today';
+    return `${r.coverDays} day${r.coverDays===1?'':'s'} of feed left · runs out ${fmtDate(r.runoutDate)}`;
+  }
+  // Current window on a feed that ends.
+  if(r.shortKg<=0.05){
+    const spare=bagsFor(r.surplusKg,r.feed_type);
+    return `Covers this stage to ${fmtDate(r.endDate)}${spare>0?` with ${spare} bag${spare===1?'':'s'} spare`:' exactly'}`;
+  }
+  return `Runs out ${fmtDate(r.runoutDate)}, ${daysBetween(r.runoutDate,r.endDate)+1} day${daysBetween(r.runoutDate,r.endDate)+1===1?'':'s'} before this stage ends`;
+}
+// Shorter, and written to be read while sliding past.
+function _feedTickerText(r){
+  if(r.state!=='urgent'&&r.state!=='soon')return null;
+  const bags=r.buyBags;
+  const buy=bags>0?` — buy ${bags} bag${bags===1?'':'s'}`:'';
+  // Future first: a feed nothing is eating yet has no days-of-cover to quote.
+  if(r.startDay>0)
+    return `${r.feed_type} needed from ${fmtDate(r.startDate)} — ${r.kg>0.05?`only ${fmtBags(r.kg,r.feed_type)} in store`:'nothing in store'}${buy}`;
+  if(r.openEnded)
+    return r.coverDays===0
+      ?`${r.feed_type} store is EMPTY${buy}`
+      :`${r.feed_type}: ${r.coverDays} day${r.coverDays===1?'':'s'} of feed left, out ${fmtDate(r.runoutDate)}${buy}`;
+  return `${r.feed_type} runs out ${fmtDate(r.runoutDate)}, before this stage ends ${fmtDate(r.endDate)}${buy}`;
+}
+// Anything the farm should act on now. Drives both the ticker and home alerts.
+function feedAlerts(){
+  return getFeedStoreStatus().filter(r=>r.state==='urgent'||r.state==='soon');
+}
+// The single row worth putting on the home screen: the most pressing one.
+function feedCoverWorst(){
+  const all=getFeedStoreStatus().filter(r=>r.state!=='idle'&&r.demand);
+  return all[0]||null;
+}
+function feedCoverColor(state){
+  return state==='urgent'?'var(--red)':state==='soon'?'var(--amber)'
+    :state==='covered'?'var(--g2)':state==='idle'?'var(--gray)':'var(--g2)';
+}
+// What the farm will need, in the order it will need it — the answer to "what am
+// I buying next" without reading any of the cards.
+function feedTimeline(){
+  return getFeedStoreStatus()
+    .filter(r=>r.demand&&r.startDay!==null)
+    .sort((a,b)=>a.startDay-b.startDay)
+    .map(r=>({feed_type:r.feed_type,startDay:r.startDay,startDate:r.startDate,
+      endDate:r.openEnded?null:r.endDate,openEnded:r.openEnded,
+      needKg:r.needKg,needBags:bagsFor(r.needKg,r.feed_type),
+      haveKg:r.kg,shortKg:r.shortKg,buyBags:r.buyBags,state:r.state}));
+}
+function lastFeedPricePerKg(feedType){
+  const p=DB.getFeedStock()
+    .filter(r=>(r.kind||'purchase')==='purchase'&&r.feed_type===feedType&&Number(r.cost_ngn)>0&&Number(r.kg)>0)
+    .sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];
+  return p?Number(p.cost_ngn)/Number(p.kg):null;
+}
+
+// ── Low-feed ticker ─────────────────────────────────────────────────────
+// Rendered outside the views so it survives navigation, and refreshed by the
+// same calls that redraw a screen. It shows only what someone has to act on:
+// a feed running dry before its stage ends, or the next stage's feed missing.
+function openFeedStore(){ FEED_TAB='store'; go('feed'); }
+function _tickerMsg(alerts){
+  return alerts.map(a=>`${a.state==='urgent'?'🚨':'⚠️'} ${a.tickerText}`).join(' • ');
+}
+function renderFeedTicker(){
+  const el=document.getElementById('feed-ticker');
+  if(!el)return;
+  let alerts=[];
+  try{ alerts=feedAlerts(); }catch(e){ alerts=[]; }
+  if(!alerts.length){
+    el.style.display='none'; el.innerHTML='';
+    document.body.classList.remove('has-ticker');
+    return;
+  }
+  const urgent=alerts.some(a=>a.state==='urgent');
+  const msg=_tickerMsg(alerts);
+  // Pace the scroll by length so a long message does not fly past unread;
+  // roughly 22 characters a second, floored so short ones are not frantic.
+  const dur=Math.max(14,Math.round(msg.length/22*2));
+  el.className='feed-ticker'+(urgent?' urgent':'');
+  el.innerHTML=`<div class="ft-label">${urgent?'FEED ALERT':'FEED'}</div>
+    <div class="ft-win"><div class="ft-track" style="animation-duration:${dur}s">`
+    +`<span>${msg}</span><span>${msg}</span></div></div>`;
+  el.style.display='flex';
+  document.body.classList.add('has-ticker');
+}
 
 // ═══════════════════════════════════════════════
 // NAVIGATION
@@ -822,6 +1216,7 @@ function go(name){
   document.querySelector(`[data-view="${name}"]`).classList.add('active');
   ({home:renderHome,batches:renderBatches,daily:renderDaily,feed:renderFeed,weight:renderWeight,
     health:renderHealth,finance:renderFinance,reports:renderReports,settings:renderSettings})[name]?.();
+  renderFeedTicker();
 }
 function selectBatch(id,view){
   _activeBatchId=id;
@@ -861,6 +1256,11 @@ function getBatchSelectPrompt(){
 // ═══════════════════════════════════════════════
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 function fmtDate(iso){const d=new Date(iso+'T00:00:00');return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}
+// Both of these stay in UTC end to end. Parsing 'T00:00:00' as local and then
+// serialising with toISOString() shifts the answer by a day everywhere east of
+// Greenwich — including here — so the arithmetic is pinned to UTC instead.
+function addDays(iso,n){const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
+function daysBetween(fromIso,toIso){return Math.round((new Date(toIso+'T00:00:00Z')-new Date(fromIso+'T00:00:00Z'))/864e5)}
 function fmtMoney(n){return '₦'+Number(n||0).toLocaleString('en-NG',{minimumFractionDigits:0})}
 function isLocked(dateStr){if(!dateStr)return false;const diff=(new Date(DB.today())-new Date(dateStr+'T00:00:00'))/(864e5);return diff>7;}
 const LOCK_BADGE=`<span style="font-size:11px;color:var(--gray);padding:2px 6px;border:1px solid #ddd;border-radius:6px;user-select:none">🔒 Locked</span>`;
@@ -966,6 +1366,19 @@ function renderHome(){
     if(overdue.length)alerts.push(`<div class="alert-item alert-red">💉 ${b.name} — ${overdue.length} overdue vaccination${overdue.length>1?'s':''}</div>`);
     if(dueSoon.length)alerts.push(`<div class="alert-item alert-amber">💉 ${b.name} — ${dueSoon[0].name} due by ${fmtDate(dueSoon[0].dueDate)}</div>`);
   });
+  // Feed. Only what needs acting on: a feed running dry before its stage ends,
+  // or the next stage's feed not in store yet. A feed that merely has few days
+  // left because the batch is about to move off it is not a problem.
+  feedAlerts().forEach(a=>{
+    alerts.push(`<div class="alert-item ${a.state==='urgent'?'alert-red':'alert-amber'}" onclick="openFeedStore()" style="cursor:pointer">🌾 ${a.tickerText}</div>`);
+  });
+  // Stock the app has never had confirmed on the floor drifts, so nudge for a
+  // count rather than quietly presenting book figures as fact.
+  (()=>{
+    const stale=getFeedStoreStatus().filter(c=>c.kg>0&&(!c.lastCountDate||
+      daysBetween(c.lastCountDate,today)>30));
+    if(stale.length)alerts.push(`<div class="alert-item alert-amber" onclick="FEED_TAB='store';openFeedCount(null,'${stale[0].feed_type}')" style="cursor:pointer">🧮 ${stale[0].feed_type} not counted ${stale[0].lastCountDate?'in over a month':'yet'} — tap to count the store</div>`);
+  })();
 
   const batchCards=active.map(b=>{
     const ageDays=batchAgeInDays(b), ageWeeks=batchAgeInWeeks(b);
@@ -1000,6 +1413,31 @@ function renderHome(){
       <div class="kpi"><div class="kpi-val" style="color:${todayDeaths>0?'var(--red)':'var(--g2)'}">${todayDeaths}</div><div class="kpi-lbl">Deaths Today</div></div>
     </div>
     ${alerts.length?`<div style="margin:0 16px 8px">${alerts.join('')}</div>`:''}
+    ${(()=>{
+      const worst=feedCoverWorst();
+      if(!worst)return '';
+      const col=feedCoverColor(worst.state);
+      const bg=worst.state==='urgent'?'var(--redBg)':worst.state==='soon'?'var(--amberBg)':'var(--p5)';
+      // A window shows what finishes it; a runway shows how long it lasts.
+      const big=worst.openEnded
+        ?`${worst.coverDays===null?'—':worst.coverDays} day${worst.coverDays===1?'':'s'} left`
+        :worst.shortKg>0.05?`short ${bagsFor(worst.shortKg,worst.feed_type)} bag${bagsFor(worst.shortKg,worst.feed_type)===1?'':'s'}`
+        :'stage covered';
+      return `<div style="margin:0 16px 8px;background:${bg};border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;cursor:pointer" onclick="openFeedStore()">
+        <div>
+          <div style="font-size:11px;color:var(--p1);font-weight:700;text-transform:uppercase;letter-spacing:.4px">Feed store · ${worst.feed_type}</div>
+          <div style="font-size:20px;font-weight:800;color:${col}">${big}</div>
+          <div style="font-size:11px;color:var(--p1)">${fmtBags(worst.kg,worst.feed_type)}${worst.todayKg>0?` · ${worst.todayKg.toFixed(1)} kg/day`:''}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          ${worst.buyBags>0
+            ?`<div style="font-size:20px;font-weight:800;color:var(--g2)">${worst.buyBags}</div>
+              <div style="font-size:10px;color:var(--p1);font-weight:700;text-transform:uppercase">bags to buy</div>`
+            :`<div style="font-size:13px;font-weight:800;color:var(--g2)">✓ Stocked</div>`}
+          <div style="font-size:10px;color:var(--gray);margin-top:2px">${worst.openEnded?(worst.runoutDate?'out '+fmtDate(worst.runoutDate):''):(worst.startDay>0?'from '+fmtDate(worst.startDate):'to '+fmtDate(worst.endDate))}</div>
+        </div>
+      </div>`;
+    })()}
     <div class="sec-hdr">Active Batches</div>
     ${batchCards||'<div style="margin:0 16px 16px;color:var(--gray);font-size:13px">No active batches. <span style="color:var(--p2);cursor:pointer" onclick="go(\'batches\')">Add one →</span></div>'}
     <div style="height:12px"></div>`;
@@ -1437,10 +1875,21 @@ function delWeight(id){
 // ═══════════════════════════════════════════════
 // FEED — DAILY FEED USAGE
 // ═══════════════════════════════════════════════
+let FEED_TAB='usage';
 function renderFeed(){
-  const el=document.getElementById('v-feed'), today=DB.today();
-  const topbar=`<div class="topbar"><div><h1>Feed Log</h1><small>Daily usage by type & phase</small></div></div>`;
-  if(!_activeBatchId||!DB.getBatches().find(b=>b.id===_activeBatchId)){el.innerHTML=topbar+getBatchSelectPrompt();return;}
+  const el=document.getElementById('v-feed');
+  const alerts=feedAlerts();
+  const dot=alerts.some(a=>a.state==='urgent')?' 🔴':alerts.length?' 🟠':'';
+  el.innerHTML=`<div class="topbar"><div><h1>Feed</h1><small>Daily usage · store &amp; reorder</small></div></div>
+    <div class="inner-tabs">
+      <button class="inner-tab ${FEED_TAB==='usage'?'active':''}" onclick="FEED_TAB='usage';renderFeed()">Daily Usage</button>
+      <button class="inner-tab ${FEED_TAB==='store'?'active':''}" onclick="FEED_TAB='store';renderFeed()">Feed Store${dot}</button>
+    </div>`
+    +(FEED_TAB==='store'?feedStoreBody():feedUsageBody());
+}
+function feedUsageBody(){
+  const today=DB.today();
+  if(!_activeBatchId||!DB.getBatches().find(b=>b.id===_activeBatchId))return getBatchSelectPrompt();
   const batch=DB.getBatches().find(b=>b.id===_activeBatchId);
   const recs=DB.getFeed().filter(r=>r.batch_id===_activeBatchId).sort((a,b)=>b.date.localeCompare(a.date));
   const todayRec=recs.find(r=>r.date===today);
@@ -1478,7 +1927,7 @@ function renderFeed(){
         <button class="btn btn-danger btn-sm" onclick="delFeedLog('${r.id}')">✕</button>`}
       </div></div>`;
   }).join('');
-  el.innerHTML=topbar+getBatchCtxBar()+`
+  return getBatchCtxBar()+`
     <div class="kpi-row-3">
       <div class="kpi"><div class="kpi-val">${totalFeed7.toFixed(1)}</div><div class="kpi-lbl">kg Used (7d)</div></div>
       <div class="kpi"><div class="kpi-val">${feedRateG}</div><div class="kpi-lbl">g/Bird/Day<br><span style="font-size:9px;color:var(--p3);font-weight:500">${phase.label}</span></div></div>
@@ -1488,6 +1937,382 @@ function renderFeed(){
     <div class="sec-hdr">History</div>
     <div class="card" style="padding:0;overflow:hidden">${histHtml||'<div class="empty" style="padding:24px"><p>No feed records yet for this batch.</p></div>'}</div>
     <div style="height:12px"></div>`;
+}
+
+// ── Feed Store tab ──────────────────────────────────────────────────────
+// Not gated on a selected pen: there is one store, and whoever is holding the
+// phone in it should be able to enter a count without first picking a batch.
+function feedStoreBody(){
+  const rows=getFeedStoreStatus();
+  const {leadDays,targetDays}=getFeedPolicy();
+  const actions=`<div style="margin:12px 16px;display:flex;flex-direction:column;gap:8px">
+    <button class="btn btn-primary" onclick="openFeedCount()">⚖ Enter Stock Count</button>
+    <button class="btn btn-secondary" onclick="openFeedPurchase()">＋ Record Feed Purchase</button>
+  </div>`;
+  if(rows.length===0){
+    return `<div class="empty" style="padding:28px 24px">
+        <h3>Nothing in the feed store yet</h3>
+        <p>Count what is in the store and the app works out whether it covers the stage each batch is on, and how many bags to buy — no more counting and dividing by hand.</p>
+      </div>${actions}`;
+  }
+  const banners=rows.filter(r=>r.state==='urgent'||r.state==='soon').map(r=>
+    `<div class="alert-item ${r.state==='urgent'?'alert-red':'alert-amber'}">🌾 ${r.tickerText}</div>`).join('');
+
+  // What is coming, in the order it is coming. This is the answer to "what am I
+  // buying next" without reading a single card.
+  const tl=feedTimeline();
+  const timelineHtml=tl.length<2?'':`
+    <div class="sec-hdr">Feed Programme Ahead</div>
+    <div class="card" style="padding:0;overflow:hidden">
+      ${tl.map(t=>{
+        const cls=t.state==='urgent'?'var(--red)':t.state==='soon'?'var(--amber)':'var(--g3)';
+        const when=t.startDay===0
+          ?(t.openEnded?'now onwards':`now → ${fmtDate(t.endDate)}`)
+          :(t.openEnded?`from ${fmtDate(t.startDate)}`:`${fmtDate(t.startDate)} → ${fmtDate(t.endDate)}`);
+        return `<div class="list-item">
+          <div style="display:flex;align-items:center;gap:10px;min-width:0">
+            <div style="width:8px;height:8px;border-radius:50%;background:${cls};flex-shrink:0"></div>
+            <div style="min-width:0">
+              <div style="font-weight:700;font-size:14px">${t.feed_type}</div>
+              <div style="font-size:11px;color:var(--gray)">${when}${t.openEnded?'':` · needs ${t.needBags} bag${t.needBags===1?'':'s'}`}</div>
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            ${t.buyBags>0
+              ?`<div style="font-weight:800;font-size:15px;color:${cls}">buy ${t.buyBags}</div>`
+              :`<div style="font-weight:800;font-size:13px;color:var(--g2)">✓</div>`}
+            <div style="font-size:10px;color:var(--gray)">have ${fmtBags(t.haveKg,t.feed_type)}</div>
+          </div>
+        </div>`;}).join('')}
+    </div>`;
+
+  const cards=rows.map(r=>{
+    const col=feedCoverColor(r.state);
+    const ppk=lastFeedPricePerKg(r.feed_type);
+    const staleDays=r.lastCountDate?daysBetween(r.lastCountDate,DB.today()):null;
+    const bg=r.state==='urgent'?'var(--redBg)':r.state==='soon'?'var(--amberBg)'
+      :r.state==='idle'?'#f5f5f5':'var(--p5)';
+    const fg=r.state==='urgent'?'#7f1d1d':r.state==='soon'?'#7d4e00'
+      :r.state==='idle'?'var(--gray)':'var(--p1)';
+    // The sub-line explains the shape of the verdict, which is the part that is
+    // easy to misread: a window is judged on finishing, a runway on lasting.
+    let sub='';
+    if(r.state==='idle'){
+      sub='';
+    } else if(r.openEnded){
+      sub=r.todayKg>0
+        ?`Eating <b>${r.todayKg.toFixed(1)} kg/day</b> today across ${r.penCount} batch${r.penCount===1?'':'es'} — rises as the flock ages`
+        :`Starts ${fmtDate(r.startDate)}, then no end date`;
+    } else if(r.startDay>0){
+      sub=`This stage needs <b>${bagsFor(r.needKg,r.feed_type)} bag${bagsFor(r.needKg,r.feed_type)===1?'':'s'}</b> (${r.needKg.toFixed(0)} kg) from ${fmtDate(r.startDate)} to ${fmtDate(r.endDate)}`;
+    } else {
+      sub=`Rest of this stage needs <b>${bagsFor(r.needKg,r.feed_type)} bag${bagsFor(r.needKg,r.feed_type)===1?'':'s'}</b> (${r.needKg.toFixed(0)} kg) through ${fmtDate(r.endDate)}`
+        +(r.todayKg>0?` · ${r.todayKg.toFixed(1)} kg/day now`:'');
+    }
+    const footer=r.state==='idle'
+      ? `<div style="font-size:12px;color:var(--gray);border-top:1px solid #f0f0f0;padding-top:10px">Keep it, or it will be picked up again automatically if the programme calls for it later.</div>`
+      : r.buyBags>0
+        ? `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;border-top:1px solid #f0f0f0;padding-top:10px">
+            <div style="font-size:12px;color:var(--gray)">${r.openEnded?`To cover ${targetDays} days`:'To finish this stage'} you need ${Math.max(0,r.buyKg).toFixed(0)} kg more
+              ${ppk?`<br>≈ ${fmtMoney(Math.round(r.buyBags*getBagKg(r.feed_type)*ppk))} at last price (${fmtMoney(Math.round(ppk))}/kg)`:''}</div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-size:20px;font-weight:800;color:var(--g2);line-height:1.1">${r.buyBags}</div>
+              <div style="font-size:10px;color:var(--gray);text-transform:uppercase;font-weight:700">bags to buy</div>
+            </div>
+          </div>`
+        : `<div style="font-size:12px;color:var(--g2);font-weight:700;border-top:1px solid #f0f0f0;padding-top:10px">✓ ${r.openEnded?`Enough for the next ${targetDays} days`:'Nothing to buy for this stage'}</div>`;
+    return `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">
+        <div>
+          <div style="font-weight:800;font-size:16px">${r.feed_type}</div>
+          <div style="font-size:11px;color:var(--gray);margin-top:2px">${r.lastCountDate?`Last counted ${staleDays===0?'today':staleDays===1?'yesterday':staleDays+' days ago'}`:'Never counted — balance is from purchases minus usage'}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:22px;font-weight:800;color:${col};line-height:1.1">${r.bags}<span style="font-size:12px;font-weight:600;color:var(--gray)"> bag${r.bags===1?'':'s'}</span></div>
+          <div style="font-size:11px;color:var(--gray)">${r.loose>0?`+ ${r.loose} kg · `:''}${r.kg.toFixed(1)} kg</div>
+        </div>
+      </div>
+      <div style="background:${bg};border-radius:10px;padding:11px 13px;margin-bottom:10px">
+        <div style="font-weight:800;font-size:14px;color:${fg}">${r.headline}</div>
+        ${sub?`<div style="font-size:12px;color:var(--p1);margin-top:3px">${sub}</div>`:''}
+      </div>
+      ${footer}
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="openFeedCount(null,'${r.feed_type}')">Count</button>
+        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="openFeedPurchase(null,'${r.feed_type}')">Purchase</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  const allCounts=DB.getFeedStock().filter(r=>(r.kind||'purchase')==='count');
+  const lossKg=allCounts.reduce((s,r)=>s+Math.min(0,Number(r.variance_kg||0)),0);
+  const shrinkHtml=allCounts.length===0?'':`
+    <div style="margin:0 16px 8px;background:${lossKg<-1?'var(--amberBg)':'var(--p5)'};border-radius:10px;padding:10px 13px;font-size:12px;color:${lossKg<-1?'#7d4e00':'var(--p1)'}">
+      ${lossKg<-1
+        ?`⚠ Counts have found <b>${Math.abs(lossKg).toFixed(1)} kg</b> less than the books expected across ${allCounts.length} count${allCounts.length===1?'':'s'} — spillage, damp, or feed walking.`
+        :`✓ Counts match the books to within ${Math.abs(lossKg).toFixed(1)} kg across ${allCounts.length} count${allCounts.length===1?'':'s'}.`}
+    </div>`;
+  // Merged newest-first, but each row still carries its own type's balance —
+  // one running figure across types would be meaningless.
+  const led=feedStoreTypes().flatMap(t=>feedStockLedger(t))
+    .sort((a,b)=>String(b.date).localeCompare(String(a.date))
+      ||(_FS_RANK[b.kind]??1)-(_FS_RANK[a.kind]??1))
+    .slice(0,40);
+  const logRows=led.map(e=>{
+    const r=e.rec;
+    if(e.kind==='usage')return `<div class="list-item">
+      <div><div style="font-weight:700;font-size:13px">${fmtDate(e.date)} <span style="font-size:11px;color:var(--gray);font-weight:500">fed to birds · ${r.feed_type}</span></div>
+        <div style="font-size:12px;color:var(--red);margin-top:2px">− ${e.kg.toFixed(1)} kg</div></div>
+      <div style="text-align:right;font-size:12px;color:var(--gray)">${fmtBags(e.balance,r.feed_type)}<div style="font-size:10px">left</div></div></div>`;
+    const isCount=e.kind==='count';
+    const label=isCount?'stock count':'purchase';
+    const deltaTxt=isCount
+      ? (Math.abs(e.delta)<0.05?'matched the books'
+         :`${e.delta>0?'+':'−'} ${Math.abs(e.delta).toFixed(1)} kg vs books`)
+      : `+ ${e.kg.toFixed(1)} kg${r.bags?` (${r.bags} bag${r.bags===1?'':'s'})`:''}`;
+    return `<div class="list-item">
+      <div><div style="font-weight:700;font-size:13px">${fmtDate(e.date)} <span style="font-size:11px;color:var(--gray);font-weight:500">${label} · ${r.feed_type}</span></div>
+        <div style="font-size:12px;color:${isCount?(e.delta<-0.05?'var(--red)':'var(--gray)'):'var(--g2)'};margin-top:2px">${deltaTxt}</div>
+        ${r.cost_ngn?`<div style="font-size:11px;color:var(--gray);margin-top:2px">${fmtMoney(r.cost_ngn)}${Number(r.kg)>0?` · ${fmtMoney(Math.round(r.cost_ngn/r.kg))}/kg`:''}${r.supplier?` · ${r.supplier}`:''}</div>`:''}
+        ${r.counted_by?`<div style="font-size:11px;color:var(--gray);margin-top:2px">Counted by ${r.counted_by}</div>`:''}
+        ${r.notes?`<div style="font-size:11px;color:var(--gray);font-style:italic;margin-top:2px">"${r.notes}"</div>`:''}</div>
+      <div style="text-align:right">
+        <div style="font-size:12px;color:var(--gray)">${fmtBags(e.balance,r.feed_type)}<div style="font-size:10px">left</div></div>
+        <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
+          ${isLocked(e.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="${isCount?`openFeedCount('${r.id}')`:`openFeedPurchase('${r.id}')`}">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="delFeedStock('${r.id}')">✕</button>`}
+        </div>
+      </div></div>`;
+  }).join('');
+  return `${banners?`<div style="margin:12px 16px 0">${banners}</div>`:''}
+    ${actions}
+    ${shrinkHtml}
+    ${cards}
+    ${timelineHtml}
+    <div class="sec-hdr">Store Movement
+      <span style="font-size:11px;color:var(--gray);text-transform:none;font-weight:500">Reorder at ${leadDays}d notice · runway target ${targetDays}d</span>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">${logRows||'<div class="empty" style="padding:24px"><p>No movement yet.</p></div>'}</div>
+    <div style="height:12px"></div>`;
+}
+
+
+// ── Feed purchase ───────────────────────────────────────────────────────
+// Entered once, in bags, and it writes the matching Feed expense so the store
+// and the books cannot drift apart through double entry.
+function openFeedPurchase(editId,presetType){
+  const today=DB.today();
+  const rec=editId?DB.getFeedStock().find(r=>r.id===editId):null;
+  const active=getActiveBatches();
+  const type=rec?.feed_type||presetType||getFeedStockByType()[0]?.feed_type||BROOD_FEED_TYPES[1];
+  openModal(`<div class="modal-ttl">${rec?'Edit':'Record'} Feed Purchase <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="field"><label>Date</label><input type="date" id="fp_date" value="${rec?rec.date:today}" max="${today}"></div>
+    <div class="field"><label>Feed Type</label>
+      <select id="fp_type" onchange="calcFeedPurchase()">${BROOD_FEED_TYPES.map(t=>`<option value="${t}" ${t===type?'selected':''}>${t}</option>`).join('')}</select></div>
+    ${active.length?`<div class="field"><label>Batch <span style="color:var(--gray);font-weight:400">— optional, for the expense</span></label>
+      <select id="fp_batch"><option value="">Not batch-specific</option>${active.map(b=>`<option value="${b.id}" ${rec?.batch_id===b.id?'selected':''}>${b.name}</option>`).join('')}</select></div>`:'<input type="hidden" id="fp_batch" value="">'}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Bags</label><input type="number" id="fp_bags" value="${rec?.bags??''}" min="0" step="1" inputmode="numeric" placeholder="e.g. 20" oninput="calcFeedPurchase()"></div>
+      <div class="field"><label>Loose kg <span style="color:var(--gray);font-weight:400">opt</span></label><input type="number" id="fp_loose" value="${rec?.loose_kg||''}" min="0" step="0.5" placeholder="0" oninput="calcFeedPurchase()"></div>
+    </div>
+    <div class="field"><label>Total cost (₦) <span style="color:var(--gray);font-weight:400">— posts to Expenses</span></label>
+      <input type="number" id="fp_cost" value="${rec?.cost_ngn||''}" min="0" step="100" inputmode="numeric" placeholder="0" oninput="calcFeedPurchase()"></div>
+    <div id="fp_prev" style="background:var(--p5);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--p1);margin-bottom:12px"></div>
+    <div class="field"><label>Supplier <span style="color:var(--gray);font-weight:400">— optional</span></label>
+      <input type="text" id="fp_supplier" value="${(rec?.supplier||'').replace(/"/g,'&quot;')}" placeholder="e.g. Amo Byng"></div>
+    <div class="field"><label>Notes <span style="color:var(--gray);font-weight:400">— optional</span></label>
+      <textarea id="fp_notes" placeholder="e.g. price up ₦500/bag">${rec?.notes||''}</textarea></div>
+    <button class="btn btn-primary" onclick="saveFeedPurchase('${editId||''}')">Save</button>`);
+  calcFeedPurchase();
+}
+function calcFeedPurchase(){
+  const el=document.getElementById('fp_prev'); if(!el)return;
+  const type=document.getElementById('fp_type').value;
+  const bagKg=getBagKg(type);
+  const bags=parseFloat(document.getElementById('fp_bags').value)||0;
+  const loose=parseFloat(document.getElementById('fp_loose').value)||0;
+  const cost=parseFloat(document.getElementById('fp_cost').value)||0;
+  const kg=bags*bagKg+loose;
+  if(kg<=0){el.innerHTML=`Bag size for ${type} is <b>${bagKg} kg</b> — change it in Settings if yours differ.`;return;}
+  const ppk=lastFeedPricePerKg(type);
+  const nowPpk=cost>0?cost/kg:null;
+  const drift=(ppk&&nowPpk)?((nowPpk-ppk)/ppk*100):null;
+  el.innerHTML=`Adds <b>${kg.toFixed(1)} kg</b> at ${bagKg} kg/bag`
+    +(cost>0?` · <b>${fmtMoney(Math.round(nowPpk))}/kg</b> (${fmtMoney(Math.round(cost/Math.max(1,bags||kg/bagKg)))}/bag)`:'')
+    +(drift!==null&&Math.abs(drift)>=1?`<br><span style="color:${drift>0?'var(--red)':'var(--g2)'};font-weight:700">${drift>0?'▲':'▼'} ${Math.abs(drift).toFixed(0)}% vs last purchase</span>`:'');
+}
+function saveFeedPurchase(editId){
+  const date=document.getElementById('fp_date').value;
+  const feed_type=document.getElementById('fp_type').value;
+  const bags=parseFloat(document.getElementById('fp_bags').value)||0;
+  const loose_kg=parseFloat(document.getElementById('fp_loose').value)||0;
+  const cost_ngn=parseFloat(document.getElementById('fp_cost').value)||0;
+  const batch_id=document.getElementById('fp_batch')?.value||'';
+  const bag_kg=getBagKg(feed_type);
+  const kg=Math.round((bags*bag_kg+loose_kg)*10)/10;
+  if(!date){toast('Pick a date');return;}
+  if(kg<=0){toast('Enter the bags received');return;}
+  const existing=editId?DB.getFeedStock().find(r=>r.id===editId):null;
+  const id=editId||uid();
+  const rec={id,date,kind:'purchase',feed_type,bags,loose_kg,kg,bag_kg,cost_ngn,batch_id,
+    batch_name:batch_id?(DB.getBatches().find(b=>b.id===batch_id)?.name||''):'',
+    supplier:document.getElementById('fp_supplier').value.trim(),
+    notes:document.getElementById('fp_notes').value.trim(),
+    expense_id:existing?.expense_id||undefined};
+  syncFeedPurchaseExpense(rec);
+  if(editId)DB.updFeedStock(editId,rec); else DB.addFeedStock(rec);
+  closeModal();confirmSave('Feed purchase saved');renderFeed();renderHome();renderFinance();renderFeedTicker();
+}
+// Keeps one Feed expense in step with the purchase record. Mutates
+// rec.expense_id so the link survives on the stored copy.
+function syncFeedPurchaseExpense(rec){
+  const linked=rec.expense_id?DB.getExpenses().find(e=>e.id===rec.expense_id):null;
+  if(!(rec.cost_ngn>0)){
+    if(linked)DB.delExpense(linked.id);
+    rec.expense_id=undefined;
+    return;
+  }
+  const notes=`${rec.bags?`${rec.bags} bag${rec.bags===1?'':'s'} `:''}${rec.feed_type}`
+    +(rec.loose_kg>0?` + ${rec.loose_kg} kg`:'')
+    +` (${rec.kg} kg)`+(rec.supplier?` · ${rec.supplier}`:'');
+  const payload={date:rec.date,category:'Feed',amount_ngn:rec.cost_ngn,amount_usd:0,
+    batch_id:rec.batch_id||'',batch_name:rec.batch_name||'',notes,feed_stock_id:rec.id};
+  if(linked){ DB.updExpense(linked.id,payload); }
+  else { const eid=uid(); DB.addExpense({id:eid,...payload}); rec.expense_id=eid; }
+}
+
+// ── Stock count ─────────────────────────────────────────────────────────
+// The entry point for whoever is standing in the store. Count full bags, weigh
+// what is in the open one, save — and the answer that used to need a phone call
+// to the owner appears on the spot.
+function openFeedCount(editId,presetType){
+  const today=DB.today();
+  const rec=editId?DB.getFeedStock().find(r=>r.id===editId):null;
+  const stocked=getFeedStockByType();
+  const type=rec?.feed_type||presetType||stocked[0]?.feed_type||BROOD_FEED_TYPES[1];
+  openModal(`<div class="modal-ttl">${rec?'Edit':'Enter'} Stock Count <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div style="background:#e8f4fd;border-left:3px solid #4895ef;padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
+      🧮 Count the full bags in the store and weigh what is left in the opened one. This becomes the new balance — you do not need to work out the days yourself.
+    </div>
+    <input type="hidden" id="fc_edit" value="${editId||''}">
+    <div class="field"><label>Date counted</label><input type="date" id="fc_date" value="${rec?rec.date:today}" max="${today}"></div>
+    <div class="field"><label>Feed Type</label>
+      <select id="fc_type" onchange="calcFeedCount()">${BROOD_FEED_TYPES.map(t=>`<option value="${t}" ${t===type?'selected':''}>${t}</option>`).join('')}</select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Full bags</label><input type="number" id="fc_bags" value="${rec?.bags??''}" min="0" step="1" inputmode="numeric" placeholder="e.g. 14" oninput="calcFeedCount()"></div>
+      <div class="field"><label>Opened bag (kg)</label><input type="number" id="fc_loose" value="${rec?.loose_kg||''}" min="0" step="0.5" placeholder="0" oninput="calcFeedCount()"></div>
+    </div>
+    <div id="fc_prev" style="background:var(--p5);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--p1);margin-bottom:12px"></div>
+    <div class="field"><label>Counted by <span style="color:var(--gray);font-weight:400">— optional</span></label>
+      <input type="text" id="fc_by" value="${(rec?.counted_by||'').replace(/"/g,'&quot;')}" placeholder="Name of whoever counted"></div>
+    <div class="field"><label>Notes <span style="color:var(--gray);font-weight:400">— optional</span></label>
+      <textarea id="fc_notes" placeholder="e.g. two bags caked, set aside">${rec?.notes||''}</textarea></div>
+    <button class="btn btn-primary" onclick="saveFeedCount('${editId||''}')">Save Count</button>`);
+  calcFeedCount();
+}
+function calcFeedCount(){
+  const el=document.getElementById('fc_prev'); if(!el)return;
+  const type=document.getElementById('fc_type').value;
+  const bagKg=getBagKg(type);
+  const bags=parseFloat(document.getElementById('fc_bags').value)||0;
+  const loose=parseFloat(document.getElementById('fc_loose').value)||0;
+  const kg=bags*bagKg+loose;
+  const book=feedBookKg(type,document.getElementById('fc_edit')?.value||undefined);
+  const diff=kg-book;
+  // Re-run the verdict against the counted figure so the preview answers the
+  // real question before the count is even saved.
+  const row=getFeedStoreStatus().find(c=>c.feed_type===type);
+  let coverTxt='';
+  if(row&&row.demand){
+    let left=kg, covered=0, shortDay=null;
+    for(const day of row.demand.days){
+      if(left<day.kg-1e-9){shortDay=day.d;break;}
+      left-=day.kg; covered++;
+    }
+    const pol=getFeedPolicy();
+    const needKg=row.demand.totalKg;
+    const buyKg=row.openEnded
+      ?Math.max(0,row.demand.days.reduce((a,x)=>x.d<pol.targetDays?a+x.kg:a,0)-kg)
+      :Math.max(0,needKg-kg);
+    const buyBags=bagsFor(buyKg,type);
+    const urgent=shortDay!==null&&shortDay<=pol.leadDays;
+    const line=shortDay===null
+      ?(row.openEnded?`Over ${covered} days of cover`
+        :`Covers this stage to ${fmtDate(row.endDate)}`)
+      :(row.openEnded?`${covered} day${covered===1?'':'s'} of feed · runs out ${fmtDate(addDays(DB.today(),shortDay))}`
+        :`Runs out ${fmtDate(addDays(DB.today(),shortDay))}, before this stage ends ${fmtDate(row.endDate)}`);
+    coverTxt=`<div style="margin-top:6px;font-weight:800;font-size:13px;color:${urgent?'var(--red)':'var(--p1)'}">${line}</div>
+      <div style="margin-top:2px">${buyBags>0?`Buy <b>${buyBags} bag${buyBags===1?'':'s'}</b> ${row.openEnded?`to cover ${pol.targetDays} days`:'to finish this stage'}`:'Nothing to buy'}</div>`;
+  }
+  el.innerHTML=`Counted <b>${kg.toFixed(1)} kg</b> at ${bagKg} kg/bag · books say ${book.toFixed(1)} kg`
+    +(Math.abs(diff)<0.05?' — <b>matches</b>'
+      :`<br><span style="color:${diff<0?'var(--red)':'var(--amber)'};font-weight:700">${diff<0?`Short by ${Math.abs(diff).toFixed(1)} kg`:`Over by ${diff.toFixed(1)} kg`}</span>`)
+    +coverTxt;
+}
+function saveFeedCount(editId){
+  const date=document.getElementById('fc_date').value;
+  const feed_type=document.getElementById('fc_type').value;
+  const bags=parseFloat(document.getElementById('fc_bags').value)||0;
+  const loose_kg=parseFloat(document.getElementById('fc_loose').value)||0;
+  const bag_kg=getBagKg(feed_type);
+  const kg=Math.round((bags*bag_kg+loose_kg)*10)/10;
+  if(!date){toast('Pick the date counted');return;}
+  if(bags===0&&loose_kg===0&&!confirm('Record the store as empty for '+feed_type+'?'))return;
+  // Snapshotted against the books with this count itself excluded, so the figure
+  // recorded is what was actually found rather than a self-referential zero.
+  const book=feedBookKg(feed_type,editId||undefined);
+  const rec={id:editId||uid(),date,kind:'count',feed_type,bags,loose_kg,kg,bag_kg,
+    variance_kg:Math.round((kg-book)*10)/10,
+    counted_by:document.getElementById('fc_by').value.trim(),
+    notes:document.getElementById('fc_notes').value.trim()};
+  if(editId)DB.updFeedStock(editId,rec); else DB.addFeedStock(rec);
+  closeModal();renderFeed();renderHome();renderFeedTicker();
+  confirmSave('Stock count saved');
+  showFeedCountResult(feed_type);
+}
+// The payoff screen: says what the count means so nobody has to call and ask.
+// The payoff screen: says what the count means so nobody has to call and ask.
+function showFeedCountResult(feedType){
+  const r=getFeedStoreStatus().find(c=>c.feed_type===feedType);
+  if(!r)return;
+  const bg=r.state==='urgent'?'var(--redBg)':r.state==='soon'?'var(--amberBg)':'#d1fae5';
+  // A runway leads with days; a window leads with whether it finishes the stage.
+  const big=r.openEnded
+    ?{val:r.coverDays===null?'—':r.coverDays,lbl:'days of feed left'}
+    :r.shortKg>0.05
+      ?{val:bagsFor(r.shortKg,feedType),lbl:'bags short of finishing this stage'}
+      :{val:'✓',lbl:'covers this stage'};
+  openModal(`<div class="modal-ttl">${feedType} <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div style="background:${bg};border-radius:10px;padding:14px;margin-bottom:12px;text-align:center">
+      <div style="font-size:30px;font-weight:800;line-height:1;color:${feedCoverColor(r.state)}">${big.val}</div>
+      <div style="font-size:12px;font-weight:700;color:var(--p1);text-transform:uppercase;letter-spacing:.4px;margin-top:4px">${big.lbl}</div>
+      <div style="font-size:12px;color:var(--p1);margin-top:6px">${r.headline}</div>
+    </div>
+    <div style="font-size:13px;color:var(--p1);line-height:1.7;margin-bottom:14px">
+      In store: <b>${fmtBags(r.kg,feedType)}</b> (${r.kg.toFixed(1)} kg)<br>
+      ${r.todayKg>0?`Eating <b>${r.todayKg.toFixed(1)} kg/day</b> today, rising with age<br>`:''}
+      ${r.demand&&!r.openEnded?`This stage still needs <b>${bagsFor(r.needKg,feedType)} bag${bagsFor(r.needKg,feedType)===1?'':'s'}</b> through ${fmtDate(r.endDate)}<br>`:''}
+      ${r.buyBags>0?`<b>Buy ${r.buyBags} bag${r.buyBags===1?'':'s'}</b>`:'Nothing to buy'}
+    </div>
+    <button class="btn btn-primary" onclick="closeModal()">Done</button>`);
+}
+function delFeedStock(id){
+  const rec=DB.getFeedStock().find(r=>r.id===id);
+  const linked=rec?.expense_id?DB.getExpenses().find(e=>e.id===rec.expense_id):null;
+  openModal(`<div class="modal-ttl">Delete? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:14px">
+      ${rec?.kind==='count'?'The balance goes back to purchases minus usage.':'Stock on hand drops by '+Number(rec?.kg||0).toFixed(1)+' kg.'}
+      ${linked?`<br><br>The linked <b>${fmtMoney(linked.amount_ngn)}</b> Feed expense is removed too.`:''}
+      <br><br>Recoverable for ${TRASH_TTL_DAYS} days from Settings → Recently Deleted.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();doDelFeedStock('${id}')">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+function doDelFeedStock(id){
+  const rec=DB.getFeedStock().find(r=>r.id===id);
+  if(rec?.expense_id&&DB.getExpenses().some(e=>e.id===rec.expense_id))DB.delExpense(rec.expense_id);
+  DB.delFeedStock(id);
+  confirmSave('Deleted');renderFeed();renderHome();renderFinance();renderFeedTicker();
 }
 function openFeedForm(editId){
   const today=DB.today();
@@ -1680,7 +2505,7 @@ function renderFinance(){
     tabContent=`<div style="margin:12px 16px"><button class="btn btn-primary" onclick="openExpenseForm()">+ Add Expense</button></div>
       <div class="card" style="padding:0;overflow:hidden">
         ${expenses.slice(0,50).map(e=>`<div class="list-item">
-          <div><div style="font-weight:700;font-size:14px">${e.category}</div>
+          <div><div style="font-weight:700;font-size:14px">${e.category}${e.feed_stock_id?' <span class="badge badge-purple" style="vertical-align:middle">🌾 Feed store</span>':''}</div>
             <div style="font-size:12px;color:var(--gray)">${fmtDate(e.date)}${e.batch_name?' · '+e.batch_name:''} · ${e.notes||'—'}</div></div>
           <div style="text-align:right">
             <div style="font-weight:800;color:var(--red)">${fmtMoney(e.amount_ngn)}</div>
@@ -1833,7 +2658,14 @@ function renderFinance(){
 function openExpenseForm(editId){
   const today=DB.today(), rec=editId?DB.getExpenses().find(e=>e.id===editId):null;
   const active=getActiveBatches();
+  // A feed-store purchase owns its expense. Say so, and point at the record that
+  // actually drives the figure, rather than letting an edit here be overwritten.
+  const linked=rec?.feed_stock_id?DB.getFeedStock().find(r=>r.id===rec.feed_stock_id):null;
   openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Expense <button class="modal-x" onclick="closeModal()">×</button></div>
+    ${linked?`<div style="background:#e8f4fd;border-left:3px solid #4895ef;padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
+      🌾 Created by a feed store purchase (${linked.bags||0} bag${linked.bags===1?'':'s'} ${linked.feed_type}). Edit the purchase instead — changes made here are replaced next time it is saved.
+      <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="closeModal();FEED_TAB='store';go('feed');openFeedPurchase('${linked.id}')">Open the purchase</button>
+    </div>`:''}
     <div class="field"><label>Date</label><input type="date" id="ef_date" value="${rec?rec.date:today}" max="${today}"></div>
     ${active.length?`<div class="field"><label>Batch <span style="color:var(--gray);font-weight:400">— optional</span></label>
       <select id="ef_batch"><option value="">Not batch-specific</option>${active.map(b=>`<option value="${b.id}" ${rec?.batch_id===b.id?'selected':''} >${b.name}</option>`).join('')}</select></div>`:' <input type="hidden" id="ef_batch" value="">'}
@@ -2650,13 +3482,42 @@ function renderSettings(){
         <div style="font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;padding-bottom:4px">Feed (g)</div>
         ${feedGrid}
       </div>`}
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <div style="font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px">Which feed each phase uses</div>
+      <p style="font-size:12px;color:var(--gray);margin-bottom:10px">
+        This is what lets the app tell a real shortage apart from a phase that is simply ending — a feed only has to last as long as the birds are on it.
+      </p>
+      ${getBroodFeedProgramme(st).map(ph=>`
+        <div style="display:grid;grid-template-columns:1fr 1.2fr;gap:8px;align-items:center;margin-bottom:8px">
+          <div style="font-size:12px;font-weight:700;color:var(--p1)">${ph.label}
+            <span style="font-weight:500;color:var(--gray)">${ph.maxDay>=999?'(onwards)':`(to d${ph.maxDay})`}</span></div>
+          <select id="s_ft_${ph.key}">${['',...BROOD_FEED_TYPES].map(t=>`<option value="${t}" ${t===ph.type?'selected':''}>${t||'— not used —'}</option>`).join('')}</select>
+        </div>`).join('')}
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;margin-top:14px">
         <label style="font-size:13px;font-weight:700;color:var(--p1)">💧 Water = feed ×</label>
         <input type="number" id="s_wr" value="${ratio}" min="1" max="5" step="0.1" style="width:76px;padding:9px 10px;border:1.5px solid #ddd;border-radius:10px;font-size:15px">
       </div>
       <div style="font-size:11px;color:var(--gray);font-style:italic;margin-bottom:8px">Daily water need = feed intake × this ratio. 2.0–2.5 is typical; use the higher end in hot weather.</div>
       <button class="btn btn-primary" style="margin-top:4px" onclick="saveFeedRates()">Save ${typeLabel} Settings</button>
     </div>
+    ${(()=>{const pol=getFeedPolicy();return `
+    <div class="card">
+      <div class="card-title">Feed Store</div>
+      <p style="font-size:13px;color:var(--gray);margin-bottom:12px">
+        Bag size is what turns a bag count in the store into kilograms, so it has to match the sacks you actually buy. Reorder cover should be however much notice your supplier needs.
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label>Reorder at cover of (days)</label>
+          <input type="number" id="fs_lead" value="${pol.leadDays}" min="1" max="60" step="1"></div>
+        <div class="field"><label>Buy to cover (days)</label>
+          <input type="number" id="fs_target" value="${pol.targetDays}" min="3" max="180" step="1"></div>
+      </div>
+      <div style="font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;letter-spacing:.06em;margin:6px 0 8px">kg per bag</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        ${BROOD_FEED_TYPES.map(t=>`<div class="field" style="margin-bottom:0"><label>${t}</label>
+          <input type="number" id="fs_bag_${t.replace(/[^a-z0-9]/gi,'_')}" value="${getBagKg(t)}" min="1" max="100" step="0.5"></div>`).join('')}
+      </div>
+      <button class="btn btn-primary" style="margin-top:12px" onclick="saveFeedStoreSettings()">Save Feed Store Settings</button>
+    </div>`;})()}
     <div class="card">
       <div class="card-title">Data Export / Import</div>
       <p style="font-size:13px;color:var(--gray);margin-bottom:14px">Export all data as a PostgreSQL-compatible JSON file.</p>
@@ -2699,12 +3560,39 @@ function saveFarm(){
   farm.name=document.getElementById('s_name')?.value.trim()||farm.name||'My Brooding Farm';
   DB.saveFarm(farm);confirmSave('Farm name saved');
 }
+function saveFeedStoreSettings(){
+  const farm=DB.getFarm()||{};
+  const lead=parseInt(document.getElementById('fs_lead').value,10);
+  const target=parseInt(document.getElementById('fs_target').value,10);
+  farm.feedLeadDays=lead>0?lead:DEFAULT_FEED_LEAD_DAYS;
+  farm.feedTargetDays=target>0?target:DEFAULT_FEED_TARGET_DAYS;
+  // Only sizes that differ from the default are stored, so the default can move
+  // later without every farm carrying a frozen copy of today's value.
+  const bags={};
+  BROOD_FEED_TYPES.forEach(t=>{
+    const v=parseFloat(document.getElementById('fs_bag_'+t.replace(/[^a-z0-9]/gi,'_')).value);
+    if(v>0&&v!==DEFAULT_BAG_KG)bags[t]=v;
+  });
+  farm.feedBagKg=bags;
+  DB.saveFarm(farm);confirmSave('Feed store settings saved');renderSettings();renderFeed();renderHome();renderFeedTicker();
+}
 function saveFeedRates(){
   const farm=DB.getFarm()||{};
   const st=SETTINGS_TYPE||'broiler';
   getFeedPhases(st).forEach(p=>{const fEl=document.getElementById(`s_f_${p.key}`);if(fEl)farm[`${st}_feedRateG_${p.key}`]=parseInt(fEl.value)||p.feedGPerBird;});
   const wrEl=document.getElementById('s_wr');if(wrEl)farm[`${st}_waterRatio`]=parseFloat(wrEl.value)||DEFAULT_WATER_RATIO;
+  // Phase → feed mapping. Only a value that differs from the default is stored,
+  // so a farm that never edits this keeps tracking the defaults.
+  getFeedPhases(st).forEach(p=>{
+    const el=document.getElementById(`s_ft_${p.key}`);
+    if(!el)return;
+    const v=(el.value||'').trim();
+    const def=(DEFAULT_BROOD_FEED_TYPES[st]||{})[p.key]||'';
+    const key=`${st}_feedType_${p.key}`;
+    if(v&&v!==def)farm[key]=v; else delete farm[key];
+  });
   DB.saveFarm(farm);confirmSave(`${getBirdTypeLabel(st)} settings saved`);
+  renderSettings();renderFeed();renderHome();renderFeedTicker();
 }
 function exportData(){
   const bundle={exported_at:new Date().toISOString(),source:'BroodTrack',version:'1.0',
@@ -2721,9 +3609,26 @@ function exportData(){
       min_weight_g:r.min_weight_g,max_weight_g:r.max_weight_g,benchmark_g:r.benchmark_g,notes:r.notes
     })),
     brooding_health_log:DB.getHealth(),
+    feed_store:DB.getFeedStock().map(r=>({id:r.id,date:r.date,kind:r.kind||'purchase',
+      feed_type:r.feed_type,batch_id:r.batch_id,batch_name:r.batch_name,
+      bags:r.bags,loose_kg:r.loose_kg,kg:r.kg,bag_kg:r.bag_kg,
+      cost_ngn:r.cost_ngn,supplier:r.supplier,counted_by:r.counted_by,
+      variance_kg:r.variance_kg,expense_id:r.expense_id,notes:r.notes})),
+    // Derived, so an analyst does not have to reimplement the forward walk.
+    feed_store_status:getFeedStoreStatus().map(c=>({feed_type:c.feed_type,state:c.state,
+      kg_on_hand:c.kg,bags_on_hand:c.bags,loose_kg:c.loose,
+      open_ended:c.openEnded,kg_per_day_now:Math.round(c.todayKg*10)/10,
+      window_start:c.startDate,window_end:c.openEnded?null:c.endDate,
+      window_need_kg:Math.round(c.needKg),cover_days:c.coverDays,runout_date:c.runoutDate,
+      short_kg:Math.round(c.shortKg),surplus_kg:Math.round(c.surplusKg),
+      bags_to_buy:c.buyBags,last_count_date:c.lastCountDate,headline:c.headline})),
+    feed_programme:['broiler','pullet','noiler'].reduce((o,bt)=>{
+      o[bt]=getBroodFeedProgramme(bt).map(p=>({phase:p.key,label:p.label,to_day:p.maxDay,feed_type:p.type}));
+      return o;},{}),
     expenses:DB.getExpenses().map(e=>({
       date:e.date,batch_id:e.batch_id,batch_name:e.batch_name,
-      category:e.category,amount_ngn:e.amount_ngn,amount_usd:e.amount_usd,notes:e.notes
+      category:e.category,amount_ngn:e.amount_ngn,amount_usd:e.amount_usd,notes:e.notes,
+      feed_stock_id:e.feed_stock_id
     })),
     // id is included so import's _mergeById can actually match, and so the
     // payment records below keep pointing at the right sale after a round trip.
@@ -2770,10 +3675,11 @@ function importData(input){
     if(data.brooding_daily_log?.length){const m=_mergeById(DB._arr(KEYS.daily),data.brooding_daily_log);DB._set(KEYS.daily,m);counts.daily=data.brooding_daily_log.length+' daily logs merged';}
     if(data.brooding_weight_log?.length){const m=_mergeById(DB._arr(KEYS.weight),data.brooding_weight_log);DB._set(KEYS.weight,m);counts.weight=data.brooding_weight_log.length+' weight records merged';}
     if(data.brooding_health_log?.length){const m=_mergeById(DB._arr(KEYS.health),data.brooding_health_log);DB._set(KEYS.health,m);counts.health=data.brooding_health_log.length+' health records merged';}
+    if(data.feed_store?.length){const m=_mergeById(DB._arr(KEYS.feedstock),data.feed_store);DB._set(KEYS.feedstock,m);counts.feedstock=data.feed_store.length+' feed store entries merged';}
     if(data.expenses?.length){const m=_mergeById(DB._arr(KEYS.expenses),data.expenses);DB._set(KEYS.expenses,m);counts.expenses=data.expenses.length+' expenses merged';}
     if(data.sales?.length){const m=_mergeById(DB._arr(KEYS.sales),data.sales);DB._set(KEYS.sales,m);counts.sales=data.sales.length+' sales merged';}
     if(data.payments?.length){const m=_mergeById(DB._arr(KEYS.payments),data.payments);DB._set(KEYS.payments,m);counts.payments=data.payments.length+' payments merged';}
-    renderHome();renderDaily();renderHealth();renderFinance();renderReports();renderSettings();
+    renderHome();renderDaily();renderFeed();renderHealth();renderFinance();renderReports();renderSettings();
     const lines=Object.values(counts);
     if(lines.length===0){
       openModal(`<div class="modal-ttl">Nothing Imported <button class="modal-x" onclick="closeModal()">×</button></div>

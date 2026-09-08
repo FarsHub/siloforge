@@ -106,6 +106,25 @@ TABLES = [
         "notes":        (X, "notes"),
     }),
 
+    # Feed store movements: purchases in, physical counts as anchors. kind tells
+    # them apart, and variance_kg on a count is the only record of shrinkage the
+    # farm has -- worth a typed column rather than leaving it in raw.
+    Table("lt_feed_stock", "layertrack", "lt_feedstock_v1", {
+        "date":        (D, "date"),
+        "kind":        (X, "kind"),
+        "feed_type":   (X, "feed_type"),
+        "bags":        (N, "bags"),
+        "loose_kg":    (N, "loose_kg"),
+        "kg":          (N, "kg"),
+        "bag_kg":      (N, "bag_kg"),
+        "cost_ngn":    (N, "cost_ngn"),
+        "supplier":    (X, "supplier"),
+        "counted_by":  (X, "counted_by"),
+        "variance_kg": (N, "variance_kg"),
+        "expense_id":  (X, "expense_id"),
+        "notes":       (X, "notes"),
+    }),
+
     Table("lt_health_log", "layertrack", "lt_health_v1", {
         "date":                      (D, "date"),
         "water_consumed_liters":     (N, "water_consumed_liters"),
@@ -262,6 +281,24 @@ TABLES = [
         "feed_kg_used": (N, "feed_kg_used"),
         "notes":        (X, "notes"),
     }),
+
+    Table("bt_feed_stock", "broodtrack", "bt_feedstock_v1", {
+        "date":        (D, "date"),
+        "kind":        (X, "kind"),
+        "feed_type":   (X, "feed_type"),
+        "batch_id":    (X, "batch_id"),
+        "batch_name":  (X, "batch_name"),
+        "bags":        (N, "bags"),
+        "loose_kg":    (N, "loose_kg"),
+        "kg":          (N, "kg"),
+        "bag_kg":      (N, "bag_kg"),
+        "cost_ngn":    (N, "cost_ngn"),
+        "supplier":    (X, "supplier"),
+        "counted_by":  (X, "counted_by"),
+        "variance_kg": (N, "variance_kg"),
+        "expense_id":  (X, "expense_id"),
+        "notes":       (X, "notes"),
+    }),
 ]
 
 # Pen/line/stand structure lives inside the single farm config document rather than
@@ -344,6 +381,47 @@ where s.deleted_at is null and s.payment_type = 'credit'
 group by s.farm_code, s.source_id, s.date, s.customer, s.customer_id,
          s.product, s.quantity, s.total_amount_ngn, s.due_date
 having s.total_amount_ngn - coalesce(sum(p.amount_ngn), 0) > 0;
+
+-- Feed stock on hand per feed type, mirroring the rule the apps use: the most
+-- recent physical count is an anchor that discards everything before it, then
+-- purchases are added and usage subtracted from that date onwards. Same-day
+-- order is count, then delivery, then feeding, which is why the anchor date
+-- itself is included in both sums. With no count on record it falls back to
+-- purchases minus usage over all time.
+create or replace view v_lt_feed_stock_on_hand as
+with anchor as (
+  select farm_code, feed_type, max(date) as anchor_date
+  from lt_feed_stock
+  where deleted_at is null and kind = 'count'
+  group by farm_code, feed_type
+),
+anchor_kg as (
+  select s.farm_code, s.feed_type, a.anchor_date, sum(s.kg) as counted_kg
+  from lt_feed_stock s
+  join anchor a
+    on a.farm_code = s.farm_code and a.feed_type = s.feed_type and a.anchor_date = s.date
+  where s.deleted_at is null and s.kind = 'count'
+  group by s.farm_code, s.feed_type, a.anchor_date
+),
+types as (
+  select distinct farm_code, feed_type from lt_feed_stock where deleted_at is null and feed_type is not null
+  union
+  select distinct farm_code, feed_type from lt_feed_log   where deleted_at is null and feed_type is not null
+)
+select t.farm_code, t.feed_type,
+       k.anchor_date as last_count_date,
+       coalesce(k.counted_kg, 0)
+         + coalesce((select sum(p.kg) from lt_feed_stock p
+                     where p.deleted_at is null and p.farm_code = t.farm_code
+                       and p.feed_type = t.feed_type and p.kind = 'purchase'
+                       and (k.anchor_date is null or p.date >= k.anchor_date)), 0)
+         - coalesce((select sum(u.feed_kg_used) from lt_feed_log u
+                     where u.deleted_at is null and u.farm_code = t.farm_code
+                       and u.feed_type = t.feed_type
+                       and (k.anchor_date is null or u.date >= k.anchor_date)), 0)
+       as kg_on_hand
+from types t
+left join anchor_kg k on k.farm_code = t.farm_code and k.feed_type = t.feed_type;
 """
 
 
