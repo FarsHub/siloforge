@@ -17,3 +17,4 @@ BroodingExpenseBook.xlsx
 service-account*.json
 firebase-adminsdk*.json
 __pycache__/
+demos/
