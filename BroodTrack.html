@@ -786,7 +786,12 @@ const BROOD_FEED_TYPES=['Starter Mash','Chick Mash','Grower Mash','Finisher Pell
 // hinge between the two. Editable per feed type in Settings; 25 kg is the
 // common sack here.
 const DEFAULT_BAG_KG=25;
-const DEFAULT_FEED_LEAD_DAYS=7;    // notice needed to get a delivery in
+// Amber below ten days of feed left, red below five. These used to be derived
+// from the supplier's lead time — red inside it, amber inside twice it — so the
+// colour moved whenever that setting was edited, and the farm had no way to say
+// plainly when it wants to be warned. Stored as the two thresholds they are.
+const DEFAULT_FEED_WARN_DAYS=10;   // amber below this many days of cover
+const DEFAULT_FEED_URGENT_DAYS=5;  // red below this many
 const DEFAULT_FEED_TARGET_DAYS=30; // cover a purchase should buy
 // Which sack each phase of each bird type calls for. Pullets run Starter Mash
 // then Chick Mash then Grower Mash then Pre-Layer, which is the farm's own
@@ -797,6 +802,27 @@ const DEFAULT_BROOD_FEED_TYPES={
   pullet: {brooding:'Starter Mash',starter:'Chick Mash', grower:'Grower Mash', presale:'Pre-Layer Mash'},
   noiler: {brooding:'Starter Mash',grower:'Grower Mash', presale:'Finisher Pellets'},
 };
+// The same drift LayerTrack has: a name typed by hand into a daily entry, or
+// carried in from another app, ends up as a second card holding half the bags.
+// Names are folded to the list above on read, so records keep whatever they were
+// saved with and nothing has to be migrated. Only spellings of one name are
+// brought together — Starter, Chick and Grower are three different sacks here,
+// and merging any two of them would invent stock that is not in the store.
+const BROOD_FEED_ALIASES={
+  'starter':'Starter Mash','starter pellets':'Starter Mash',
+  'chick':'Chick Mash','chicks mash':'Chick Mash',
+  'grower':'Grower Mash','growers mash':'Grower Mash','grower pellets':'Grower Mash',
+  'finisher':'Finisher Pellets','finisher mash':'Finisher Pellets',
+  'pre layer mash':'Pre-Layer Mash','prelayer mash':'Pre-Layer Mash','pre-layer':'Pre-Layer Mash',
+  'brooding':'Brooding Mash',
+};
+function canonFeedType(t){
+  const raw=String(t||'').trim();
+  if(!raw)return '';
+  const key=raw.toLowerCase().replace(/\s+/g,' ');
+  if(BROOD_FEED_ALIASES[key])return BROOD_FEED_ALIASES[key];
+  return BROOD_FEED_TYPES.find(x=>x.toLowerCase()===key)||raw;
+}
 const BROOD_EXPENSE_CATS=['DOC Purchase','Feed','Medication','Litter/Bedding','Labour','Equipment','Transport','Brooding Fuel/Power','Other'];
 const MED_SUGGESTIONS=['ND HB1 + IB (Live)','ND Lasota + IB','Lasota (ND)','Gumboro 1 (IBD, intermediate)','Gumboro 2 (IBD, intermediate)','Gumboro 3 (IBD, intermediate)','Fowl Pox Vaccine','Coryza Vaccine','Fowl Cholera Vaccine','Fowl Typhoid 9R','EDS + NDV (Killed)','Marek\'s Disease Vaccine','Coccidiostat','Dewormer','Antibiotics','Amprolium','Tylosin','Floxinor','Glucose + Electrolytes','Multivitamin','Vitamin C/E','Electrolytes'];
 
@@ -879,13 +905,17 @@ const DB={
 // sale age, which is what gives a broiler's Finisher a real end date instead of
 // an imaginary runway.
 function getBagKg(feedType){
-  const v=Number(((DB.getFarm()||{}).feedBagKg||{})[feedType]);
+  const map=(DB.getFarm()||{}).feedBagKg||{};
+  // Canonical name first, then the name as given, so a bag size saved against a
+  // variant spelling is not lost.
+  const v=Number(map[canonFeedType(feedType)]??map[feedType]);
   return v>0?v:DEFAULT_BAG_KG;
 }
 function getFeedPolicy(){
   const f=DB.getFarm()||{};
   const num=(v,d)=>Number(v)>0?Number(v):d;
-  return {leadDays:num(f.feedLeadDays,DEFAULT_FEED_LEAD_DAYS),
+  return {warnDays:num(f.feedWarnDays,DEFAULT_FEED_WARN_DAYS),
+          urgentDays:num(f.feedUrgentDays,DEFAULT_FEED_URGENT_DAYS),
           targetDays:num(f.feedTargetDays,DEFAULT_FEED_TARGET_DAYS)};
 }
 // The farm's feed programme: which feed each phase of each bird type calls for.
@@ -896,7 +926,7 @@ function getBroodFeedProgramme(birdType){
   const farm=DB.getFarm()||{};
   return getFeedPhases(birdType).map(p=>({
     ...p,
-    type:(farm[`${birdType}_feedType_${p.key}`]||DEFAULT_BROOD_FEED_TYPES[birdType]?.[p.key]||'').trim()
+    type:canonFeedType(farm[`${birdType}_feedType_${p.key}`]||DEFAULT_BROOD_FEED_TYPES[birdType]?.[p.key]||'')
   }));
 }
 function broodFeedTypeForAge(birdType,ageDays){
@@ -940,15 +970,15 @@ const _FS_RANK={count:0,purchase:1,adjust:1,usage:2};
 // `excludeId` lets a form ask what the books say *without* its own record in the
 // picture, so editing an old count cannot rewrite the variance it once found.
 function feedStockEvents(feedType,excludeId){
-  const ev=[];
+  const ev=[], want=canonFeedType(feedType);
   DB.getFeedStock().forEach(r=>{
-    if(r.feed_type!==feedType||r.id===excludeId)return;
-    ev.push({date:r.date,kind:r.kind||'purchase',kg:Number(r.kg||0),feed_type:r.feed_type,rec:r});
+    if(canonFeedType(r.feed_type)!==want||r.id===excludeId)return;
+    ev.push({date:r.date,kind:r.kind||'purchase',kg:Number(r.kg||0),feed_type:want,rec:r});
   });
   DB.getFeed().forEach(r=>{
-    if(r.feed_type!==feedType)return;
+    if(canonFeedType(r.feed_type)!==want)return;
     if(!(Number(r.feed_kg_used)>0))return;
-    ev.push({date:r.date,kind:'usage',kg:Number(r.feed_kg_used),feed_type:r.feed_type,rec:r});
+    ev.push({date:r.date,kind:'usage',kg:Number(r.feed_kg_used),feed_type:want,rec:r});
   });
   return ev.sort((a,b)=>String(a.date).localeCompare(String(b.date))
     ||(_FS_RANK[a.kind]??1)-(_FS_RANK[b.kind]??1)
@@ -973,8 +1003,9 @@ function feedBookKg(feedType,excludeId){
 }
 function feedStoreTypes(){
   const types=new Set();
-  DB.getFeedStock().forEach(r=>{ if(r.feed_type)types.add(r.feed_type); });
-  DB.getFeed().forEach(r=>{ if(r.feed_type&&Number(r.feed_kg_used)>0)types.add(r.feed_type); });
+  const add=t=>{ const c=canonFeedType(t); if(c)types.add(c); };
+  DB.getFeedStock().forEach(r=>add(r.feed_type));
+  DB.getFeed().forEach(r=>{ if(Number(r.feed_kg_used)>0)add(r.feed_type); });
   return [...types];
 }
 function getFeedStockByType(){
@@ -1050,7 +1081,7 @@ function _computeFeedStoreStatus(){
   const sched=feedDemandSchedule();
   const stockMap={};
   getFeedStockByType().forEach(s=>{ stockMap[s.feed_type]=s; });
-  const {leadDays,targetDays}=getFeedPolicy();
+  const {warnDays,urgentDays,targetDays}=getFeedPolicy();
   const today=DB.today();
   const types=[...new Set([...Object.keys(sched),...Object.keys(stockMap)])];
   return types.map(t=>{
@@ -1062,7 +1093,12 @@ function _computeFeedStoreStatus(){
       return {...s,feed_type:t,demand:null,openEnded:false,startDay:null,endDay:null,
         startDate:null,endDate:null,needKg:0,todayKg:0,coverDays:null,runoutDate:null,
         shortKg:0,surplusKg:s.kg,buyKg:0,buyBags:0,penCount:0,
-        state:s.kg>0.05?'idle':'ok',
+        // Idle either way: nothing on the farm is eating this. With stock it is
+        // a leftover worth seeing, with none it is only a name left in old
+        // records. Neither is a shortage, and neither has a stage end date — as
+        // 'ok' these fell through to the current-window sub-line and quoted a
+        // stage that does not exist.
+        state:'idle',
         headline:s.kg>0.05
           ?`Not on the programme for any active batch — ${fmtBags(s.kg,t)} sitting in store`
           :'Not currently in use',
@@ -1084,9 +1120,12 @@ function _computeFeedStoreStatus(){
     const buyKg=d.openEnded?Math.max(0,_needKgWithin(d,targetDays)-s.kg):shortKg;
     // One rule covers running dry today, running dry mid-window, and a feed the
     // flock has not even started yet: how many days until the store fails it.
+    // shortDay is the first day the store cannot cover, so for feed being eaten
+    // today it is also the days of cover — which makes the comparison strict:
+    // a store holding exactly ten days is not yet warned about.
     const state=shortDay===null?(d.openEnded?'ok':'covered')
-      :shortDay<=leadDays?'urgent'
-      :shortDay<=leadDays*2?'soon':'ok';
+      :shortDay<urgentDays?'urgent'
+      :shortDay<warnDays?'soon':'ok';
     const stage=d.openEnded?null:{endDate};
     const row={...s,feed_type:t,demand:d,openEnded:d.openEnded,
       startDay:d.firstDay,endDay:d.lastDay,startDate,endDate,
@@ -1157,6 +1196,57 @@ function feedCoverColor(state){
   return state==='urgent'?'var(--red)':state==='soon'?'var(--amber)'
     :state==='covered'?'var(--g2)':state==='idle'?'var(--gray)':'var(--g2)';
 }
+// The one feed line on the home screen. The ticker fixed to the top of the
+// screen already carries the alert word for word — it is the same tickerText —
+// and the card that used to sit here said it a third time in larger type, so
+// three elements were spending about 180px on one sentence. This is the whole
+// of feed on the landing page: worst feed first, the numbers the ticker cannot
+// hold, and a tap into the store. It stays visible when nothing is wrong, which
+// is the one thing the ticker cannot do, since it only appears on a bad day.
+function feedHomeStrip(){
+  const w=feedCoverWorst();
+  if(!w)return '';
+  const col=feedCoverColor(w.state);
+  const bg=w.state==='urgent'?'var(--redBg)':w.state==='soon'?'var(--amberBg)':'var(--p5)';
+  // Days left for anything the birds are eating now, whether or not the feed
+  // ends with a stage; a feed the batch has not reached yet has no days to quote,
+  // so it gets the date it is wanted instead. The bags to buy sit on the right,
+  // so the verdict must not repeat them.
+  const verdict=w.startDay>0
+    ?`needed ${fmtDate(w.startDate)}`
+    :w.shortDay===null
+      ?(w.openEnded?'over a year of cover':'stage covered')
+      :w.coverDays===0?'out of feed'
+      :`${w.coverDays} day${w.coverDays===1?'':'s'} left`;
+  // The dates that give the days their meaning: when the store runs dry, and —
+  // for a feed that ends with a stage — whether the stage outlasts it.
+  const when=w.startDay>0
+    ?(w.openEnded?'':`through ${fmtDate(w.endDate)}`)
+    :w.openEnded
+      ?(w.runoutDate?`out ${fmtDate(w.runoutDate)}`:'')
+      :w.shortDay===null
+        ?`stage ends ${fmtDate(w.endDate)}`
+        :`out ${fmtDate(w.runoutDate)} · ends ${fmtDate(w.endDate)}`;
+  // A second feed in trouble must not be left to the ticker alone.
+  const more=feedAlerts().filter(a=>a.feed_type!==w.feed_type).length;
+  const sub=[`${fmtBags(w.kg,w.feed_type)} in store`,when,
+    more?`+${more} more feed to buy`:''].filter(Boolean).join(' · ');
+  return `<div style="margin:0 16px 8px;background:${bg};border-left:3px solid ${col};border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:10px;cursor:pointer" onclick="openFeedStore()">
+    <span style="font-size:15px;flex-shrink:0">🌾</span>
+    <div style="min-width:0;flex:1">
+      <div style="font-size:13px;font-weight:700;color:var(--p1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${w.feed_type} · <span style="color:${col}">${verdict}</span></div>
+      <div style="font-size:11px;color:var(--gray);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub}</div>
+    </div>
+    <div style="text-align:right;flex-shrink:0">
+      ${w.buyBags>0
+        ?`<div style="font-size:15px;font-weight:800;color:${col};line-height:1.1">buy ${w.buyBags}</div>
+          <div style="font-size:9px;color:var(--gray);font-weight:700;text-transform:uppercase">bag${w.buyBags===1?'':'s'}</div>`
+        :`<div style="font-size:15px;font-weight:800;color:var(--g2);line-height:1.1">✓</div>
+          <div style="font-size:9px;color:var(--gray);font-weight:700;text-transform:uppercase">stocked</div>`}
+    </div>
+    <span style="color:var(--gray);font-size:16px;flex-shrink:0">›</span>
+  </div>`;
+}
 // What the farm will need, in the order it will need it — the answer to "what am
 // I buying next" without reading any of the cards.
 function feedTimeline(){
@@ -1170,7 +1260,7 @@ function feedTimeline(){
 }
 function lastFeedPricePerKg(feedType){
   const p=DB.getFeedStock()
-    .filter(r=>(r.kind||'purchase')==='purchase'&&r.feed_type===feedType&&Number(r.cost_ngn)>0&&Number(r.kg)>0)
+    .filter(r=>(r.kind||'purchase')==='purchase'&&canonFeedType(r.feed_type)===canonFeedType(feedType)&&Number(r.cost_ngn)>0&&Number(r.kg)>0)
     .sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];
   return p?Number(p.cost_ngn)/Number(p.kg):null;
 }
@@ -1366,12 +1456,10 @@ function renderHome(){
     if(overdue.length)alerts.push(`<div class="alert-item alert-red">💉 ${b.name} — ${overdue.length} overdue vaccination${overdue.length>1?'s':''}</div>`);
     if(dueSoon.length)alerts.push(`<div class="alert-item alert-amber">💉 ${b.name} — ${dueSoon[0].name} due by ${fmtDate(dueSoon[0].dueDate)}</div>`);
   });
-  // Feed. Only what needs acting on: a feed running dry before its stage ends,
-  // or the next stage's feed not in store yet. A feed that merely has few days
-  // left because the batch is about to move off it is not a problem.
-  feedAlerts().forEach(a=>{
-    alerts.push(`<div class="alert-item ${a.state==='urgent'?'alert-red':'alert-amber'}" onclick="openFeedStore()" style="cursor:pointer">🌾 ${a.tickerText}</div>`);
-  });
+  // Feed alerts are deliberately not in this list. The ticker at the top of the
+  // screen prints the same sentence from the same string, and feedHomeStrip()
+  // below carries the numbers and somewhere to tap, so a third copy here only
+  // pushed the rest of the screen down.
   // Stock the app has never had confirmed on the floor drifts, so nudge for a
   // count rather than quietly presenting book figures as fact.
   (()=>{
@@ -1413,31 +1501,7 @@ function renderHome(){
       <div class="kpi"><div class="kpi-val" style="color:${todayDeaths>0?'var(--red)':'var(--g2)'}">${todayDeaths}</div><div class="kpi-lbl">Deaths Today</div></div>
     </div>
     ${alerts.length?`<div style="margin:0 16px 8px">${alerts.join('')}</div>`:''}
-    ${(()=>{
-      const worst=feedCoverWorst();
-      if(!worst)return '';
-      const col=feedCoverColor(worst.state);
-      const bg=worst.state==='urgent'?'var(--redBg)':worst.state==='soon'?'var(--amberBg)':'var(--p5)';
-      // A window shows what finishes it; a runway shows how long it lasts.
-      const big=worst.openEnded
-        ?`${worst.coverDays===null?'—':worst.coverDays} day${worst.coverDays===1?'':'s'} left`
-        :worst.shortKg>0.05?`short ${bagsFor(worst.shortKg,worst.feed_type)} bag${bagsFor(worst.shortKg,worst.feed_type)===1?'':'s'}`
-        :'stage covered';
-      return `<div style="margin:0 16px 8px;background:${bg};border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;cursor:pointer" onclick="openFeedStore()">
-        <div>
-          <div style="font-size:11px;color:var(--p1);font-weight:700;text-transform:uppercase;letter-spacing:.4px">Feed store · ${worst.feed_type}</div>
-          <div style="font-size:20px;font-weight:800;color:${col}">${big}</div>
-          <div style="font-size:11px;color:var(--p1)">${fmtBags(worst.kg,worst.feed_type)}${worst.todayKg>0?` · ${worst.todayKg.toFixed(1)} kg/day`:''}</div>
-        </div>
-        <div style="text-align:right;flex-shrink:0">
-          ${worst.buyBags>0
-            ?`<div style="font-size:20px;font-weight:800;color:var(--g2)">${worst.buyBags}</div>
-              <div style="font-size:10px;color:var(--p1);font-weight:700;text-transform:uppercase">bags to buy</div>`
-            :`<div style="font-size:13px;font-weight:800;color:var(--g2)">✓ Stocked</div>`}
-          <div style="font-size:10px;color:var(--gray);margin-top:2px">${worst.openEnded?(worst.runoutDate?'out '+fmtDate(worst.runoutDate):''):(worst.startDay>0?'from '+fmtDate(worst.startDate):'to '+fmtDate(worst.endDate))}</div>
-        </div>
-      </div>`;
-    })()}
+    ${feedHomeStrip()}
     <div class="sec-hdr">Active Batches</div>
     ${batchCards||'<div style="margin:0 16px 16px;color:var(--gray);font-size:13px">No active batches. <span style="color:var(--p2);cursor:pointer" onclick="go(\'batches\')">Add one →</span></div>'}
     <div style="height:12px"></div>`;
@@ -1909,7 +1973,7 @@ function feedUsageBody(){
           <div class="kpi-sm"><div class="kpi-val-sm">${todayRec.feed_req_kg}</div><div class="kpi-lbl-sm">kg Required</div></div>
           <div class="kpi-sm"><div class="kpi-val-sm" style="color:${vc}">${vr>0?'+':''}${vr.toFixed(0)}%</div><div class="kpi-lbl-sm">Variance</div></div>
         </div>
-        <div style="font-size:12px;color:var(--gray);margin-bottom:10px">${todayRec.feed_type} · ${todayRec.feed_phase}</div>`;})()}
+        <div style="font-size:12px;color:var(--gray);margin-bottom:10px">${canonFeedType(todayRec.feed_type)} · ${todayRec.feed_phase}</div>`;})()}
       <div style="display:flex;gap:8px">
         <button class="btn btn-amber btn-sm" style="flex:1" onclick="openFeedForm('${todayRec.id}')">Edit</button>
         <button class="btn btn-danger btn-sm" style="flex:1" onclick="delFeedLog('${todayRec.id}')">Delete</button>
@@ -1919,7 +1983,7 @@ function feedUsageBody(){
     const vr=r.feed_req_kg>0?((r.feed_kg_used-r.feed_req_kg)/r.feed_req_kg*100):0;
     const vc=Math.abs(vr)>15?'badge-red':Math.abs(vr)>10?'badge-amber':'badge-green';
     return`<div class="list-item">
-      <div><div style="font-weight:700;font-size:14px">${fmtDate(r.date)} <span style="font-size:11px;color:var(--gray)">${r.feed_type}</span></div>
+      <div><div style="font-weight:700;font-size:14px">${fmtDate(r.date)} <span style="font-size:11px;color:var(--gray)">${canonFeedType(r.feed_type)}</span></div>
         <div style="font-size:12px;color:var(--gray);margin-top:2px">${r.feed_kg_used} kg used · Req: ${r.feed_req_kg} kg · ${r.feed_phase}</div>
         <span class="badge ${vc}" style="margin-top:4px">${vr>0?'+':''}${vr.toFixed(0)}%</span></div>
       <div style="display:flex;gap:5px">
@@ -1942,9 +2006,26 @@ function feedUsageBody(){
 // ── Feed Store tab ──────────────────────────────────────────────────────
 // Not gated on a selected pen: there is one store, and whoever is holding the
 // phone in it should be able to enter a count without first picking a batch.
+// One card per feed, and a store holds more feeds than a flock is eating: the
+// leftovers and the not-yet-started ones were each taking a full card to say
+// nothing, pushing the one feed that needs buying off the bottom of the screen.
+// So a card carries its own answer in its header and only opens when asked —
+// the same bargain as the tables in the Feed report.
+let FEED_CARD_OPEN={};
+// Open by default only where there is something to decide: a shortage, bags to
+// buy, or feed the birds are eating today. Everything else starts shut.
+function feedCardOpen(r){
+  const k='ft:'+r.feed_type;
+  if(k in FEED_CARD_OPEN)return FEED_CARD_OPEN[k];
+  return r.state==='urgent'||r.state==='soon'||r.buyBags>0||r.todayKg>0;
+}
+function toggleFeedCard(type,wasOpen){
+  FEED_CARD_OPEN['ft:'+type]=!wasOpen;
+  renderFeed();
+}
 function feedStoreBody(){
   const rows=getFeedStoreStatus();
-  const {leadDays,targetDays}=getFeedPolicy();
+  const {warnDays,urgentDays,targetDays}=getFeedPolicy();
   const actions=`<div style="margin:12px 16px;display:flex;flex-direction:column;gap:8px">
     <button class="btn btn-primary" onclick="openFeedCount()">⚖ Enter Stock Count</button>
     <button class="btn btn-secondary" onclick="openFeedPurchase()">＋ Record Feed Purchase</button>
@@ -2010,7 +2091,9 @@ function feedStoreBody(){
         +(r.todayKg>0?` · ${r.todayKg.toFixed(1)} kg/day now`:'');
     }
     const footer=r.state==='idle'
-      ? `<div style="font-size:12px;color:var(--gray);border-top:1px solid #f0f0f0;padding-top:10px">Keep it, or it will be picked up again automatically if the programme calls for it later.</div>`
+      ? `<div style="font-size:12px;color:var(--gray);border-top:1px solid #f0f0f0;padding-top:10px">${r.kg>0.05
+          ?'Keep it, or it will be picked up again automatically if the programme calls for it later.'
+          :'None in store and nothing on this feed — listed only because it appears in older records.'}</div>`
       : r.buyBags>0
         ? `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;border-top:1px solid #f0f0f0;padding-top:10px">
             <div style="font-size:12px;color:var(--gray)">${r.openEnded?`To cover ${targetDays} days`:'To finish this stage'} you need ${Math.max(0,r.buyKg).toFixed(0)} kg more
@@ -2021,26 +2104,41 @@ function feedStoreBody(){
             </div>
           </div>`
         : `<div style="font-size:12px;color:var(--g2);font-weight:700;border-top:1px solid #f0f0f0;padding-top:10px">✓ ${r.openEnded?`Enough for the next ${targetDays} days`:'Nothing to buy for this stage'}</div>`;
-    return `<div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">
-        <div>
-          <div style="font-weight:800;font-size:16px">${r.feed_type}</div>
-          <div style="font-size:11px;color:var(--gray);margin-top:2px">${r.lastCountDate?`Last counted ${staleDays===0?'today':staleDays===1?'yesterday':staleDays+' days ago'}`:'Never counted — balance is from purchases minus usage'}</div>
+    const open=feedCardOpen(r);
+    // Feed names reach here off stored records, so quote them for the handler.
+    const tArg=String(r.feed_type).replace(/['\\]/g,'\\$&');
+    const counted=r.lastCountDate
+      ?`Last counted ${staleDays===0?'today':staleDays===1?'yesterday':staleDays+' days ago'}`
+      :'Never counted — balance is from purchases minus usage';
+    return `<div class="card" style="${open?'':'padding:14px 16px'}">
+      <div onclick="toggleFeedCard('${tArg}',${open?1:0})" style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;cursor:pointer;${open?'margin-bottom:10px':''}">
+        <div style="min-width:0">
+          <div style="font-weight:800;font-size:16px;display:flex;align-items:center;gap:7px;min-width:0">
+            <span style="font-size:14px;line-height:1;color:var(--gray);flex-shrink:0;display:inline-block;transition:transform .2s;transform:rotate(${open?0:-90}deg)">▾</span>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.feed_type}</span>
+          </div>
+          ${open
+            ?`<div style="font-size:11px;color:var(--gray);margin-top:2px">${counted}</div>`
+            :`<div style="display:flex;align-items:center;gap:6px;margin-top:3px;min-width:0">
+                <span style="width:7px;height:7px;border-radius:50%;background:${col};flex-shrink:0"></span>
+                <span style="font-size:12px;color:${fg};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.headline}</span>
+              </div>`}
         </div>
         <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:22px;font-weight:800;color:${col};line-height:1.1">${r.bags}<span style="font-size:12px;font-weight:600;color:var(--gray)"> bag${r.bags===1?'':'s'}</span></div>
+          <div style="font-size:${open?22:18}px;font-weight:800;color:${col};line-height:1.1">${r.bags}<span style="font-size:12px;font-weight:600;color:var(--gray)"> bag${r.bags===1?'':'s'}</span></div>
           <div style="font-size:11px;color:var(--gray)">${r.loose>0?`+ ${r.loose} kg · `:''}${r.kg.toFixed(1)} kg</div>
         </div>
       </div>
+      ${open?`
       <div style="background:${bg};border-radius:10px;padding:11px 13px;margin-bottom:10px">
         <div style="font-weight:800;font-size:14px;color:${fg}">${r.headline}</div>
         ${sub?`<div style="font-size:12px;color:var(--p1);margin-top:3px">${sub}</div>`:''}
       </div>
       ${footer}
       <div style="display:flex;gap:8px;margin-top:10px">
-        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="openFeedCount(null,'${r.feed_type}')">Count</button>
-        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="openFeedPurchase(null,'${r.feed_type}')">Purchase</button>
-      </div>
+        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="openFeedCount(null,'${tArg}')">Count</button>
+        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="openFeedPurchase(null,'${tArg}')">Purchase</button>
+      </div>`:''}
     </div>`;
   }).join('');
 
@@ -2061,9 +2159,9 @@ function feedStoreBody(){
   const logRows=led.map(e=>{
     const r=e.rec;
     if(e.kind==='usage')return `<div class="list-item">
-      <div><div style="font-weight:700;font-size:13px">${fmtDate(e.date)} <span style="font-size:11px;color:var(--gray);font-weight:500">fed to birds · ${r.feed_type}</span></div>
+      <div><div style="font-weight:700;font-size:13px">${fmtDate(e.date)} <span style="font-size:11px;color:var(--gray);font-weight:500">fed to birds · ${e.feed_type}</span></div>
         <div style="font-size:12px;color:var(--red);margin-top:2px">− ${e.kg.toFixed(1)} kg</div></div>
-      <div style="text-align:right;font-size:12px;color:var(--gray)">${fmtBags(e.balance,r.feed_type)}<div style="font-size:10px">left</div></div></div>`;
+      <div style="text-align:right;font-size:12px;color:var(--gray)">${fmtBags(e.balance,e.feed_type)}<div style="font-size:10px">left</div></div></div>`;
     const isCount=e.kind==='count';
     const label=isCount?'stock count':'purchase';
     const deltaTxt=isCount
@@ -2071,13 +2169,13 @@ function feedStoreBody(){
          :`${e.delta>0?'+':'−'} ${Math.abs(e.delta).toFixed(1)} kg vs books`)
       : `+ ${e.kg.toFixed(1)} kg${r.bags?` (${r.bags} bag${r.bags===1?'':'s'})`:''}`;
     return `<div class="list-item">
-      <div><div style="font-weight:700;font-size:13px">${fmtDate(e.date)} <span style="font-size:11px;color:var(--gray);font-weight:500">${label} · ${r.feed_type}</span></div>
+      <div><div style="font-weight:700;font-size:13px">${fmtDate(e.date)} <span style="font-size:11px;color:var(--gray);font-weight:500">${label} · ${e.feed_type}</span></div>
         <div style="font-size:12px;color:${isCount?(e.delta<-0.05?'var(--red)':'var(--gray)'):'var(--g2)'};margin-top:2px">${deltaTxt}</div>
         ${r.cost_ngn?`<div style="font-size:11px;color:var(--gray);margin-top:2px">${fmtMoney(r.cost_ngn)}${Number(r.kg)>0?` · ${fmtMoney(Math.round(r.cost_ngn/r.kg))}/kg`:''}${r.supplier?` · ${r.supplier}`:''}</div>`:''}
         ${r.counted_by?`<div style="font-size:11px;color:var(--gray);margin-top:2px">Counted by ${r.counted_by}</div>`:''}
         ${r.notes?`<div style="font-size:11px;color:var(--gray);font-style:italic;margin-top:2px">"${r.notes}"</div>`:''}</div>
       <div style="text-align:right">
-        <div style="font-size:12px;color:var(--gray)">${fmtBags(e.balance,r.feed_type)}<div style="font-size:10px">left</div></div>
+        <div style="font-size:12px;color:var(--gray)">${fmtBags(e.balance,e.feed_type)}<div style="font-size:10px">left</div></div>
         <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
           ${isLocked(e.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="${isCount?`openFeedCount('${r.id}')`:`openFeedPurchase('${r.id}')`}">Edit</button>
           <button class="btn btn-danger btn-sm" onclick="delFeedStock('${r.id}')">✕</button>`}
@@ -2090,7 +2188,7 @@ function feedStoreBody(){
     ${cards}
     ${timelineHtml}
     <div class="sec-hdr">Store Movement
-      <span style="font-size:11px;color:var(--gray);text-transform:none;font-weight:500">Reorder at ${leadDays}d notice · runway target ${targetDays}d</span>
+      <span style="font-size:11px;color:var(--gray);text-transform:none;font-weight:500">Amber under ${warnDays} days of feed left, red under ${urgentDays} · buys to ${targetDays}d</span>
     </div>
     <div class="card" style="padding:0;overflow:hidden">${logRows||'<div class="empty" style="padding:24px"><p>No movement yet.</p></div>'}</div>
     <div style="height:12px"></div>`;
@@ -2104,7 +2202,7 @@ function openFeedPurchase(editId,presetType){
   const today=DB.today();
   const rec=editId?DB.getFeedStock().find(r=>r.id===editId):null;
   const active=getActiveBatches();
-  const type=rec?.feed_type||presetType||getFeedStockByType()[0]?.feed_type||BROOD_FEED_TYPES[1];
+  const type=canonFeedType(rec?.feed_type||presetType||getFeedStockByType()[0]?.feed_type)||BROOD_FEED_TYPES[1];
   openModal(`<div class="modal-ttl">${rec?'Edit':'Record'} Feed Purchase <button class="modal-x" onclick="closeModal()">×</button></div>
     <div class="field"><label>Date</label><input type="date" id="fp_date" value="${rec?rec.date:today}" max="${today}"></div>
     <div class="field"><label>Feed Type</label>
@@ -2189,7 +2287,7 @@ function openFeedCount(editId,presetType){
   const today=DB.today();
   const rec=editId?DB.getFeedStock().find(r=>r.id===editId):null;
   const stocked=getFeedStockByType();
-  const type=rec?.feed_type||presetType||stocked[0]?.feed_type||BROOD_FEED_TYPES[1];
+  const type=canonFeedType(rec?.feed_type||presetType||stocked[0]?.feed_type)||BROOD_FEED_TYPES[1];
   openModal(`<div class="modal-ttl">${rec?'Edit':'Enter'} Stock Count <button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="background:#e8f4fd;border-left:3px solid #4895ef;padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
       🧮 Count the full bags in the store and weigh what is left in the opened one. This becomes the new balance — you do not need to work out the days yourself.
@@ -2235,7 +2333,7 @@ function calcFeedCount(){
       ?Math.max(0,row.demand.days.reduce((a,x)=>x.d<pol.targetDays?a+x.kg:a,0)-kg)
       :Math.max(0,needKg-kg);
     const buyBags=bagsFor(buyKg,type);
-    const urgent=shortDay!==null&&shortDay<=pol.leadDays;
+    const urgent=shortDay!==null&&shortDay<pol.urgentDays;
     const line=shortDay===null
       ?(row.openEnded?`Over ${covered} days of cover`
         :`Covers this stage to ${fmtDate(row.endDate)}`)
@@ -2325,7 +2423,7 @@ function openFeedForm(editId){
   const feedRateG=getFeedRateG(batch,ageDays);
   const birds=getBatchBirdCount(batch);
   const defReq=(birds*feedRateG/1000).toFixed(1);
-  const typeOpts=BROOD_FEED_TYPES.map(t=>`<option value="${t}" ${rec?.feed_type===t?'selected':''}>${t}</option>`).join('');
+  const typeOpts=BROOD_FEED_TYPES.map(t=>`<option value="${t}" ${canonFeedType(rec?.feed_type)===t?'selected':''}>${t}</option>`).join('');
   openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Feed Entry <button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="background:#e8f4fd;border-left:3px solid #4895ef;padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
       📅 Logging yesterday's feed? Change the date below.<br><span style="margin-top:4px;display:block">⚖️ Phase: <b>${phase.label}</b> · Rate: <b>${feedRateG} g/bird</b> · Req for ${birds} birds: <b>${defReq} kg</b></span>
@@ -3296,7 +3394,7 @@ function renderReports(){
     })();
     // Feed type donut — SVG with <title> tooltips, no verbose labels
     const byType={};
-    bFeed.forEach(r=>{byType[r.feed_type]=(byType[r.feed_type]||0)+(r.feed_kg_used||0);});
+    bFeed.forEach(r=>{const ft=canonFeedType(r.feed_type);byType[ft]=(byType[ft]||0)+(r.feed_kg_used||0);});
     const typeEntries=Object.entries(byType).sort((a,b2)=>b2[1]-a[1]);
     const totalForPie=typeEntries.reduce((s,[,v])=>s+v,0);
     const PIE_COLORS=['#8b5cf6','#27ae60','#e67e22','#4895ef','#c0392b','#9b59b6','#f39c12'];
@@ -3503,11 +3601,13 @@ function renderSettings(){
     <div class="card">
       <div class="card-title">Feed Store</div>
       <p style="font-size:13px;color:var(--gray);margin-bottom:12px">
-        Bag size is what turns a bag count in the store into kilograms, so it has to match the sacks you actually buy. Reorder cover should be however much notice your supplier needs.
+        Bag size is what turns a bag count in the store into kilograms, so it has to match the sacks you actually buy. The two warning levels are days of feed left — set them to leave enough time to get a delivery in.
       </p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div class="field"><label>Reorder at cover of (days)</label>
-          <input type="number" id="fs_lead" value="${pol.leadDays}" min="1" max="60" step="1"></div>
+        <div class="field"><label>Warn below (days left)</label>
+          <input type="number" id="fs_warn" value="${pol.warnDays}" min="1" max="90" step="1"></div>
+        <div class="field"><label>Red alert below (days left)</label>
+          <input type="number" id="fs_urgent" value="${pol.urgentDays}" min="1" max="90" step="1"></div>
         <div class="field"><label>Buy to cover (days)</label>
           <input type="number" id="fs_target" value="${pol.targetDays}" min="3" max="180" step="1"></div>
       </div>
@@ -3562,9 +3662,13 @@ function saveFarm(){
 }
 function saveFeedStoreSettings(){
   const farm=DB.getFarm()||{};
-  const lead=parseInt(document.getElementById('fs_lead').value,10);
+  const warn=parseInt(document.getElementById('fs_warn').value,10);
+  const urgent=parseInt(document.getElementById('fs_urgent').value,10);
   const target=parseInt(document.getElementById('fs_target').value,10);
-  farm.feedLeadDays=lead>0?lead:DEFAULT_FEED_LEAD_DAYS;
+  farm.feedWarnDays=warn>0?warn:DEFAULT_FEED_WARN_DAYS;
+  // Red has to sit inside amber, or a store could go red without ever having
+  // been amber and the earlier warning would never be seen.
+  farm.feedUrgentDays=Math.min(urgent>0?urgent:DEFAULT_FEED_URGENT_DAYS,farm.feedWarnDays);
   farm.feedTargetDays=target>0?target:DEFAULT_FEED_TARGET_DAYS;
   // Only sizes that differ from the default are stored, so the default can move
   // later without every farm carrying a frozen copy of today's value.
