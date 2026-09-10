@@ -1288,6 +1288,7 @@ function go(name){
     if(!confirm('Active collection in progress. Leave anyway?'))return;
     SES=null;SES_STAND=0;
   }
+  if(name!=='eggs')COLLECT_DATE=null;
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('v-'+name).classList.add('active');
@@ -1342,7 +1343,22 @@ function fmtDate(iso){ const d=new Date(iso+'T00:00:00'); return d.toLocaleDateS
 function addDays(iso,n){ const d=new Date(iso+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10) }
 function daysBetween(fromIso,toIso){ return Math.round((new Date(toIso+'T00:00:00Z')-new Date(fromIso+'T00:00:00Z'))/864e5) }
 function fmtMoney(n){ return '₦'+Number(n||0).toLocaleString('en-NG',{minimumFractionDigits:0}) }
-function isLocked(dateStr){ if(!dateStr)return false; const diff=(new Date(DB.today())-new Date(dateStr+'T00:00:00'))/(864e5); return diff>7; }
+const LOCK_DAYS=7;
+function isLocked(dateStr){ if(!dateStr)return false; const diff=(new Date(DB.today())-new Date(dateStr+'T00:00:00'))/(864e5); return diff>LOCK_DAYS; }
+// The 🔒 badge only hides the buttons. These two are what actually hold the
+// window shut: lockMinDate() stops a brand-new record being backdated into
+// locked history (a stock count is an anchor, so a backdated one rewrites the
+// balance without ever touching a locked row), and lockGuard() re-checks at
+// save/delete time so a screen left open across the boundary cannot slip a
+// write through.
+function lockMinDate(){ return addDays(DB.today(),-LOCK_DAYS) }
+function lockGuard(...dates){
+  for(const d of dates) if(isLocked(d)){
+    toast(`${fmtDate(d)} is locked — only the last ${LOCK_DAYS} days can be changed`);
+    return false;
+  }
+  return true;
+}
 const LOCK_BADGE=`<span style="font-size:11px;color:var(--gray);padding:2px 6px;border:1px solid #ddd;border-radius:6px;user-select:none">🔒 Locked</span>`;
 function toast(msg,dur=2200){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),dur) }
 function openModal(html){ document.getElementById('modal-body').innerHTML=html; document.getElementById('overlay').classList.add('open') }
@@ -1594,6 +1610,22 @@ function getDailySummary(days){
 // EGGS — EGG COLLECTION (Ported from PoulTrack)
 // ═══════════════════════════════════════════════
 let COLLECT_ROUND=null;
+// Eggs is normally a today-only screen, but a pass written on paper still has to
+// land on the day it was collected. COLLECT_DATE is that override: null means
+// today, otherwise an ISO date inside the same 7-day window the other modules
+// allow for edits (isLocked). It resets whenever you leave the Eggs tab, so a
+// forgotten backfill can never silently swallow the next day's collection.
+let COLLECT_DATE=null;
+function collectDate(){ return COLLECT_DATE||DB.today() }
+function colsForDate(d){ return DB.getCols().filter(c=>c.date===d) }
+function setCollectDate(v){
+  const today=DB.today();
+  if(!v||v===today){COLLECT_DATE=null;}
+  else if(v>today){toast('Cannot collect for a future date');return;}
+  else if(isLocked(v)){toast(`Only the last ${LOCK_DAYS} days can be backfilled`);return;}
+  else COLLECT_DATE=v;
+  COLLECT_ROUND=null;SES=null;SES_STAND=0;renderEggs();
+}
 function toggleCollectRound(id){COLLECT_ROUND=COLLECT_ROUND===id?null:id; renderEggs();}
 function renderEggs(){
   if(SES){renderSession();return;}
@@ -1602,7 +1634,7 @@ function renderEggs(){
     el.innerHTML=`<div class="topbar"><div><h1>Egg Collection</h1></div></div><div class="empty"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg><h3>No farm set up</h3><p>Go to Settings to add pens and lines.</p></div>`;
     return;
   }
-  const today=DB.today(), todayCols=DB.todayCols(), allPass=getAllPassStatus(farm,todayCols).filter(p=>!_activePenId||p.penId===_activePenId);
+  const today=collectDate(), todayCols=colsForDate(today), allPass=getAllPassStatus(farm,todayCols).filter(p=>!_activePenId||p.penId===_activePenId);
   let openRound=COLLECT_ROUND;
   if(openRound===null){const fp=ROUNDS.find(r=>allPass.some(p=>p.round===r.id&&!p.complete));openRound=fp?fp.id:ROUNDS[0].id;}
   const roundSections=ROUNDS.map(rnd=>{
@@ -1636,8 +1668,19 @@ function renderEggs(){
       </div>
       ${isOpen?`<div style="padding:0 16px 6px">${passRows||'<div style="padding:14px 0;color:var(--gray);font-size:13px">No passes configured.</div>'}</div>`:''}</div>`;
   }).join('');
-  el.innerHTML=`<div class="topbar"><div><h1>Egg Collection</h1><small>${fmtDate(today)}</small></div></div>
+  const isBackfill=today!==DB.today();
+  const minDate=lockMinDate();
+  el.innerHTML=`<div class="topbar"><div><h1>Egg Collection</h1><small>${fmtDate(today)}${isBackfill?' · backfill':''}</small></div></div>
     ${getPenCtxBar()}
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 16px;background:${isBackfill?'#fff8e1':'var(--white)'};border-bottom:1px solid ${isBackfill?'var(--amber)':'#eee'}">
+      <span style="font-size:12px;font-weight:800;color:var(--gray)">Collection date</span>
+      <input type="date" value="${today}" min="${minDate}" max="${DB.today()}"
+        style="flex:1;min-width:130px;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-weight:700"
+        onchange="setCollectDate(this.value)">
+      ${isBackfill?`<button class="btn btn-secondary btn-sm" style="flex-shrink:0" onclick="setCollectDate('')">Back to today</button>`:''}
+    </div>
+    ${isBackfill?`<div style="background:var(--amber);color:#fff;padding:9px 16px;font-size:12px;font-weight:800;line-height:1.5">
+      ⏪ Backfilling ${fmtDate(today)} — these eggs will be recorded against that day, not today.</div>`:''}
     <div style="background:var(--g5);padding:10px 18px;font-size:12px;color:var(--g1);line-height:1.7">
       <b>Side A</b> = Right side, walking forward &nbsp;·&nbsp; <b>Side B</b> = Left side, walking back</div>
     <div style="padding-top:12px;padding-bottom:24px">${roundSections||'<div style="text-align:center;padding:32px 24px;color:var(--gray)"><p>No passes configured for this pen.<br>Go to Settings to add lines and stands.</p></div>'}</div>`;
@@ -1646,7 +1689,7 @@ function renderEggs(){
 function beginSession(penId,lineId,side,round){
   const farm=DB.getFarm(), pen=(farm.pens||[]).find(p=>p.id===penId);
   const line=(pen?.lines||[]).find(l=>l.id===lineId); if(!line)return;
-  const today=DB.today(), todayCols=DB.todayCols();
+  const today=collectDate(), todayCols=colsForDate(today);
   let col=todayCols.find(c=>c.penId===penId&&c.lineId===lineId&&c.side===side&&c.round===round);
   if(!col){
     const stage=getPenStage(pen);
@@ -1674,7 +1717,7 @@ function renderSession(){
   const stage=getPenStage(pen);
   const EXP=stage?stage.expected:(DB.getFarm()?.expectedRate||85);
   const WARN=stage?stage.warn:(DB.getFarm()?.warnRate||70);
-  const otherCols=DB.todayCols().filter(c=>c.penId===SES.penId&&c.lineId===SES.lineId&&c.side===side&&c.round!==round);
+  const otherCols=colsForDate(SES.date).filter(c=>c.penId===SES.penId&&c.lineId===SES.lineId&&c.side===side&&c.round!==round);
   const prevByCell={};
   otherCols.forEach(c=>(c.entries||[]).filter(e=>e.standId===stand.id).forEach(e=>{
     const k=`${e.tier}_${e.cellNum}`;
@@ -2177,7 +2220,7 @@ function openFeedPurchase(editId,presetType){
   const rec=editId?DB.getFeedStock().find(r=>r.id===editId):null;
   const type=canonFeedType(rec?.feed_type||presetType)||'Layer Mash';
   openModal(`<div class="modal-ttl">${rec?'Edit':'Record'} Feed Purchase <button class="modal-x" onclick="closeModal()">×</button></div>
-    <div class="field"><label>Date</label><input type="date" id="fp_date" value="${rec?rec.date:today}" max="${today}"></div>
+    <div class="field"><label>Date</label><input type="date" id="fp_date" value="${rec?rec.date:today}" min="${lockMinDate()}" max="${today}"></div>
     <div class="field"><label>Feed Type</label>
       <select id="fp_type" onchange="calcFeedPurchase()">${feedTypeOptions(type)}</select></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -2221,6 +2264,7 @@ function saveFeedPurchase(editId){
   if(!date){toast('Pick a date');return;}
   if(kg<=0){toast('Enter the bags received');return;}
   const existing=editId?DB.getFeedStock().find(r=>r.id===editId):null;
+  if(!lockGuard(date,existing?.date))return;
   const id=editId||uid();
   const rec={id,date,kind:'purchase',feed_type,bags,loose_kg,kg,bag_kg,cost_ngn,
     supplier:document.getElementById('fp_supplier').value.trim(),
@@ -2262,7 +2306,7 @@ function openFeedCount(editId,presetType){
       🧮 Count the full bags in the store and weigh what is left in the opened one. This becomes the new balance — you do not need to work out the days yourself.
     </div>
     <input type="hidden" id="fc_edit" value="${editId||''}">
-    <div class="field"><label>Date counted</label><input type="date" id="fc_date" value="${rec?rec.date:today}" max="${today}"></div>
+    <div class="field"><label>Date counted</label><input type="date" id="fc_date" value="${rec?rec.date:today}" min="${lockMinDate()}" max="${today}"></div>
     <div class="field"><label>Feed Type</label>
       <select id="fc_type" onchange="calcFeedCount()">${feedTypeOptions(type)}</select></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -2324,6 +2368,7 @@ function saveFeedCount(editId){
   const bag_kg=getBagKg(feed_type);
   const kg=Math.round((bags*bag_kg+loose_kg)*10)/10;
   if(!date){toast('Pick the date counted');return;}
+  if(!lockGuard(date,editId?DB.getFeedStock().find(r=>r.id===editId)?.date:null))return;
   if(bags===0&&loose_kg===0&&!confirm('Record the store as empty for '+feed_type+'?'))return;
   // Snapshotted against the books with this count itself excluded, so the figure
   // recorded is what was actually found rather than a self-referential zero.
@@ -2377,6 +2422,7 @@ function delFeedStock(id){
 }
 function doDelFeedStock(id){
   const rec=DB.getFeedStock().find(r=>r.id===id);
+  if(!lockGuard(rec?.date))return;
   if(rec?.expense_id&&DB.getExpenses().some(e=>e.id===rec.expense_id))DB.delExpense(rec.expense_id);
   DB.delFeedStock(id);
   confirmSave('Deleted');renderFeed();renderHome();renderFinance();renderFeedTicker();
@@ -2396,7 +2442,7 @@ function openFeedForm(editId){
     <div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
       📅 Logging yesterday's feed? Change the date — e.g. weigh leftover feed in the morning, then record it as <b>yesterday's</b> consumption.<br><span style="margin-top:4px;display:block">⚖️ ${rateLabel}</span>
     </div>
-    <div class="field"><label>Date</label><input type="date" id="ff_date" value="${rec?rec.date:today}" max="${today}"></div>
+    <div class="field"><label>Date</label><input type="date" id="ff_date" value="${rec?rec.date:today}" min="${lockMinDate()}" max="${today}"></div>
     <div class="field"><label>Feed Type</label>
       <select id="ff_type">${feedTypeOptions(rec?.feed_type)}</select></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -2414,6 +2460,7 @@ function saveFeedLog(editId){
   const ageWeeks=getFarmAgeWeeks(DB.getFarm())||0;
   const farm=DB.getFarm();
   const existing=editId?DB.getFeed().find(r=>r.id===editId):null;
+  if(!lockGuard(date,existing?.date))return;
   // Snapshot the age-based rate at time of save; preserve existing snapshot on edit
   const feed_rate_g=existing?.feed_rate_g||getLayerFeedRate(ageWeeks);
   const notes=document.getElementById('ff_notes').value.trim();
@@ -2422,11 +2469,16 @@ function saveFeedLog(editId){
   else{DB.getFeed().filter(r=>r.date===date&&r.feed_type===feed_type&&(r.pen_id||null)===(_activePenId||null)).forEach(r=>DB.delFeed(r.id));DB.addFeed(rec);}
   closeModal();confirmSave('Feed log saved');renderFeed();
 }
+function doDelFeedLog(id){
+  const rec=DB.getFeed().find(r=>r.id===id);
+  if(!lockGuard(rec?.date))return;
+  DB.delFeed(id);confirmSave('Deleted');renderFeed();
+}
 function delFeed(id){
   openModal(`<div class="modal-ttl">Delete? <button class="modal-x" onclick="closeModal()">×</button></div>
     <p style="font-size:14px;color:var(--gray);margin-bottom:18px">This cannot be undone.</p>
     <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="btn btn-danger" onclick="closeModal();DB.delFeed('${id}');confirmSave('Deleted');renderFeed()">Delete</button>
+      <button class="btn btn-danger" onclick="closeModal();doDelFeedLog('${id}')">Delete</button>
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
 }
 

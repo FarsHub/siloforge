@@ -1352,7 +1352,22 @@ function fmtDate(iso){const d=new Date(iso+'T00:00:00');return d.toLocaleDateStr
 function addDays(iso,n){const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
 function daysBetween(fromIso,toIso){return Math.round((new Date(toIso+'T00:00:00Z')-new Date(fromIso+'T00:00:00Z'))/864e5)}
 function fmtMoney(n){return '₦'+Number(n||0).toLocaleString('en-NG',{minimumFractionDigits:0})}
-function isLocked(dateStr){if(!dateStr)return false;const diff=(new Date(DB.today())-new Date(dateStr+'T00:00:00'))/(864e5);return diff>7;}
+const LOCK_DAYS=7;
+function isLocked(dateStr){ if(!dateStr)return false; const diff=(new Date(DB.today())-new Date(dateStr+'T00:00:00'))/(864e5); return diff>LOCK_DAYS; }
+// The 🔒 badge only hides the buttons. These two are what actually hold the
+// window shut: lockMinDate() stops a brand-new record being backdated into
+// locked history (a stock count is an anchor, so a backdated one rewrites the
+// balance without ever touching a locked row), and lockGuard() re-checks at
+// save/delete time so a screen left open across the boundary cannot slip a
+// write through.
+function lockMinDate(){ return addDays(DB.today(),-LOCK_DAYS) }
+function lockGuard(...dates){
+  for(const d of dates) if(isLocked(d)){
+    toast(`${fmtDate(d)} is locked — only the last ${LOCK_DAYS} days can be changed`);
+    return false;
+  }
+  return true;
+}
 const LOCK_BADGE=`<span style="font-size:11px;color:var(--gray);padding:2px 6px;border:1px solid #ddd;border-radius:6px;user-select:none">🔒 Locked</span>`;
 function toast(msg,dur=2200){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur)}
 function openModal(html){document.getElementById('modal-body').innerHTML=html;document.getElementById('overlay').classList.add('open')}
@@ -2204,7 +2219,7 @@ function openFeedPurchase(editId,presetType){
   const active=getActiveBatches();
   const type=canonFeedType(rec?.feed_type||presetType||getFeedStockByType()[0]?.feed_type)||BROOD_FEED_TYPES[1];
   openModal(`<div class="modal-ttl">${rec?'Edit':'Record'} Feed Purchase <button class="modal-x" onclick="closeModal()">×</button></div>
-    <div class="field"><label>Date</label><input type="date" id="fp_date" value="${rec?rec.date:today}" max="${today}"></div>
+    <div class="field"><label>Date</label><input type="date" id="fp_date" value="${rec?rec.date:today}" min="${lockMinDate()}" max="${today}"></div>
     <div class="field"><label>Feed Type</label>
       <select id="fp_type" onchange="calcFeedPurchase()">${BROOD_FEED_TYPES.map(t=>`<option value="${t}" ${t===type?'selected':''}>${t}</option>`).join('')}</select></div>
     ${active.length?`<div class="field"><label>Batch <span style="color:var(--gray);font-weight:400">— optional, for the expense</span></label>
@@ -2251,6 +2266,7 @@ function saveFeedPurchase(editId){
   if(!date){toast('Pick a date');return;}
   if(kg<=0){toast('Enter the bags received');return;}
   const existing=editId?DB.getFeedStock().find(r=>r.id===editId):null;
+  if(!lockGuard(date,existing?.date))return;
   const id=editId||uid();
   const rec={id,date,kind:'purchase',feed_type,bags,loose_kg,kg,bag_kg,cost_ngn,batch_id,
     batch_name:batch_id?(DB.getBatches().find(b=>b.id===batch_id)?.name||''):'',
@@ -2293,7 +2309,7 @@ function openFeedCount(editId,presetType){
       🧮 Count the full bags in the store and weigh what is left in the opened one. This becomes the new balance — you do not need to work out the days yourself.
     </div>
     <input type="hidden" id="fc_edit" value="${editId||''}">
-    <div class="field"><label>Date counted</label><input type="date" id="fc_date" value="${rec?rec.date:today}" max="${today}"></div>
+    <div class="field"><label>Date counted</label><input type="date" id="fc_date" value="${rec?rec.date:today}" min="${lockMinDate()}" max="${today}"></div>
     <div class="field"><label>Feed Type</label>
       <select id="fc_type" onchange="calcFeedCount()">${BROOD_FEED_TYPES.map(t=>`<option value="${t}" ${t===type?'selected':''}>${t}</option>`).join('')}</select></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -2355,6 +2371,7 @@ function saveFeedCount(editId){
   const bag_kg=getBagKg(feed_type);
   const kg=Math.round((bags*bag_kg+loose_kg)*10)/10;
   if(!date){toast('Pick the date counted');return;}
+  if(!lockGuard(date,editId?DB.getFeedStock().find(r=>r.id===editId)?.date:null))return;
   if(bags===0&&loose_kg===0&&!confirm('Record the store as empty for '+feed_type+'?'))return;
   // Snapshotted against the books with this count itself excluded, so the figure
   // recorded is what was actually found rather than a self-referential zero.
@@ -2408,6 +2425,7 @@ function delFeedStock(id){
 }
 function doDelFeedStock(id){
   const rec=DB.getFeedStock().find(r=>r.id===id);
+  if(!lockGuard(rec?.date))return;
   if(rec?.expense_id&&DB.getExpenses().some(e=>e.id===rec.expense_id))DB.delExpense(rec.expense_id);
   DB.delFeedStock(id);
   confirmSave('Deleted');renderFeed();renderHome();renderFinance();renderFeedTicker();
@@ -2428,7 +2446,7 @@ function openFeedForm(editId){
     <div style="background:#e8f4fd;border-left:3px solid #4895ef;padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
       📅 Logging yesterday's feed? Change the date below.<br><span style="margin-top:4px;display:block">⚖️ Phase: <b>${phase.label}</b> · Rate: <b>${feedRateG} g/bird</b> · Req for ${birds} birds: <b>${defReq} kg</b></span>
     </div>
-    <div class="field"><label>Date</label><input type="date" id="ff_date" value="${rec?rec.date:today}" max="${today}"></div>
+    <div class="field"><label>Date</label><input type="date" id="ff_date" value="${rec?rec.date:today}" min="${lockMinDate()}" max="${today}"></div>
     <div class="field"><label>Feed Type</label><select id="ff_type">${typeOpts}</select></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>kg Used</label><input type="number" id="ff_used" value="${rec?.feed_kg_used||''}" min="0" step="0.5" placeholder="${defReq}"></div>
@@ -2444,6 +2462,7 @@ function saveFeedLog(editId){
   const phase=getFeedPhaseForBatch(batch,ageDays);
   const farm=DB.getFarm();
   const existing=editId?DB.getFeed().find(r=>r.id===editId):null;
+  if(!lockGuard(document.getElementById('ff_date').value,existing?.date))return;
   const feed_rate_g=existing?.feed_rate_g||getFeedRateG(batch,ageDays);
   const rec={id:editId||uid(),date:document.getElementById('ff_date').value,
     batch_id:_activeBatchId,batch_name:batch.name,breed:batch.breed,bird_type:birdType,
@@ -2457,10 +2476,15 @@ function saveFeedLog(editId){
   else{DB.getFeed().filter(r=>r.batch_id===_activeBatchId&&r.date===rec.date).forEach(r=>DB.delFeed(r.id));DB.addFeed(rec);}
   closeModal();confirmSave('Feed log saved');renderFeed();
 }
+function doDelFeedLog(id){
+  const rec=DB.getFeed().find(r=>r.id===id);
+  if(!lockGuard(rec?.date))return;
+  DB.delFeed(id);confirmSave('Deleted');renderFeed();
+}
 function delFeedLog(id){
   openModal(`<div class="modal-ttl">Delete? <button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
-      <button class="btn btn-danger" onclick="closeModal();DB.delFeed('${id}');confirmSave('Deleted');renderFeed()">Delete</button>
+      <button class="btn btn-danger" onclick="closeModal();doDelFeedLog('${id}')">Delete</button>
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
 }
 
