@@ -664,7 +664,7 @@ function initApp(){
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.09.18-b18';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.09.19-b19';  // bump on each deploy; shown on login screen + console
 const BREEDS_BY_TYPE={
   broiler:['Arbor Acres','Marshall','Other'],
   pullet:['Isa Brown','Lohmann Brown','Hy-Line Brown','Black Pullet','Other'],
@@ -4955,6 +4955,42 @@ function weightRecordForSale(batch,sale){
   return (upto.length?upto[upto.length-1]:rows[0]);
 }
 
+// What the lot actually ate, up to the day it went out.
+//
+// The feed log is the source: it carries feed_type and kg per batch per day,
+// so it can say which sack for which days and how much of it. The programme is
+// only a fallback for a lot with no daily feed logged, and then it is clipped
+// to the age the birds reached — printing "Pre-Layer Mash to sale" on a lot
+// dispatched at day 79 credits it with a sack it never saw.
+function rearedOnForSale(batch,sale){
+  if(!batch||!batch.arrival_date)return null;
+  const ageAtSale=Math.max(0,daysBetween(batch.arrival_date,sale.date));
+  const logs=DB.getFeed()
+    .filter(r=>r.batch_id===batch.id&&r.feed_type&&String(r.date)<=String(sale.date));
+  if(logs.length){
+    const by={};
+    logs.forEach(r=>{
+      const t=canonFeedType(r.feed_type);
+      const d=Math.max(0,daysBetween(batch.arrival_date,r.date));
+      const o=by[t]||(by[t]={type:t,from:d,to:d,kg:0,days:0});
+      o.from=Math.min(o.from,d); o.to=Math.max(o.to,d);
+      o.kg+=Number(r.feed_kg_used)||0; o.days++;
+    });
+    return {source:'logged',ageAtSale,
+            rows:Object.values(by).sort((a,b)=>a.from-b.from||a.type.localeCompare(b.type))};
+  }
+  const rows=[];
+  let start=1;
+  for(const ph of getBroodFeedProgramme(getBirdType(batch))){
+    if(!ph.type)  { start=ph.maxDay+1; continue; }
+    if(start>ageAtSale)break;                 // a phase the birds never reached
+    rows.push({type:ph.type,from:start,to:Math.min(ph.maxDay,ageAtSale),
+               current:ph.maxDay>=ageAtSale});
+    start=ph.maxDay+1;
+  }
+  return rows.length?{source:'programme',ageAtSale,rows}:null;
+}
+
 function buildPassportHTML(sale){
   const b=getDocBusiness();
   const batch=DB.getBatches().find(x=>x.id===sale.batch_id)||null;
@@ -5069,11 +5105,15 @@ function buildPassportHTML(sale){
       })()
     : '';
 
-  const feedLine=batch
-    ? getBroodFeedProgramme(getBirdType(batch))
-        .filter(p=>p.type)
-        .map(p=>`<span class="pp-chip">${rdEsc(p.type)} <em>${p.maxDay>=999?'to sale':'to d'+p.maxDay}</em></span>`)
-        .join('')
+  const reared=rearedOnForSale(batch,sale);
+  const feedLine=reared
+    ? reared.rows.map(r=>{
+        const span=r.from===r.to?`d${r.from}`
+          :r.current&&reared.source==='programme'?`d${r.from}–d${r.to}, current`
+          :`d${r.from}–d${r.to}`;
+        const qty=r.kg>0?` · ${Math.round(r.kg).toLocaleString('en-NG')} kg`:'';
+        return `<span class="pp-chip">${rdEsc(r.type)} <em>${span}${qty}</em></span>`;
+      }).join('')
     : '';
 
   return `
@@ -5131,8 +5171,15 @@ function buildPassportHTML(sale){
     </div>`:'<div class="vx-note" style="padding-top:6px">The full programme for this age has been completed on this farm.</div>'}
     ${feedLine?`
       <div class="rd-rule"></div>
-      <div class="vx-sec"><div class="rd-lbl">Reared on</div></div>
-      <div class="pp-chips">${feedLine}</div>`:''}
+      <div class="vx-sec">
+        <div class="rd-lbl">Reared on</div>
+        <div class="vx-count">TO DAY ${reared.ageAtSale}</div>
+      </div>
+      <div class="pp-chips">${feedLine}</div>
+      ${reared.source==='programme'?`<div class="vx-note" style="padding-top:2px">
+        From the farm's feed programme — daily feed was not logged for this lot, so
+        quantities are not stated and phases the birds had not reached are not shown.
+      </div>`:''}`:''}
 
     <div class="rd-terms">
       <div class="rd-lbl">Terms</div>

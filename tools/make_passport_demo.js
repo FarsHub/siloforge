@@ -67,7 +67,7 @@ sandbox.__store = {
     doc_phone: "0803 000 0000", doc_email: "pullets@lamuad.ng", doc_rc: "RC 1234567",
   },
   batches: [], daily: [], weight: [], sales: [], customers: [],
-  orders: [], payments: [], expenses: [], health: [], feedstock: [],
+  orders: [], payments: [], expenses: [], health: [], feedstock: [], feed: [],
 };
 vm.runInContext(`
   const S = __store;
@@ -86,6 +86,7 @@ vm.runInContext(`
   DB.getExpenses  = () => S.expenses;
   DB.getHealth    = () => S.health;
   DB.getFeedStock = () => S.feedstock;
+  DB.getFeed      = () => S.feed;
   DB.paymentsForSale  = id => S.payments.filter(p=>p.sale_id===id);
   DB.paymentsForOrder = id => S.payments.filter(p=>p.order_id===id && !p.sale_id);
 `, sandbox);
@@ -136,6 +137,25 @@ function dailyRows(batchId, arrival, docCount, totalDeaths, days, outOfBand) {
   return rows;
 }
 
+// Weekly feed entries for a batch, using whatever sack the programme calls for
+// at that age. Lot A gets these so the passport shows the logged path; Lot B
+// deliberately has none, so it falls back to the programme.
+function feedRows(batchId, arrival, birdType, days, birds) {
+  const rows = [];
+  for (let d = 1; d <= days; d += 7) {
+    const type = call("broodFeedTypeForAge", birdType, d);
+    if (!type) continue;
+    const g = call("getFeedRateGByType", birdType, d, S.farm) || 60;
+    const covered = Math.min(7, days - d + 1);   // the last entry is a part week
+    const kg = Math.round(g * birds * covered / 1000);
+    rows.push({
+      id: batchId + "-f" + d, batch_id: batchId, date: addDays(arrival, d),
+      batch_name: "", feed_type: type, feed_kg_used: kg, feed_req_kg: kg, notes: "",
+    });
+  }
+  return rows;
+}
+
 // ── Lot A: reared well, sold at point of lay ────────────────────────────
 const A_ARRIVED = "2026-03-08";
 S.batches.push({
@@ -146,6 +166,9 @@ S.batches.push({
   vaccinations: vaccinationsThrough(A_ARRIVED, 126),
 });
 S.daily.push(...dailyRows("bA", A_ARRIVED, 3000, 120, 30, 2));   // 96.0% livability, 28/30 in band
+// 128 days from set to dispatch, logged weekly. This is what makes the
+// passport quote real sacks and real quantities instead of the programme.
+S.feed.push(...feedRows("bA", A_ARRIVED, "pullet", 128, 2880));
 
 const A_WEIGHTS = [1520, 1495, 1560, 1540, 1505, 1575, 1530, 1550, 1485, 1515,
                    1565, 1500, 1545, 1535, 1490, 1555, 1510, 1310, 1720, 1250];
@@ -278,9 +301,9 @@ ${style}
 
 <div id="rd-overlay" class="rd-ov">
   <div class="rd-scroll">
-    ${note("Lot A —", "a good run. 96% livability, weights just under the Isa Brown standard, 85% uniformity, temperature held on 28 of 30 logged days, and the full programme given through to the EDS booster. This is the sheet that justifies a premium.")}
+    ${note("Lot A —", "a good run. 96% livability, weights just under the Isa Brown standard, 85% uniformity, temperature held on 28 of 30 logged days, and the full programme given through to the EDS booster. Feed was logged daily, so \"reared on\" quotes the actual sacks and quantities. This is the sheet that justifies a premium.")}
     ${call("buildPassportHTML", saleA)}
-    ${note("Lot B —", "a hard run, and the document says so. 91% livability, 89% of the Lohmann standard, 60% uniformity, temperature held on only 20 of 28 days, and two vaccinations still outstanding that now fall to the buyer. Handing this over honestly is what makes Lot A's sheet believable.")}
+    ${note("Lot B —", "a hard run, and the document says so. 91% livability, 89% of the Lohmann standard, 60% uniformity, temperature held on only 20 of 28 days, and two vaccinations still outstanding that now fall to the buyer. Daily feed was never logged for it, so \"reared on\" falls back to the programme, truncated at the age the birds actually reached, and says so. Handing this over honestly is what makes Lot A’s sheet believable.")}
     ${call("buildPassportHTML", saleB)}
   </div>
 </div>

@@ -77,7 +77,7 @@ sandbox.__store = {
     name: "Lamuad Farms", doc_address: "Km 12 Ilesa Road, Osogbo, Osun State",
     doc_phone: "0803 000 0000", doc_rc: "RC 1234567",
   },
-  batches: [], daily: [], weight: [], sales: [], payments: [],
+  batches: [], daily: [], weight: [], sales: [], payments: [], feed: [],
   customers: [], orders: [], expenses: [], feedstock: [], health: [],
 };
 vm.runInContext(`
@@ -98,6 +98,7 @@ vm.runInContext(`
   DB.getExpenses    = () => S.expenses;
   DB.getHealth      = () => S.health;
   DB.getFeedStock   = () => S.feedstock;
+  DB.getFeed        = () => S.feed;
   DB.getPayments    = () => S.payments;
   DB.paymentsForSale  = id => S.payments.filter(p=>p.sale_id===id);
   DB.paymentsForOrder = id => S.payments.filter(p=>p.order_id===id && !p.sale_id);
@@ -311,6 +312,76 @@ section("Deposits carry over into the sale");
   check("a fulfilled order stops drawing on capacity",
         call("getBatchPipeline", S.batches[0]).allocated === 0);
   sandbox.__sale = sale;
+}
+
+section("Reared on — what the lot actually ate");
+{
+  const batch = S.batches[0];                      // arrived 2026-04-12
+  const sale  = sandbox.__sale;                    // dispatched 2026-08-12, day 122
+
+  // ── No feed logged: fall back to the programme, clipped to the real age ──
+  const prog = call("rearedOnForSale", batch, sale);
+  check("falls back to the programme when nothing was logged",
+        prog.source === "programme", prog.source);
+  check("age at dispatch is measured to the sale, not to today",
+        prog.ageAtSale === 122, prog.ageAtSale);
+  check("a phase the birds never reached is not listed",
+        !prog.rows.some(r => r.type === "Pre-Layer Mash"),
+        prog.rows.map(r => r.type).join(", "));
+  check("phases run in order from day 1",
+        prog.rows[0].from === 1 && prog.rows.every((r, i, a) => i === 0 || r.from === a[i - 1].to + 1),
+        prog.rows.map(r => `${r.type} d${r.from}-${r.to}`).join(" | "));
+  check("the last phase stops at the dispatch day, not at its programme end",
+        prog.rows[prog.rows.length - 1].to === 122,
+        prog.rows[prog.rows.length - 1].to);
+  check("the phase still running is flagged as current",
+        prog.rows[prog.rows.length - 1].current === true);
+
+  // The case that was actually shipped wrong: a young lot.
+  const young = Object.assign({}, sale, { date: "2026-06-30" });   // day 79
+  const p79 = call("rearedOnForSale", batch, young);
+  check("a day-79 lot is not credited with Pre-Layer Mash",
+        !p79.rows.some(r => r.type === "Pre-Layer Mash"),
+        p79.rows.map(r => r.type).join(", "));
+  check("a day-79 lot is not credited with days it has not lived",
+        p79.rows.every(r => r.to <= 79), p79.rows.map(r => r.to).join(","));
+  check("day-79 lot is on Grower Mash",
+        p79.rows[p79.rows.length - 1].type === "Grower Mash");
+
+  // ── Feed logged: that is the record, and it wins ──
+  S.feed.push(
+    { id: "f1", batch_id: "b1", date: "2026-04-20", feed_type: "Starter Mash", feed_kg_used: 40 },
+    { id: "f2", batch_id: "b1", date: "2026-05-02", feed_type: "Chick Mash",   feed_kg_used: 95 },
+    { id: "f3", batch_id: "b1", date: "2026-06-15", feed_type: "Grower Mash",  feed_kg_used: 180 },
+    { id: "f4", batch_id: "b1", date: "2026-08-01", feed_type: "Grower Mash",  feed_kg_used: 210 },
+    // Dated after dispatch: belongs to the birds still on the farm, not this lot.
+    { id: "f5", batch_id: "b1", date: "2026-09-01", feed_type: "Pre-Layer Mash", feed_kg_used: 60 }
+  );
+  const log = call("rearedOnForSale", batch, sale);
+  check("the feed log wins over the programme", log.source === "logged", log.source);
+  check("one row per feed, not per entry", log.rows.length === 3, log.rows.length);
+  check("feed bought after dispatch is not attributed to this lot",
+        !log.rows.some(r => r.type === "Pre-Layer Mash"),
+        log.rows.map(r => r.type).join(", "));
+  check("kg is totalled across entries of the same feed",
+        log.rows.find(r => r.type === "Grower Mash").kg === 390,
+        log.rows.find(r => r.type === "Grower Mash").kg);
+  check("day span runs first to last entry of that feed",
+        log.rows.find(r => r.type === "Grower Mash").from === 64 &&
+        log.rows.find(r => r.type === "Grower Mash").to === 111,
+        JSON.stringify(log.rows.find(r => r.type === "Grower Mash")));
+  check("rows are ordered by when the feed started",
+        log.rows.map(r => r.type).join(",") === "Starter Mash,Chick Mash,Grower Mash",
+        log.rows.map(r => r.type).join(","));
+
+  const doc = call("buildPassportHTML", sale);
+  check("the passport prints the logged feeds with quantities",
+        doc.includes("390 kg") && doc.includes("Grower Mash"));
+  check("the passport does not print an unfed sack",
+        !doc.includes("Pre-Layer Mash"));
+  check("the section is stamped with the age it describes",
+        doc.includes("TO DAY 122"));
+  S.feed.length = 0;
 }
 
 section("Pullet passport");
