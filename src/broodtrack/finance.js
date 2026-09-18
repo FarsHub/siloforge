@@ -197,11 +197,11 @@ function renderFinance(){
       <span>💰 Deposits held against open orders</span><b style="font-size:15px">${fmtMoney(depositsHeld)}</b>
     </div>`:''}
     <div class="inner-tabs">
+      <button class="inner-tab ${FIN_TAB==='expenses'?'active':''}" onclick="FIN_TAB='expenses';renderFinance()">Expenses</button>
       <button class="inner-tab ${FIN_TAB==='orders'?'active':''}" onclick="FIN_TAB='orders';renderFinance()">Orders${openOrderCount>0?' ('+openOrderCount+')':''}</button>
       <button class="inner-tab ${FIN_TAB==='sales'?'active':''}" onclick="FIN_TAB='sales';renderFinance()">Sales</button>
       <button class="inner-tab ${FIN_TAB==='recv'?'active':''}" onclick="FIN_TAB='recv';renderFinance()">Receivables${overdueCount>0?' 🔴':unpaidCredit.length>0?' ('+unpaidCredit.length+')':''}</button>
       <button class="inner-tab ${FIN_TAB==='customers'?'active':''}" onclick="FIN_TAB='customers';renderFinance()">Customers</button>
-      <button class="inner-tab ${FIN_TAB==='expenses'?'active':''}" onclick="FIN_TAB='expenses';renderFinance()">Expenses</button>
       <button class="inner-tab ${FIN_TAB==='pl'?'active':''}" onclick="FIN_TAB='pl';renderFinance()">Batch P&L</button>
     </div>
     ${tabContent}
