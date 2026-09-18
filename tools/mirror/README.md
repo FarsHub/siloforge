@@ -127,15 +127,30 @@ history — that is the whole point of the archive.
 | `lt_egg_entries` | `bt_daily_log` | `mirror_snapshots` |
 | `lt_bird_days` | `bt_weights` | `farm_config` |
 | `lt_feed_log` | `bt_health_log` | `lt_pens` |
-| `lt_health_log` | `bt_expenses` | `lt_lines` |
-| `lt_expenses` | `bt_sales` | `lt_stands` |
-| `lt_sales` | `bt_payments` | |
-| `lt_customers` | `bt_feed_log` | |
-| `lt_payments` | | |
-| `lt_receivables` | | |
+| `lt_feed_stock` | `bt_expenses` | `lt_lines` |
+| `lt_health_log` | `bt_sales` | `lt_stands` |
+| `lt_expenses` | `bt_payments` | |
+| `lt_sales` | `bt_feed_log` | |
+| `lt_customers` | `bt_feed_stock` | |
+| `lt_payments` | `bt_customers` | |
+| `lt_receivables` | `bt_orders` | |
 
-Two views are provided: `v_lt_daily_production` (eggs and cracks per day) and
-`v_lt_open_receivables` (unpaid credit sales with balances).
+Views:
+
+| view | what it answers |
+| --- | --- |
+| `v_lt_daily_production` | eggs and cracks per day |
+| `v_lt_open_receivables` | unpaid credit sales with balances |
+| `v_lt_feed_stock_on_hand` | kg per feed type, counts treated as anchors |
+| `v_bt_open_orders` | the live order book, with deposits held against each |
+| `v_bt_turned_away` | demand declined per month — birds, value and reasons |
+| `v_bt_customer_value` | birds supplied and lifetime value per customer |
+
+`v_bt_turned_away` is the one worth watching. A sale that never happened leaves
+no trace anywhere else, so a declined order is the only record that the farm was
+undersupplied — which is what a decision to build more capacity gets argued
+from. It is also why `bt_orders` keeps declined rows rather than letting them be
+deleted.
 
 If the apps gain a field that has no column yet, it is still there —
 `select raw->>'new_field' from lt_sales`. Add it to `spec.py` when you want a real

@@ -1,0 +1,38 @@
+name: Check built apps
+
+# LayerTrack.html and BroodTrack.html are generated from src/ by build_apps.py,
+# and they are also what GitHub Pages serves. So editing the HTML directly
+# silently diverges from src/, and the next build would throw the edit away.
+# This catches that on every push instead of on the farm.
+
+on:
+  push:
+    paths:
+      - "src/**"
+      - "*.html"
+      - "build_apps.py"
+      - "tools/check_build.py"
+      - ".github/workflows/check-build.yml"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: HTML matches src/
+        run: python build_apps.py --check
+
+      - name: Syntax and inline handlers
+        run: python tools/check_build.py

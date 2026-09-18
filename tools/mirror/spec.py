@@ -227,6 +227,13 @@ TABLES = [
         "min_weight_g": (N, "min_weight_g"),
         "max_weight_g": (N, "max_weight_g"),
         "benchmark_g":  (N, "benchmark_g"),
+        # Uniformity is the figure a pullet buyer actually asks for, and it is
+        # only computable where individual birds were weighed. Null means not
+        # measured, which is a different thing from measured badly -- the
+        # individual weights stay in raw->'weights'.
+        "sd_g":            (N, "sd_g"),
+        "cv_pct":          (N, "cv_pct"),
+        "uniformity_pct":  (N, "uniformity_pct"),
         "notes":        (X, "notes"),
     }),
 
@@ -260,6 +267,8 @@ TABLES = [
         "paid":               (B, "paid"),
         "due_date":           (D, "due_date"),
         "buyer":              (X, "buyer"),
+        "customer_id":        (X, "customer_id"),
+        "order_id":           (X, "order_id"),
         "seller":             (X, "seller"),
         "doc_ref":            (X, "doc_ref"),
         "doc_issued_at":      (TS, "doc_issued_at"),
@@ -268,6 +277,11 @@ TABLES = [
 
     Table("bt_payments", "broodtrack", "bt_payments_v1", {
         "sale_id":    (X, "sale_id"),
+        # A deposit is taken against an order months before the sale exists, so
+        # exactly one of these two is set. On fulfilment the row keeps its
+        # order_id and gains a sale_id, which is what makes the handover
+        # traceable from either end.
+        "order_id":   (X, "order_id"),
         "date":       (D, "date"),
         "amount_ngn": (N, "amount_ngn"),
         "method":     (X, "method"),
@@ -280,6 +294,39 @@ TABLES = [
         "batch_id":     (X, "batch_id"),
         "feed_kg_used": (N, "feed_kg_used"),
         "notes":        (X, "notes"),
+    }),
+
+    Table("bt_customers", "broodtrack", "bt_customers_v1", {
+        "name":            (X, "name"),
+        "name_normalized": (X, "name_normalized"),
+        "phone":           (X, "phone"),
+        "customer_type":   (X, "customer_type"),
+        "location":        (X, "location"),
+        "created_at":      (TS, "created_at"),
+        "notes":           (X, "notes"),
+    }),
+
+    # The order book. Declined rows are the point of keeping this table: a sale
+    # that never happened leaves no trace anywhere else, so turned-away demand
+    # is the only evidence the farm is undersupplied, and it is what a capacity
+    # decision gets argued from later.
+    Table("bt_orders", "broodtrack", "bt_orders_v1", {
+        "ref":                   (X, "ref"),
+        "date":                  (D, "date"),
+        "customer_id":           (X, "customer_id"),
+        "customer_name":         (X, "customer_name"),
+        "bird_type":             (X, "bird_type"),
+        "breed":                 (X, "breed"),
+        "quantity":              (I, "quantity"),
+        "age_weeks_at_delivery": (N, "age_weeks_at_delivery"),
+        "needed_from":           (D, "needed_from"),
+        "needed_to":             (D, "needed_to"),
+        "price_per_bird_ngn":    (N, "price_per_bird_ngn"),
+        "status":                (X, "status"),
+        "batch_id":              (X, "batch_id"),
+        "sale_id":               (X, "sale_id"),
+        "decline_reason":        (X, "decline_reason"),
+        "notes":                 (X, "notes"),
     }),
 
     Table("bt_feed_stock", "broodtrack", "bt_feedstock_v1", {
@@ -388,6 +435,53 @@ having s.total_amount_ngn - coalesce(sum(p.amount_ngn), 0) > 0;
 -- order is count, then delivery, then feeding, which is why the anchor date
 -- itself is included in both sums. With no count on record it falls back to
 -- purchases minus usage over all time.
+-- The order book with the money attached: deposits held while the order is
+-- open, and what it is worth. Open orders only -- fulfilled ones are sales.
+create or replace view v_bt_open_orders as
+select o.farm_code, o.source_id as order_id, o.ref, o.date as placed_on,
+       o.customer_id, o.customer_name, o.bird_type, o.breed,
+       o.quantity, o.age_weeks_at_delivery, o.needed_from, o.needed_to,
+       o.status, o.batch_id,
+       o.quantity * coalesce(o.price_per_bird_ngn, 0) as order_value_ngn,
+       coalesce(sum(p.amount_ngn), 0)                 as deposits_ngn
+from bt_orders o
+left join bt_payments p
+  on p.farm_code = o.farm_code and p.order_id = o.source_id
+ and p.sale_id is null and p.deleted_at is null
+where o.deleted_at is null and o.status in ('enquiry', 'confirmed')
+group by o.farm_code, o.source_id, o.ref, o.date, o.customer_id, o.customer_name,
+         o.bird_type, o.breed, o.quantity, o.age_weeks_at_delivery,
+         o.needed_from, o.needed_to, o.status, o.batch_id,
+         o.price_per_bird_ngn;
+
+-- Demand that walked away, by month. The sentence "we turned away N birds last
+-- year" is what justifies more cages, and nothing else in the schema records it.
+create or replace view v_bt_turned_away as
+select o.farm_code,
+       to_char(o.date, 'YYYY-MM')                      as month,
+       count(*)                                      as orders,
+       sum(o.quantity)                                   as birds,
+       sum(o.quantity * coalesce(o.price_per_bird_ngn,0)) as value_ngn,
+       string_agg(distinct o.decline_reason, '; ')       as reasons
+from bt_orders o
+where o.deleted_at is null and o.status = 'declined'
+group by o.farm_code, to_char(o.date, 'YYYY-MM');
+
+-- What each customer is worth, in birds as much as in naira. A supply business
+-- is judged on repeat buyers, and until now the buyer was free text.
+create or replace view v_bt_customer_value as
+select c.farm_code, c.source_id as customer_id, c.name, c.customer_type,
+       c.phone, c.location,
+       count(s.source_id)                        as sales,
+       coalesce(sum(s.quantity), 0)              as birds_supplied,
+       coalesce(sum(s.total_amount_ngn), 0)      as lifetime_ngn,
+       max(s.date)                               as last_sale
+from bt_customers c
+left join bt_sales s
+  on s.farm_code = c.farm_code and s.customer_id = c.source_id and s.deleted_at is null
+where c.deleted_at is null
+group by c.farm_code, c.source_id, c.name, c.customer_type, c.phone, c.location;
+
 create or replace view v_lt_feed_stock_on_hand as
 with anchor as (
   select farm_code, feed_type, max(date) as anchor_date

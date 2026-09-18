@@ -239,6 +239,71 @@ body.has-ticker .sync-badge{top:calc(var(--ticker-h) + 8px)}
   font-variant-numeric:tabular-nums;color:var(--rd-accent)}
 .rd-due .rd-stub-amt{color:#8a5c00}
 
+/* ── Vaccination & medication record (BroodTrack) ──────────────────────
+   A second document on the receipt's chrome — same letterhead, same band,
+   same toolbar — but it is a list rather than a slip, so it is the one
+   document allowed to run past a single sheet. .rd sets break-inside:avoid
+   in print to keep a receipt whole; that is undone here and applied to the
+   individual rows instead, so a page break never lands inside one.
+   LayerTrack carries these rules unused: the two apps share one stylesheet,
+   and splitting it would mean duplicating the print rules above.      */
+.rd-vax .rd-type{font-size:13px;letter-spacing:.02em;line-height:1.25}
+.vx-sec{padding:12px 20px 3px;display:flex;align-items:baseline;
+  justify-content:space-between;gap:10px}
+.vx-count{font-size:9.5px;font-weight:800;color:var(--rd-muted);
+  font-variant-numeric:tabular-nums;flex-shrink:0}
+.vx-note{padding:0 20px 10px;font-size:10.5px;color:var(--rd-muted);line-height:1.5}
+.vx-list{padding:2px 20px 12px}
+.vx-row{display:grid;grid-template-columns:13px 46px 1fr auto;gap:9px;
+  align-items:baseline;padding:5px 0;border-top:1px solid #f0eef2}
+.vx-row:first-child{border-top:none}
+.vx-tick{font-size:11px;font-weight:800;color:var(--rd-accent);line-height:1.3}
+.vx-day{font-size:10.5px;line-height:1.3;color:#17131a}
+.vx-wk{font-size:8.5px;color:var(--rd-muted);margin-top:1px}
+.vx-name{font-size:11.5px;font-weight:800;line-height:1.35;letter-spacing:-.005em}
+.vx-route{font-size:10px;color:var(--rd-muted);line-height:1.4;margin-top:1px}
+.vx-why{font-size:9.5px;color:var(--rd-muted);font-style:italic;
+  line-height:1.4;margin-top:2px}
+.vx-when{font-size:10.5px;text-align:right;flex-shrink:0;line-height:1.3;
+  font-variant-numeric:tabular-nums}
+.vx-soft{color:var(--rd-muted)}
+.vx-foot{padding:10px 20px 12px;border-top:1px solid var(--rd-edge);
+  font-size:10px;color:var(--rd-muted);line-height:1.55}
+.vx-foot sup{font-size:8px}
+
+/* Pullet passport — the quality grid and the spread bar. Everything else on
+   the sheet reuses the receipt and health-record rules above. */
+.pp-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rd-edge);
+  border-top:1px solid var(--rd-edge);border-bottom:1px solid var(--rd-edge)}
+.pp-cell{background:#fff;padding:11px 20px 12px}
+.pp-val{font-size:23px;font-weight:800;line-height:1.05;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;color:#17131a}
+.pp-u{font-size:13px;font-weight:700;margin-left:1px}
+.pp-lbl{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--rd-muted);margin-top:4px}
+.pp-sub{font-size:10px;color:var(--rd-muted);line-height:1.45;margin-top:3px}
+.pp-range{padding:11px 20px 13px}
+.pp-range-row{display:flex;align-items:center;gap:9px;margin-top:6px}
+.pp-axis-end{font-size:9.5px;font-weight:700;flex-shrink:0;
+  font-variant-numeric:tabular-nums;color:var(--rd-muted)}
+.pp-bar{position:relative;flex:1;height:9px;border-radius:5px;background:#f1eef4}
+.pp-band{position:absolute;top:-3px;bottom:-3px;z-index:2;border-radius:6px;
+  border:1px dashed var(--rd-accent);opacity:.6}
+.pp-bar-fill{position:absolute;top:3px;bottom:3px;z-index:1;border-radius:2px;
+  background:var(--rd-accent);opacity:.3;min-width:2px}
+.pp-core{position:absolute;top:1px;bottom:1px;z-index:2;border-radius:4px;
+  background:var(--rd-accent);min-width:2px}
+.pp-mean{position:absolute;top:-3px;bottom:-3px;z-index:3;width:2px;margin-left:-1px;
+  background:var(--rd-brand);border-radius:1px}
+.pp-chips{padding:2px 20px 12px;display:flex;flex-wrap:wrap;gap:5px}
+.pp-chip{display:inline-block;font-size:9.5px;font-weight:700;line-height:1.3;
+  padding:4px 8px;border-radius:20px;background:var(--rd-wash);color:var(--rd-brand)}
+.pp-chip em{font-style:normal;font-weight:500;color:var(--rd-muted)}
+@media (max-width:380px){
+  .pp-cell{padding-left:15px;padding-right:15px}
+  .pp-range,.pp-chips{padding-left:15px;padding-right:15px}
+}
+
 @media (max-width:380px){
   .rd-pad,.rd-id,.rd-party,.rd-fields,.rd-hero,.rd-settle,.rd-payto,.rd-terms,.rd-issuer,.rd-stub{
     padding-left:15px;padding-right:15px}
@@ -259,6 +324,21 @@ body.has-ticker .sync-badge{top:calc(var(--ticker-h) + 8px)}
    lines, of headroom. Re-measure before loosening any of this; at the screen
    rhythm the same document is 979px and breaks to a second sheet. */
 @page{size:203mm 254mm;margin:0}
+/* Named page for the multi-sheet health record — see .rd-vax in @media print
+   below. Chrome has supported named pages since 85; where it is not
+   supported this rule is ignored and the document simply prints as it does
+   today, at margin 0.
+   The 8mm is measured, not chosen for looks, and it is the whole trick.
+   Chrome draws its own date and file:// URL into the top and bottom page
+   margin whenever there is room, and that has no place on a document going
+   to a customer. Sweeping the margin (tools/probe_headerfooter.py) puts the
+   cutoff between 8mm and 9mm: at 9mm and above Chrome prints its header and
+   footer, at 8mm and below it gives up. 8mm also clears the ~5mm strip most
+   printers physically cannot reach, so rows at a page break survive.
+   Left and right play no part in it — the header only lives top and bottom —
+   so those stay at a comfortable 10mm.
+   Re-run the probe before changing this number. */
+@page vax{size:203mm 254mm;margin:8mm 10mm}
 @media print{
   body>*{display:none!important}
   .rd-ov{display:flex!important;position:static;background:#fff;height:auto}
@@ -282,6 +362,28 @@ body.has-ticker .sync-badge{top:calc(var(--ticker-h) + 8px)}
   .rd-count{font-size:28px}
   .rd-total{font-size:30px}
   .rd-owed-amt{font-size:23px}
+  /* The one document that may run to a second sheet. Rows stay whole, and a
+     section heading never gets stranded at the foot of a page.
+     It also needs its own page box. margin:0 above is what stops Chrome
+     drawing the date and URL onto a receipt, and a receipt is one sheet so
+     the padding on .rd-scroll is enough. A full pullet programme is two
+     sheets, and at margin:0 the rows either side of the break sit in the
+     printer's non-printable edge and come out clipped — so this document
+     gets real page margins and drops the scroll padding that would
+     otherwise double up on the first sheet. */
+  .rd-vax,.rd-pass{break-inside:auto;page:vax}
+  .rd-scroll:has(.rd-vax),.rd-scroll:has(.rd-pass){padding:0}
+  .rd-pass .pp-grid,.rd-pass .pp-range,.rd-pass .pp-chips{break-inside:avoid}
+  .rd-pass .vx-sec{break-after:avoid;padding:9px 18px 2px}
+  .rd-pass .pp-cell{padding:9px 18px 10px}
+  .rd-pass .pp-range,.rd-pass .pp-chips{padding-left:18px;padding-right:18px}
+  .rd-pass .vx-note,.rd-pass .vx-foot{padding-left:18px;padding-right:18px}
+  .pp-grid,.pp-chip,.pp-bar,.pp-band,.pp-bar-fill,.pp-core,.pp-mean{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .rd-vax .vx-row{break-inside:avoid}
+  .rd-vax .vx-sec{break-after:avoid;padding:9px 18px 2px}
+  .rd-vax .vx-list{padding:2px 18px 9px}
+  .rd-vax .vx-note{padding:0 18px 7px}
+  .rd-vax .vx-foot{padding:8px 18px 9px}
   .rd-band,.rd-hero,.rd-owed,.rd-payto,.rd-stub-amt,.rd-owed-amt,.rd-type,.rd-paid{
     -webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
@@ -362,6 +464,7 @@ body.has-ticker .sync-badge{top:calc(var(--ticker-h) + 8px)}
 </div>
 
 <script>
+// ==== BEGIN GENERATED APP SCRIPT — build_apps.py ====
 // ═══════════════════════════════════════════════
 // FIREBASE & SYNC
 // ═══════════════════════════════════════════════
@@ -831,8 +934,12 @@ const MED_SUGGESTIONS=['ND HB1 + IB (Live)','ND Lasota + IB','Lasota (ND)','Gumb
 // ═══════════════════════════════════════════════
 const KEYS={farm:'bt_farm_v1',batches:'bt_batches_v1',daily:'bt_daily_v1',
   weight:'bt_weight_v1',health:'bt_health_v1',expenses:'bt_expenses_v1',sales:'bt_sales_v1',
-  feed:'bt_feed_v1',payments:'bt_payments_v1',feedstock:'bt_feedstock_v1'};
+  feed:'bt_feed_v1',payments:'bt_payments_v1',feedstock:'bt_feedstock_v1',
+  customers:'bt_customers_v1',orders:'bt_orders_v1'};
 const PAYMENT_METHODS=['Cash','Bank Transfer','POS','Mobile Money','Other'];
+// Who buys pullets. Not the same list as an egg round: the birds go to other
+// farms and to the dealers who supply them, and almost never to a household.
+const CUSTOMER_TYPES=['Farmer','Agro-Dealer','Cooperative','Institution','Individual'];
 const DB={
   today(){return new Date().toISOString().slice(0,10)},
   _get(k){return CACHE[k]??null},
@@ -845,6 +952,11 @@ const DB={
   saveFarm(f){this._set(KEYS.farm,f)},
   getPayments(){return this._arr(KEYS.payments)},
   paymentsForSale(saleId){return this._arr(KEYS.payments).filter(p=>p.sale_id===saleId)},
+  // A deposit is taken against an order, months before the sale exists, so a
+  // payment carries either a sale_id or an order_id. When the order is
+  // fulfilled the deposit is re-pointed at the sale it paid for, which is why
+  // this filter insists the payment has not already moved on.
+  paymentsForOrder(orderId){return this._arr(KEYS.payments).filter(p=>p.order_id===orderId&&!p.sale_id)},
   addPayment(r){this._push(KEYS.payments,r)},
   delPayment(id){this._del(KEYS.payments,id)},
   updPayment(id,u){this._upd(KEYS.payments,id,u)},
@@ -876,11 +988,1123 @@ const DB={
   addFeed(r){this._push(KEYS.feed,r)},
   updFeed(id,u){this._upd(KEYS.feed,id,u)},
   delFeed(id){this._del(KEYS.feed,id)},
+  getCustomers(){return this._arr(KEYS.customers)},
+  getCustomer(id){return this._arr(KEYS.customers).find(c=>c.id===id)||null},
+  addCustomer(r){this._push(KEYS.customers,r)},
+  updCustomer(id,u){this._upd(KEYS.customers,id,u)},
+  delCustomer(id){this._del(KEYS.customers,id)},
+  getOrders(){return this._arr(KEYS.orders)},
+  getOrder(id){return this._arr(KEYS.orders).find(o=>o.id===id)||null},
+  addOrder(r){this._push(KEYS.orders,r)},
+  updOrder(id,u){this._upd(KEYS.orders,id,u)},
+  delOrder(id){this._del(KEYS.orders,id)},
   getFeedStock(){return this._arr(KEYS.feedstock)},
   addFeedStock(r){this._push(KEYS.feedstock,r)},
   updFeedStock(id,u){this._upd(KEYS.feedstock,id,u)},
   delFeedStock(id){this._del(KEYS.feedstock,id)},
 };
+
+// ═══════════════════════════════════════════════
+// CUSTOMERS
+// ═══════════════════════════════════════════════
+// BroodTrack sells to other farms, so the buyer is a business we deal with
+// again, not a line of text on one sale. Until now `buyer` was free text:
+// "Alhaji Musa", "alhaji musa" and "Musa Farms" were three different people as
+// far as the app was concerned, and nothing could answer who buys from us
+// twice. A customer record is the spine the order book and the receivables
+// both hang off.
+//
+// Names are matched on a normalised form, and near-misses are offered rather
+// than merged silently — two farms in the same town really can be called
+// almost the same thing.
+function normalizeCustomerName(s){
+  return String(s||'').toLowerCase().trim().replace(/\s+/g,' ');
+}
+function findCustomerByName(name){
+  const norm=normalizeCustomerName(name);
+  if(!norm)return null;
+  return DB.getCustomers().find(c=>c.name_normalized===norm)||null;
+}
+function levenshtein(a,b){
+  if(a===b)return 0;
+  if(!a.length)return b.length;
+  if(!b.length)return a.length;
+  const v0=new Array(b.length+1).fill(0).map((_,i)=>i);
+  const v1=new Array(b.length+1).fill(0);
+  for(let i=0;i<a.length;i++){
+    v1[0]=i+1;
+    for(let j=0;j<b.length;j++){
+      const cost=a[i]===b[j]?0:1;
+      v1[j+1]=Math.min(v1[j]+1, v0[j+1]+1, v0[j]+cost);
+    }
+    for(let j=0;j<=b.length;j++)v0[j]=v1[j];
+  }
+  return v1[b.length];
+}
+function fuzzyCustomerMatches(name,limit=4){
+  const norm=normalizeCustomerName(name);
+  if(norm.length<2)return [];
+  const scored=DB.getCustomers().map(c=>{
+    const cn=c.name_normalized||'';
+    const dist=levenshtein(norm,cn);
+    const maxLen=Math.max(norm.length,cn.length);
+    const sim=maxLen?1-dist/maxLen:0;
+    const contains=cn.includes(norm)||norm.includes(cn);
+    return {customer:c, sim, contains};
+  });
+  return scored.filter(s=>s.sim>=0.55||s.contains)
+    .sort((a,b)=>(b.contains-a.contains)||(b.sim-a.sim))
+    .slice(0,limit)
+    .map(s=>s.customer);
+}
+function customerSales(customerId){
+  return DB.getSales().filter(s=>s.customer_id===customerId);
+}
+function getCustomerOutstanding(customerId){
+  if(!customerId)return 0;
+  return customerSales(customerId)
+    .filter(s=>s.payment_type==='credit')
+    .reduce((sum,s)=>sum+getSaleBalance(s),0);
+}
+function getCustomerLifetime(customerId){
+  if(!customerId)return 0;
+  return customerSales(customerId).reduce((sum,s)=>sum+Number(s.total_amount_ngn||0),0);
+}
+// Birds, not naira. For a supply business the count is the relationship — a
+// customer who took 2,000 pullets at a soft price matters more than the figure
+// on the invoice suggests.
+function getCustomerBirds(customerId){
+  if(!customerId)return 0;
+  return customerSales(customerId).reduce((sum,s)=>sum+Number(s.quantity||0),0);
+}
+function getCustomerOpenOrders(customerId){
+  if(!customerId)return [];
+  return DB.getOrders().filter(o=>o.customer_id===customerId&&isOrderOpen(o));
+}
+function getCustomerLastSaleDate(customerId){
+  const dates=customerSales(customerId).map(s=>s.date).filter(Boolean).sort();
+  return dates.length?dates[dates.length-1]:null;
+}
+function mergeCustomers(sourceId,targetId){
+  if(!sourceId||!targetId||sourceId===targetId)return null;
+  const source=DB.getCustomer(sourceId), target=DB.getCustomer(targetId);
+  if(!source||!target)return null;
+  const sourceSales=customerSales(sourceId);
+  sourceSales.forEach(s=>{DB.updSale(s.id,{customer_id:targetId,buyer:target.name});});
+  // Orders move too, or a merge leaves the order book pointing at a customer
+  // record that no longer exists.
+  const sourceOrders=DB.getOrders().filter(o=>o.customer_id===sourceId);
+  sourceOrders.forEach(o=>{DB.updOrder(o.id,{customer_id:targetId,customer_name:target.name});});
+  DB.delCustomer(sourceId);
+  return {movedSales:sourceSales.length,movedOrders:sourceOrders.length,
+          sourceName:source.name,targetName:target.name};
+}
+
+// ── Legacy buyers ───────────────────────────────────────────────────────
+// Every sale recorded before this feature has a `buyer` string and no
+// customer_id. Grouping them by normalised name turns that history into
+// customers without anyone retyping it.
+function getLegacySaleGroups(){
+  const legacy=DB.getSales().filter(s=>s.buyer&&!s.customer_id&&normalizeCustomerName(s.buyer));
+  const groups={};
+  legacy.forEach(s=>{
+    const norm=normalizeCustomerName(s.buyer);
+    if(!groups[norm])groups[norm]={normalized:norm,sales:[],variantCounts:{}};
+    groups[norm].sales.push(s);
+    const variant=String(s.buyer).trim();
+    groups[norm].variantCounts[variant]=(groups[norm].variantCounts[variant]||0)+1;
+  });
+  return Object.values(groups).map(g=>{
+    const variants=Object.entries(g.variantCounts).sort((a,b)=>b[1]-a[1]);
+    return {
+      normalized:g.normalized,
+      sales:g.sales,
+      variants:variants.map(([v,c])=>({label:v,count:c})),
+      canonical:variants[0]?variants[0][0]:g.normalized,
+      existingCustomer:findCustomerByName(g.normalized),
+      lifetime:g.sales.reduce((s,r)=>s+Number(r.total_amount_ngn||0),0),
+      birds:g.sales.reduce((s,r)=>s+Number(r.quantity||0),0),
+      outstanding:g.sales.filter(s=>s.payment_type==='credit')
+        .reduce((s,r)=>s+getSaleBalance(r),0),
+      saleCount:g.sales.length
+    };
+  }).sort((a,b)=>b.saleCount-a.saleCount);
+}
+function migrateLegacyGroup(normalized,overrides){
+  const group=getLegacySaleGroups().find(g=>g.normalized===normalized);
+  if(!group)return null;
+  let customerId;
+  if(group.existingCustomer){
+    customerId=group.existingCustomer.id;
+    const upd={};
+    if(overrides?.phone&&!group.existingCustomer.phone)upd.phone=overrides.phone;
+    if(overrides?.customer_type&&!group.existingCustomer.customer_type)upd.customer_type=overrides.customer_type;
+    if(Object.keys(upd).length)DB.updCustomer(customerId,upd);
+  } else {
+    const name=overrides?.name?.trim()||group.canonical;
+    const newCust={id:uid(),name,name_normalized:normalizeCustomerName(name),
+      phone:overrides?.phone||'',location:'',
+      customer_type:overrides?.customer_type||'Farmer',
+      notes:'',created_at:DB.today()};
+    DB.addCustomer(newCust);
+    customerId=newCust.id;
+  }
+  group.sales.forEach(s=>{DB.updSale(s.id,{customer_id:customerId});});
+  return {customerId,saleCount:group.sales.length};
+}
+// Shared by the sale form and the order form: resolve the name someone typed
+// to a customer id, creating the record when it is genuinely new. Returns the
+// id, or '' when nothing was typed.
+function resolveCustomerFromInput(typedName,phoneElId,typeElId){
+  const name=String(typedName||'').trim();
+  if(!name)return '';
+  const exact=findCustomerByName(name);
+  if(exact)return exact.id;
+  const phoneEl=phoneElId?document.getElementById(phoneElId):null;
+  const typeEl=typeElId?document.getElementById(typeElId):null;
+  const rec={id:uid(),name,name_normalized:normalizeCustomerName(name),
+    phone:phoneEl?phoneEl.value.trim():'',
+    customer_type:typeEl?typeEl.value:'Farmer',
+    location:'',notes:'',created_at:DB.today()};
+  DB.addCustomer(rec);
+  return rec.id;
+}
+
+// ── Customers tab ───────────────────────────────────────────────────────
+function renderCustomersTab(){
+  const customers=DB.getCustomers().slice().sort((a,b)=>{
+    const oa=getCustomerOutstanding(a.id),ob=getCustomerOutstanding(b.id);
+    if(oa!==ob)return ob-oa;
+    return getCustomerBirds(b.id)-getCustomerBirds(a.id)||(a.name||'').localeCompare(b.name||'');
+  });
+  const legacy=getLegacySaleGroups();
+  const repeat=customers.filter(c=>customerSales(c.id).length>1).length;
+  const totalBirds=customers.reduce((s,c)=>s+getCustomerBirds(c.id),0);
+  return `
+    ${legacy.length?`<div style="margin:12px 16px 0"><div class="alert-item alert-amber" style="cursor:pointer" onclick="openMigrationModal()">
+      👥 ${legacy.length} buyer name${legacy.length===1?'':'s'} on older sales are not linked to a customer yet — tap to link
+    </div></div>`:''}
+    <div class="kpi-row-3" style="margin-top:12px">
+      <div class="kpi"><div class="kpi-val">${customers.length}</div><div class="kpi-lbl">Customers</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${repeat}</div><div class="kpi-lbl">Repeat Buyers</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:var(--p2)">${totalBirds.toLocaleString()}</div><div class="kpi-lbl">Birds Supplied</div></div>
+    </div>
+    <div style="margin:4px 16px 8px"><button class="btn btn-primary" onclick="openCustomerForm()">+ Add Customer</button></div>
+    <div style="margin:0 16px 8px;background:var(--p5);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--p1)">
+      A customer record is created the first time you name a buyer on a sale or an order. Pre-register regulars here to keep the spelling consistent.
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      ${customers.length===0
+        ?'<div class="empty" style="padding:24px"><p>No customers yet.</p><p style="font-size:12px;margin-top:6px">Record a sale or take an order and a customer record appears here.</p></div>'
+        :customers.map(c=>{
+          const owing=getCustomerOutstanding(c.id);
+          const lifetime=getCustomerLifetime(c.id);
+          const birds=getCustomerBirds(c.id);
+          const salesCount=customerSales(c.id).length;
+          const open=getCustomerOpenOrders(c.id);
+          const openBirds=open.reduce((s,o)=>s+Number(o.quantity||0),0);
+          const last=getCustomerLastSaleDate(c.id);
+          return `<div class="list-item">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:14px">${c.name}${salesCount>1?' <span class="badge badge-green" style="font-size:10px">Repeat</span>':''}</div>
+              <div style="font-size:12px;color:var(--gray);margin-top:2px">${c.customer_type||'—'}${c.location?' · '+c.location:''}${c.phone?' · ☎ '+c.phone:''}</div>
+              <div style="font-size:11px;color:var(--gray);margin-top:3px">${birds.toLocaleString()} bird${birds===1?'':'s'} · ${salesCount} sale${salesCount===1?'':'s'} · ${fmtMoney(lifetime)}${last?' · last '+fmtDate(last):''}</div>
+              ${open.length?`<div style="font-size:11px;color:var(--p2);font-weight:700;margin-top:3px">📋 ${open.length} open order${open.length===1?'':'s'} · ${openBirds.toLocaleString()} birds</div>`:''}
+            </div>
+            <div style="text-align:right;flex-shrink:0;margin-left:10px">
+              ${owing>0
+                ?`<div style="font-size:11px;color:var(--gray)">Owing</div><div style="font-weight:800;color:var(--amber)">${fmtMoney(owing)}</div>`
+                :'<div style="font-size:11px;color:var(--g3);font-weight:600">No debt</div>'}
+              <div style="display:flex;gap:4px;margin-top:6px;justify-content:flex-end;flex-wrap:wrap">
+                <button class="btn btn-secondary btn-sm" onclick="openCustomerForm('${c.id}')">Edit</button>
+                <button class="btn btn-amber btn-sm" onclick="openMergeCustomerModal('${c.id}')">Merge</button>
+                <button class="btn btn-danger btn-sm" onclick="delCustomer('${c.id}')">✕</button>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+    </div>`;
+}
+function openCustomerForm(editId){
+  const rec=editId?DB.getCustomer(editId):null;
+  openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Customer <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="field"><label>Name <span style="color:var(--red)">*</span></label>
+      <input type="text" id="cf_name" value="${(rec?.name||'').replace(/"/g,'&quot;')}" placeholder="e.g. Musa Poultry, Iseyin"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Phone</label>
+        <input type="tel" id="cf_phone" value="${rec?.phone||''}" placeholder="08031234567"></div>
+      <div class="field"><label>Type</label>
+        <select id="cf_type">
+          ${CUSTOMER_TYPES.map(t=>`<option value="${t}" ${rec?.customer_type===t?'selected':''}>${t}</option>`).join('')}
+        </select></div>
+    </div>
+    <div class="field"><label>Town / State <span style="color:var(--gray);font-weight:400">— optional</span></label>
+      <input type="text" id="cf_location" value="${(rec?.location||'').replace(/"/g,'&quot;')}" placeholder="e.g. Iseyin, Oyo"></div>
+    <div class="field"><label>Notes <span style="color:var(--gray);font-weight:400">optional</span></label>
+      <textarea id="cf_notes" placeholder="e.g. collects himself, always pays on delivery">${rec?.notes||''}</textarea></div>
+    <button class="btn btn-primary" onclick="saveCustomer('${editId||''}')">Save</button>`);
+}
+function saveCustomer(editId){
+  const name=document.getElementById('cf_name').value.trim();
+  if(!name){toast('Name is required');return;}
+  const existing=findCustomerByName(name);
+  if(existing&&existing.id!==editId){toast('A customer with this name already exists');return;}
+  const original=editId?DB.getCustomer(editId):null;
+  const rec={
+    id:editId||uid(),
+    name,
+    name_normalized:normalizeCustomerName(name),
+    phone:document.getElementById('cf_phone').value.trim(),
+    customer_type:document.getElementById('cf_type').value,
+    location:document.getElementById('cf_location').value.trim(),
+    notes:document.getElementById('cf_notes').value.trim(),
+    created_at:original?.created_at||DB.today()
+  };
+  if(editId){DB.updCustomer(editId,rec);confirmSave('Customer updated');}
+  else{DB.addCustomer(rec);confirmSave('Customer added');}
+  closeModal();renderFinance();
+}
+function delCustomer(id){
+  const c=DB.getCustomer(id);
+  const salesCount=customerSales(id).length;
+  const orderCount=DB.getOrders().filter(o=>o.customer_id===id).length;
+  if(salesCount>0||orderCount>0){
+    openModal(`<div class="modal-ttl">Cannot Delete <button class="modal-x" onclick="closeModal()">×</button></div>
+      <p style="font-size:14px;color:var(--gray);margin-bottom:18px"><b>${c?.name||'This customer'}</b> has ${salesCount} sale${salesCount===1?'':'s'} and ${orderCount} order${orderCount===1?'':'s'} linked. Merge into another customer instead, or clear those records first.</p>
+      <button class="btn btn-secondary" onclick="closeModal()">OK</button>`);
+    return;
+  }
+  openModal(`<div class="modal-ttl">Delete Customer? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">Delete <b>${c?.name||''}</b>? Recoverable for ${TRASH_TTL_DAYS} days from Settings → Recently Deleted.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();DB.delCustomer('${id}');confirmSave('Customer deleted');renderFinance()">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+
+function openMergeCustomerModal(sourceId){
+  const source=DB.getCustomer(sourceId);
+  if(!source){toast('Customer not found');return;}
+  const sourceSaleCount=customerSales(sourceId).length;
+  const sourceOrderCount=DB.getOrders().filter(o=>o.customer_id===sourceId).length;
+  const others=DB.getCustomers().filter(c=>c.id!==sourceId).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  const safeName=String(source.name).replace(/</g,'&lt;');
+  const sourceOwing=getCustomerOutstanding(sourceId);
+  if(others.length===0){
+    openModal(`<div class="modal-ttl">Cannot Merge <button class="modal-x" onclick="closeModal()">×</button></div>
+      <p style="font-size:14px;color:var(--gray);margin-bottom:18px">There are no other customers to merge <b>${safeName}</b> into. Create the target customer first, then try again.</p>
+      <button class="btn btn-secondary" onclick="closeModal()">OK</button>`);
+    return;
+  }
+  openModal(`<div class="modal-ttl">Merge ${safeName} into… <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div style="margin:-6px 0 12px;padding:10px 12px;background:var(--p5);border-radius:8px;font-size:13px">
+      <div style="font-weight:700;color:var(--p2)">${safeName}</div>
+      <div style="font-size:12px;color:var(--p1);margin-top:4px">${sourceSaleCount} sale${sourceSaleCount===1?'':'s'} · ${sourceOrderCount} order${sourceOrderCount===1?'':'s'} · ${getCustomerBirds(sourceId).toLocaleString()} birds${sourceOwing>0?` · <b style="color:var(--amber)">Owing ${fmtMoney(sourceOwing)}</b>`:''}</div>
+      <div style="font-size:11px;color:var(--gray);margin-top:6px">Sales and orders are re-linked to the target, then this record is deleted. No amount is edited, so the 7-day lock is not in play.</div>
+    </div>
+    <div class="field"><label>Search customers</label>
+      <input type="text" id="mc_search" placeholder="Type to filter…" oninput="filterMergeCustomerList()" autocomplete="off"></div>
+    <div id="mc_list" style="max-height:340px;overflow-y:auto;border:1px solid #e0e0e0;border-radius:8px">
+      ${others.map(c=>{
+        const owing=getCustomerOutstanding(c.id);
+        return `<div class="mc-row" data-name="${(c.name||'').toLowerCase()}" data-phone="${(c.phone||'').toLowerCase()}" style="padding:10px 12px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer" onclick="confirmMergeCustomer('${sourceId}','${c.id}')">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:13px">${c.name}</div>
+            <div style="font-size:11px;color:var(--gray);margin-top:2px">${c.customer_type||'—'}${c.phone?' · ☎ '+c.phone:''} · ${getCustomerBirds(c.id).toLocaleString()} birds</div>
+          </div>
+          <div style="flex-shrink:0;text-align:right">
+            ${owing>0?`<div style="font-size:11px;color:var(--amber);font-weight:700">Owing ${fmtMoney(owing)}</div>`:''}
+            <div style="font-size:11px;color:var(--p2);font-weight:600;margin-top:2px">Pick →</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`);
+}
+function filterMergeCustomerList(){
+  const q=(document.getElementById('mc_search')?.value||'').trim().toLowerCase();
+  document.querySelectorAll('.mc-row').forEach(r=>{
+    const n=r.dataset.name||'',p=r.dataset.phone||'';
+    r.style.display=(!q||n.includes(q)||p.includes(q))?'flex':'none';
+  });
+}
+function confirmMergeCustomer(sourceId,targetId){
+  const source=DB.getCustomer(sourceId), target=DB.getCustomer(targetId);
+  if(!source||!target){toast('Lookup failed');return;}
+  const n=customerSales(sourceId).length;
+  const o=DB.getOrders().filter(x=>x.customer_id===sourceId).length;
+  const owing=getCustomerOutstanding(sourceId);
+  openModal(`<div class="modal-ttl">Confirm Merge <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--p1);margin-bottom:14px">
+      Re-link <b>${n}</b> sale${n===1?'':'s'} and <b>${o}</b> order${o===1?'':'s'} from <b>${source.name}</b> to <b>${target.name}</b>, then delete <b>${source.name}</b>?
+    </p>
+    ${owing>0?`<div style="background:var(--amberBg);border-left:3px solid var(--amber);padding:8px 10px;border-radius:0 6px 6px 0;font-size:12px;color:#7d4e00;margin-bottom:14px">
+      <b>${fmtMoney(owing)}</b> in outstanding receivables moves to ${target.name}.
+    </div>`:''}
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-primary" onclick="doMergeCustomer('${sourceId}','${targetId}')">Merge into ${target.name}</button>
+      <button class="btn btn-secondary" onclick="openMergeCustomerModal('${sourceId}')">Back</button>
+    </div>`);
+}
+function doMergeCustomer(sourceId,targetId){
+  const r=mergeCustomers(sourceId,targetId);
+  closeModal();
+  if(r){confirmSave(`Merged ${r.sourceName} → ${r.targetName} · ${r.movedSales} sale${r.movedSales===1?'':'s'}, ${r.movedOrders} order${r.movedOrders===1?'':'s'} re-linked`);renderFinance();}
+  else toast('Merge failed');
+}
+
+let MIG_SKIPPED=new Set();
+function openMigrationModal(){
+  const all=getLegacySaleGroups();
+  const groups=all.filter(g=>!MIG_SKIPPED.has(g.normalized));
+  if(all.length===0){
+    openModal(`<div class="modal-ttl">All Done ✓ <button class="modal-x" onclick="closeModal()">×</button></div>
+      <p style="font-size:14px;color:var(--gray);margin-bottom:18px">Every sale is linked to a customer record.</p>
+      <button class="btn btn-primary" onclick="closeModal()">Close</button>`);
+    return;
+  }
+  if(groups.length===0){
+    openModal(`<div class="modal-ttl">All Reviewed <button class="modal-x" onclick="closeModal()">×</button></div>
+      <p style="font-size:14px;color:var(--gray);margin-bottom:18px">All remaining names are skipped. Reset the skip list to review them again.</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn btn-secondary" onclick="MIG_SKIPPED=new Set();openMigrationModal()">Reset Skipped</button>
+        <button class="btn btn-secondary" onclick="closeModal()">Close</button></div>`);
+    return;
+  }
+  const totalSales=groups.reduce((s,g)=>s+g.saleCount,0);
+  const safeId=s=>String(s).replace(/[^a-z0-9]/gi,'_');
+  const cards=groups.map(g=>{
+    const idSlug=safeId(g.normalized);
+    const ec=g.existingCustomer;
+    const variantsStr=g.variants.map(v=>`"${v.label}"${v.count>1?` (${v.count}×)`:''}`).join(', ');
+    return `<div style="border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:10px;margin-bottom:6px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14px">${ec?ec.name:g.canonical}</div>
+          <div style="font-size:11px;color:var(--gray);margin-top:2px">Spellings: ${variantsStr}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;font-size:12px;color:var(--p1)">
+          <div><b>${g.saleCount}</b> sale${g.saleCount===1?'':'s'}</div>
+          <div style="color:var(--gray)">${g.birds.toLocaleString()} birds · ${fmtMoney(g.lifetime)}</div>
+          ${g.outstanding>0?`<div style="color:var(--amber);font-weight:700">Owing ${fmtMoney(g.outstanding)}</div>`:''}
+        </div>
+      </div>
+      ${ec?`
+        <div style="background:var(--p5);border-left:3px solid var(--p3);padding:8px 10px;border-radius:0 6px 6px 0;font-size:12px;color:var(--p1);margin-bottom:8px">
+          ✓ Customer record already exists${ec.customer_type?` (${ec.customer_type})`:''}${ec.phone?` · ☎ ${ec.phone}`:''}. Linking attaches these sales to it.
+        </div>
+      `:`
+        <div class="field" style="margin-bottom:8px"><label style="font-size:11px">Canonical name</label>
+          <input type="text" id="mig_name_${idSlug}" value="${g.canonical.replace(/"/g,'&quot;')}" style="font-size:14px"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+          <div class="field" style="margin-bottom:0"><label style="font-size:11px">Phone</label>
+            <input type="tel" id="mig_phone_${idSlug}" placeholder="optional" style="font-size:14px"></div>
+          <div class="field" style="margin-bottom:0"><label style="font-size:11px">Type</label>
+            <select id="mig_type_${idSlug}" style="font-size:14px">
+              ${CUSTOMER_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('')}
+            </select></div>
+        </div>
+      `}
+      <div style="display:flex;gap:6px;justify-content:flex-end">
+        <button class="btn btn-secondary btn-sm" onclick="skipMigrationGroup('${g.normalized.replace(/'/g,"\\'")}')">Skip</button>
+        <button class="btn btn-primary btn-sm" onclick="migrateGroupFromModal('${g.normalized.replace(/'/g,"\\'")}','${idSlug}')">${ec?'Link':'Create &amp; Link'} ${g.saleCount}</button>
+      </div>
+    </div>`;
+  }).join('');
+  openModal(`<div class="modal-ttl">Link Buyers to Customers <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:13px;color:var(--gray);margin-bottom:12px">
+      ${groups.length} name${groups.length===1?'':'s'} · ${totalSales} sale${totalSales===1?'':'s'} to link. Edit the details if needed, or auto-link everything with defaults.
+    </p>
+    ${cards}
+    <button class="btn btn-amber" style="width:100%;margin-top:8px" onclick="autoMigrateAll()">Auto-Link All Remaining (${groups.length})</button>`);
+}
+function migrateGroupFromModal(normalized,idSlug){
+  const overrides={};
+  const nameEl=document.getElementById('mig_name_'+idSlug);
+  const phoneEl=document.getElementById('mig_phone_'+idSlug);
+  const typeEl=document.getElementById('mig_type_'+idSlug);
+  if(nameEl)overrides.name=nameEl.value.trim();
+  if(phoneEl)overrides.phone=phoneEl.value.trim();
+  if(typeEl)overrides.customer_type=typeEl.value;
+  const r=migrateLegacyGroup(normalized,overrides);
+  if(r){confirmSave(`Linked ${r.saleCount} sale${r.saleCount===1?'':'s'}`);MIG_SKIPPED.delete(normalized);openMigrationModal();}
+  else toast('Link failed — group not found');
+}
+function skipMigrationGroup(normalized){MIG_SKIPPED.add(normalized);openMigrationModal();}
+function autoMigrateAll(){
+  const groups=getLegacySaleGroups().filter(g=>!MIG_SKIPPED.has(g.normalized));
+  if(groups.length===0){toast('Nothing to link');return;}
+  openModal(`<div class="modal-ttl">Auto-Link ${groups.length}? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">
+      Creates a customer for each remaining name, using the most common spelling and "Farmer" as the type. Phone numbers stay blank — fill them in later from the Customers tab.
+    </p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-primary" onclick="doAutoMigrateAll()">Link All</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+function doAutoMigrateAll(){
+  const groups=getLegacySaleGroups().filter(g=>!MIG_SKIPPED.has(g.normalized));
+  let linked=0,saleCount=0;
+  groups.forEach(g=>{const r=migrateLegacyGroup(g.normalized,{});if(r){linked++;saleCount+=r.saleCount;}});
+  closeModal();
+  confirmSave(`Linked ${linked} customer${linked===1?'':'s'} · ${saleCount} sale${saleCount===1?'':'s'}`);
+  renderFinance();
+}
+
+// ═══════════════════════════════════════════════
+// ORDER BOOK
+// ═══════════════════════════════════════════════
+// A pullet order is placed months before the bird exists. That is the whole
+// difference between this business and selling eggs, and it is why a sale
+// record on its own is not enough: by the time there is a sale to record, the
+// decision that mattered — how many chicks to set, and when — was taken twenty
+// weeks earlier.
+//
+// So an order is a promise with a delivery window, and the book is the demand
+// signal. Two consequences are built in deliberately:
+//
+//   • A DECLINED order is kept, not deleted. Demand you turned away is the
+//     only evidence that you are undersupplied, and it is invisible everywhere
+//     else — a sale that never happened leaves no trace. This is what answers
+//     "should I build the second grow-out compartment".
+//   • Confirmed orders are matched against what the batches can actually
+//     deliver, so the answer to "can I take this?" is on screen before the
+//     promise is made rather than discovered at handover.
+//
+// Deposits live in the same payment log as everything else, carrying an
+// order_id instead of a sale_id. When the order is fulfilled the deposit is
+// re-pointed at the sale it paid for, so money is never counted twice and
+// never disappears.
+const ORDER_STATUSES=[
+  {key:'enquiry',  label:'Enquiry',   badge:'badge-gray',   hint:'Asked about, nothing promised'},
+  {key:'confirmed',label:'Confirmed', badge:'badge-purple', hint:'Promised — counts against capacity'},
+  {key:'fulfilled',label:'Fulfilled', badge:'badge-green',  hint:'Delivered and invoiced'},
+  {key:'declined', label:'Declined',  badge:'badge-amber',  hint:'Could not supply — kept as demand evidence'},
+  {key:'cancelled',label:'Cancelled', badge:'badge-red',    hint:'Buyer withdrew'},
+];
+function orderStatusMeta(key){return ORDER_STATUSES.find(s=>s.key===key)||ORDER_STATUSES[0];}
+// Open = still live in the book. Only `confirmed` draws on capacity; an
+// enquiry is shown but never counted, or the pipeline would fill with maybes.
+function isOrderOpen(o){return o&&(o.status==='enquiry'||o.status==='confirmed');}
+function isOrderCommitted(o){return o&&o.status==='confirmed';}
+
+const ORDER_REF_PREFIX='BTO';
+function makeOrderRef(order,salt){
+  const d=String(order.date||DB.today()).replace(/-/g,'').slice(2);
+  return `${ORDER_REF_PREFIX}-${d}-${_docRefHash(order.id,'ord'+(salt||0))}`;
+}
+function nextOrderRef(order){
+  const taken=new Set(DB.getOrders().map(o=>o.ref).filter(Boolean));
+  let ref=makeOrderRef(order,0),n=0;
+  while(taken.has(ref)&&n<50)ref=makeOrderRef(order,++n);
+  return ref;
+}
+
+// ── Deposits ────────────────────────────────────────────────────────────
+function orderDeposits(orderId){
+  return DB.paymentsForOrder(orderId).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+}
+function orderDepositTotal(orderId){
+  return orderDeposits(orderId).reduce((s,p)=>s+Number(p.amount_ngn||0),0);
+}
+function orderValue(o){
+  return Number(o?.quantity||0)*Number(o?.price_per_bird_ngn||0);
+}
+function orderBalance(o){
+  const v=orderValue(o);
+  return v>0?Math.max(0,v-orderDepositTotal(o.id)):0;
+}
+
+// ── Supply pipeline ─────────────────────────────────────────────────────
+// What each live batch can actually deliver, and when.
+//
+// The projection uses the batch's own realised mortality rather than a rule of
+// thumb: a batch losing birds now will keep losing them, and a batch that has
+// lost none should not be discounted for the sake of looking careful. It is
+// floored at 80% of today's count so an early-days spike — the first week is
+// always the worst — cannot project a batch into nothing.
+const PIPELINE_MIN_SURVIVAL=0.80;
+function getBatchReadyDate(b){
+  if(!b?.arrival_date)return null;
+  const weeks=Number(b.target_sale_age_weeks||18);
+  return addDays(b.arrival_date,Math.round(weeks*7));
+}
+function getBatchPipeline(b){
+  const today=DB.today();
+  const readyDate=getBatchReadyDate(b);
+  const currentBirds=getBatchBirdCount(b);
+  const ageDays=batchAgeInDays(b)||0;
+  const daysLeft=readyDate?Math.max(0,daysBetween(today,readyDate)):0;
+  const deaths=DB.getDaily().filter(r=>r.batch_id===b.id).reduce((s,r)=>s+(r.deaths||0),0);
+  // Per bird per day, over the days actually lived. Guarded so a batch logged
+  // on its arrival day does not divide by zero.
+  const rate=(ageDays>0&&b.doc_count>0)?deaths/(b.doc_count*ageDays):0;
+  const projLoss=Math.round(currentBirds*rate*daysLeft);
+  const projectedBirds=Math.max(Math.round(currentBirds*PIPELINE_MIN_SURVIVAL),currentBirds-projLoss);
+  const sold=DB.getSales().filter(s=>s.batch_id===b.id).reduce((s,e)=>s+Number(e.quantity||0),0);
+  const allocated=DB.getOrders()
+    .filter(o=>o.batch_id===b.id&&isOrderCommitted(o))
+    .reduce((s,o)=>s+Number(o.quantity||0),0);
+  const sellable=Math.max(0,projectedBirds-sold);
+  return {batch:b,readyDate,daysLeft,currentBirds,projectedBirds,projLoss,
+          sold,allocated,sellable,uncommitted:sellable-allocated,
+          ready:!!readyDate&&readyDate<=today};
+}
+function getSupplyPipeline(){
+  return DB.getBatches().filter(b=>b.status==='Active')
+    .map(getBatchPipeline)
+    .sort((a,b)=>String(a.readyDate||'9999').localeCompare(String(b.readyDate||'9999')));
+}
+// Total birds promised but not yet tied to a batch — the part of the book that
+// has nothing behind it.
+function getUnallocatedDemand(){
+  return DB.getOrders()
+    .filter(o=>isOrderCommitted(o)&&!o.batch_id)
+    .reduce((s,o)=>s+Number(o.quantity||0),0);
+}
+function monthLabel(ym){
+  return new Date(ym+'-01T00:00:00').toLocaleDateString('en-GB',{month:'short',year:'numeric'});
+}
+// Confirmed demand and projected supply, bucketed by the month the birds are
+// wanted. A batch lands entirely in the month it is ready — splitting it would
+// imply a precision the projection does not have.
+function getDemandVsSupply(){
+  const buckets={};
+  const touch=ym=>(buckets[ym]=buckets[ym]||{ym,demand:0,supply:0,orders:[],batches:[]});
+  DB.getOrders().filter(isOrderCommitted).forEach(o=>{
+    const ym=String(o.needed_from||o.date||DB.today()).slice(0,7);
+    const bk=touch(ym);
+    bk.demand+=Number(o.quantity||0);
+    bk.orders.push(o);
+  });
+  getSupplyPipeline().forEach(p=>{
+    if(!p.readyDate)return;
+    const bk=touch(p.readyDate.slice(0,7));
+    bk.supply+=p.sellable;
+    bk.batches.push(p);
+  });
+  return Object.values(buckets)
+    .sort((a,b)=>a.ym.localeCompare(b.ym))
+    .map(b=>({...b,gap:b.supply-b.demand}));
+}
+// Demand that walked away. Counted over a rolling window because "we turned
+// away 4,000 birds last year" is the sentence that justifies more cages.
+function getTurnedAwayStats(days=365){
+  const from=addDays(DB.today(),-days);
+  const declined=DB.getOrders().filter(o=>o.status==='declined'&&String(o.date||'')>=from);
+  return {
+    count:declined.length,
+    birds:declined.reduce((s,o)=>s+Number(o.quantity||0),0),
+    value:declined.reduce((s,o)=>s+orderValue(o),0),
+    orders:declined.sort((a,b)=>String(b.date).localeCompare(String(a.date)))
+  };
+}
+
+// ── Orders tab ──────────────────────────────────────────────────────────
+let ORDER_FILTER='open';
+function setOrderFilter(f){ORDER_FILTER=f;renderFinance();}
+function renderOrdersTab(){
+  const all=DB.getOrders();
+  const open=all.filter(isOrderOpen);
+  const committedBirds=all.filter(isOrderCommitted).reduce((s,o)=>s+Number(o.quantity||0),0);
+  const deposits=all.filter(isOrderOpen).reduce((s,o)=>s+orderDepositTotal(o.id),0);
+  const turned=getTurnedAwayStats();
+  const pipeline=getSupplyPipeline();
+  const dvs=getDemandVsSupply();
+  const unalloc=getUnallocatedDemand();
+
+  const shown=all.filter(o=>
+    ORDER_FILTER==='all'?true:
+    ORDER_FILTER==='open'?isOrderOpen(o):
+    ORDER_FILTER==='declined'?o.status==='declined':
+    o.status===ORDER_FILTER
+  ).sort((a,b)=>{
+    // Soonest wanted first while open; newest first once they are history.
+    if(isOrderOpen(a)&&isOrderOpen(b))
+      return String(a.needed_from||'9999').localeCompare(String(b.needed_from||'9999'));
+    return String(b.date||'').localeCompare(String(a.date||''));
+  });
+
+  const fbtn=(k,lbl,n)=>`<button class="inner-tab ${ORDER_FILTER===k?'active':''}" onclick="setOrderFilter('${k}')">${lbl}${n!=null?` (${n})`:''}</button>`;
+
+  // ── Demand vs supply ──
+  const dvsHtml=dvs.length===0?'':`
+    <div class="sec-hdr">Demand vs Supply
+      <span style="font-size:11px;color:var(--gray);text-transform:none;font-weight:500">Confirmed orders against what the batches can deliver</span>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      ${dvs.map(b=>{
+        const short=b.gap<0;
+        const col=short?'var(--red)':b.demand===0?'var(--gray)':'var(--g2)';
+        const max=Math.max(b.demand,b.supply,1);
+        return `<div class="list-item" style="flex-direction:column;align-items:stretch;gap:6px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-weight:700;font-size:14px">${monthLabel(b.ym)}</span>
+            <span style="font-weight:800;font-size:13px;color:${col}">
+              ${short?`Short ${Math.abs(b.gap).toLocaleString()}`:b.demand===0?'No orders':`Spare ${b.gap.toLocaleString()}`}
+            </span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:10px;color:var(--gray);width:44px;flex-shrink:0">Wanted</span>
+            <div style="flex:1;height:8px;background:#eee;border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${(b.demand/max*100).toFixed(1)}%;background:var(--p3)"></div></div>
+            <span style="font-size:11px;font-weight:700;width:52px;text-align:right">${b.demand.toLocaleString()}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:10px;color:var(--gray);width:44px;flex-shrink:0">Ready</span>
+            <div style="flex:1;height:8px;background:#eee;border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${(b.supply/max*100).toFixed(1)}%;background:var(--g3)"></div></div>
+            <span style="font-size:11px;font-weight:700;width:52px;text-align:right">${b.supply.toLocaleString()}</span>
+          </div>
+          ${b.batches.length?`<div style="font-size:11px;color:var(--gray)">${b.batches.map(p=>p.batch.name).join(' · ')}</div>`:
+            b.demand>0?`<div style="font-size:11px;color:var(--red);font-weight:700">No batch reaches selling age this month</div>`:''}
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="margin:8px 16px;font-size:11px;color:var(--gray);line-height:1.6">
+      Ready counts each live batch at its target sale age, projected forward using that batch's own mortality so far. Enquiries are excluded — only confirmed orders are counted as demand.
+    </div>`;
+
+  // ── Batch pipeline ──
+  const pipeHtml=pipeline.length===0?'':`
+    <div class="sec-hdr">Batch Pipeline</div>
+    <div class="card" style="padding:0;overflow:hidden">
+      ${pipeline.map(p=>{
+        const over=p.uncommitted<0;
+        return `<div class="list-item">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:14px">${p.batch.name}</div>
+            <div style="font-size:12px;color:var(--gray);margin-top:2px">${p.batch.breed} · ${p.readyDate?(p.ready?'ready now':`ready ${fmtDate(p.readyDate)} · ${p.daysLeft}d`):'no target age set'}</div>
+            <div style="font-size:11px;color:var(--gray);margin-top:3px">
+              ${p.currentBirds.toLocaleString()} now${p.projLoss>0?` → ${p.projectedBirds.toLocaleString()} projected`:''}${p.sold>0?` · ${p.sold.toLocaleString()} sold`:''} · ${p.allocated.toLocaleString()} allocated
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;margin-left:10px">
+            <div style="font-size:18px;font-weight:800;color:${over?'var(--red)':'var(--g2)'}">${over?'−':''}${Math.abs(p.uncommitted).toLocaleString()}</div>
+            <div style="font-size:10px;color:var(--gray);text-transform:uppercase;font-weight:700">${over?'oversold':'unsold'}</div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+
+  const rows=shown.map(o=>{
+    const meta=orderStatusMeta(o.status);
+    const cust=o.customer_id?DB.getCustomer(o.customer_id):null;
+    const name=cust?.name||o.customer_name||'Unknown buyer';
+    const dep=orderDepositTotal(o.id);
+    const val=orderValue(o);
+    const batch=o.batch_id?DB.getBatches().find(b=>b.id===o.batch_id):null;
+    const window=o.needed_from
+      ?(o.needed_to&&o.needed_to!==o.needed_from
+          ?`${fmtDate(o.needed_from)} → ${fmtDate(o.needed_to)}`
+          :fmtDate(o.needed_from))
+      :'No date agreed';
+    const late=isOrderOpen(o)&&o.needed_to&&o.needed_to<DB.today();
+    return `<div class="list-item" style="flex-direction:column;align-items:stretch;gap:8px">
+      <div style="display:flex;justify-content:space-between;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14px">${name}</div>
+          <div style="font-size:12px;color:var(--gray);margin-top:2px">
+            ${Number(o.quantity||0).toLocaleString()} ${o.breed||getBirdTypeLabel(o.bird_type||'pullet').toLowerCase()}${o.age_weeks_at_delivery?` @ ${o.age_weeks_at_delivery} wks`:''}
+          </div>
+          <div style="font-size:12px;color:${late?'var(--red)':'var(--gray)'};margin-top:2px;font-weight:${late?'700':'400'}">
+            📅 ${window}${late?' — window passed':''}
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap">
+            <span class="badge ${meta.badge}">${meta.label}</span>
+            ${batch?`<span class="badge badge-gray" style="font-size:10px">${batch.name}</span>`:
+              isOrderCommitted(o)?`<span class="badge badge-amber" style="font-size:10px">No batch allocated</span>`:''}
+            <span style="font-size:10px;color:var(--gray)">${o.ref||''}</span>
+          </div>
+          ${o.decline_reason?`<div style="font-size:11px;color:#7d4e00;font-style:italic;margin-top:4px">Declined: "${String(o.decline_reason).replace(/</g,'&lt;')}"</div>`:''}
+          ${o.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:4px">"${o.notes}"</div>`:''}
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          ${val>0?`<div style="font-weight:800;color:var(--p2)">${fmtMoney(val)}</div>
+            <div style="font-size:11px;color:var(--gray)">${fmtMoney(o.price_per_bird_ngn)}/bird</div>`:
+            '<div style="font-size:11px;color:var(--gray)">No price yet</div>'}
+          ${dep>0?`<div style="font-size:11px;color:var(--g3);font-weight:700;margin-top:3px">Deposit ${fmtMoney(dep)}</div>`:''}
+        </div>
+      </div>
+      ${dep>0?`<div style="background:var(--p5);border-radius:8px;padding:8px 10px;font-size:12px">
+        <div style="font-size:11px;color:var(--p1);font-weight:600;margin-bottom:4px">Deposits (${orderDeposits(o.id).length})</div>
+        ${orderDeposits(o.id).map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid #eaeaea">
+          <span style="color:var(--gray)">${fmtDate(p.date)} · ${p.method}${p.notes?' · '+p.notes:''}</span>
+          <span style="display:flex;align-items:center;gap:6px">
+            <b style="color:var(--g3)">${fmtMoney(p.amount_ngn)}</b>
+            ${isLocked(p.date)?'':`<button class="btn btn-secondary btn-sm" style="padding:2px 6px;font-size:11px" onclick="openDepositForm('${o.id}','${p.id}')">✎</button>
+            <button class="btn btn-danger btn-sm" style="padding:2px 6px;font-size:11px" onclick="delDeposit('${o.id}','${p.id}')">✕</button>`}
+          </span></div>`).join('')}
+        ${val>0?`<div style="display:flex;justify-content:space-between;margin-top:5px;font-weight:700;color:var(--p1)">
+          <span>Balance on delivery</span><span>${fmtMoney(orderBalance(o))}</span></div>`:''}
+      </div>`:''}
+      <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
+        ${isOrderOpen(o)?`<button class="btn btn-secondary btn-sm" onclick="openDepositForm('${o.id}')">+ Deposit</button>`:''}
+        ${o.status==='enquiry'?`<button class="btn btn-primary btn-sm" onclick="setOrderStatus('${o.id}','confirmed')">Confirm</button>`:''}
+        ${isOrderCommitted(o)?`<button class="btn btn-primary btn-sm" onclick="fulfilOrder('${o.id}')">Fulfil → Sale</button>`:''}
+        ${isOrderOpen(o)?`<button class="btn btn-amber btn-sm" onclick="openDeclineOrder('${o.id}')">Decline</button>`:''}
+        <button class="btn btn-secondary btn-sm" onclick="openOrderForm('${o.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmDelOrder('${o.id}')">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="kpi-row-3" style="margin-top:12px">
+      <div class="kpi"><div class="kpi-val" style="color:var(--p2)">${committedBirds.toLocaleString()}</div><div class="kpi-lbl">Birds Promised</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${fmtMoney(deposits)}</div><div class="kpi-lbl">Deposits Held</div></div>
+      <div class="kpi" style="${turned.birds>0?'border:2px solid var(--amber)':''}">
+        <div class="kpi-val" style="color:${turned.birds>0?'var(--amber)':'var(--gray)'}">${turned.birds.toLocaleString()}</div>
+        <div class="kpi-lbl">Turned Away (12m)</div></div>
+    </div>
+    ${turned.birds>0?`<div style="margin:0 16px 8px" onclick="setOrderFilter('declined')">
+      <div class="alert-item alert-amber" style="cursor:pointer">
+        📈 ${turned.birds.toLocaleString()} birds worth about ${fmtMoney(turned.value)} turned away in the last 12 months across ${turned.count} order${turned.count===1?'':'s'} — that is demand you could have supplied with more capacity
+      </div></div>`:''}
+    ${unalloc>0?`<div style="margin:0 16px 8px"><div class="alert-item alert-red">
+      ⚠ ${unalloc.toLocaleString()} promised bird${unalloc===1?'':'s'} are not allocated to any batch
+    </div></div>`:''}
+    <div style="margin:4px 16px 8px"><button class="btn btn-primary" onclick="openOrderForm()">+ New Order</button></div>
+    ${dvsHtml}
+    ${pipeHtml}
+    <div class="sec-hdr">Orders</div>
+    <div class="inner-tabs" style="background:var(--light)">
+      ${fbtn('open','Open',open.length)}${fbtn('confirmed','Confirmed')}${fbtn('fulfilled','Fulfilled')}${fbtn('declined','Declined',turned.count||undefined)}${fbtn('all','All',all.length)}
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;margin-top:10px">
+      ${rows||`<div class="empty" style="padding:28px 24px">
+        <h3>Nothing here yet</h3>
+        <p>Take an order the moment a buyer asks — even one you cannot fill. Declined orders are kept as the record of demand you could not meet.</p>
+      </div>`}
+    </div>
+    <div style="height:12px"></div>`;
+}
+
+// ── Order form ──────────────────────────────────────────────────────────
+function openOrderForm(editId){
+  const today=DB.today();
+  const o=editId?DB.getOrder(editId):null;
+  const cust=o?.customer_id?DB.getCustomer(o.customer_id):null;
+  const bt=o?.bird_type||'pullet';
+  const batches=DB.getBatches().filter(b=>b.status==='Active'||b.id===o?.batch_id);
+  openModal(`<div class="modal-ttl">${o?'Edit':'New'} Order <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div class="field"><label>Date taken</label>
+      <input type="date" id="of_date" value="${o?.date||today}" max="${today}"></div>
+    <div class="field">
+      <label>Customer <span style="color:var(--red)">*</span></label>
+      <input type="hidden" id="of_cust_id" value="${cust?.id||''}">
+      <input type="text" id="of_cust" value="${(cust?.name||o?.customer_name||'').replace(/"/g,'&quot;')}" placeholder="Start typing a name…" oninput="onOrderCustomerChange()" autocomplete="off">
+      <div id="of_cust_panel"></div>
+    </div>
+    <div class="field"><label>Bird type</label>
+      <select id="of_type" onchange="onOrderTypeChange()">
+        ${['pullet','broiler','noiler'].map(t=>`<option value="${t}" ${bt===t?'selected':''}>${getBirdTypeLabel(t)}</option>`).join('')}
+      </select></div>
+    <div class="field"><label>Breed <span style="color:var(--gray);font-weight:400">— optional</span></label>
+      <select id="of_breed"></select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Quantity <span style="color:var(--red)">*</span></label>
+        <input type="number" id="of_qty" value="${o?.quantity||''}" min="1" step="1" inputmode="numeric" placeholder="e.g. 500" oninput="updateOrderCapacityPanel('${editId||''}')"></div>
+      <div class="field"><label>Age wanted (wks)</label>
+        <input type="number" id="of_age" value="${o?.age_weeks_at_delivery||18}" min="1" max="24"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Wanted from</label>
+        <input type="date" id="of_from" value="${o?.needed_from||''}" onchange="updateOrderCapacityPanel('${editId||''}')"></div>
+      <div class="field"><label>Wanted by</label>
+        <input type="date" id="of_to" value="${o?.needed_to||''}"></div>
+    </div>
+    <div class="field"><label>Agreed price per bird (₦) <span style="color:var(--gray);font-weight:400">— optional until settled</span></label>
+      <input type="number" id="of_price" value="${o?.price_per_bird_ngn||''}" min="0" step="50" inputmode="numeric" placeholder="e.g. 2500" oninput="updateOrderValueHint()"></div>
+    <div id="of_value_hint" style="margin:-6px 0 12px;font-size:13px;color:var(--gray)"></div>
+    <div class="field"><label>Allocate to batch <span style="color:var(--gray);font-weight:400">— optional</span></label>
+      <select id="of_batch" onchange="updateOrderCapacityPanel('${editId||''}')">
+        <option value="">Not allocated yet</option>
+        ${batches.map(b=>`<option value="${b.id}" ${o?.batch_id===b.id?'selected':''}>${b.name} — ${b.breed}</option>`).join('')}
+      </select></div>
+    <div class="field"><label>Status</label>
+      <select id="of_status">
+        ${ORDER_STATUSES.map(s=>`<option value="${s.key}" ${(o?.status||'enquiry')===s.key?'selected':''}>${s.label} — ${s.hint}</option>`).join('')}
+      </select></div>
+    <div id="of_capacity"></div>
+    <div class="field"><label>Notes</label>
+      <textarea id="of_notes" placeholder="e.g. wants Lohmann specifically, will collect">${o?.notes||''}</textarea></div>
+    <button class="btn btn-primary" onclick="saveOrder('${editId||''}')">Save Order</button>`);
+  onOrderTypeChange(o?.breed||'');
+  onOrderCustomerChange();
+  updateOrderValueHint();
+  updateOrderCapacityPanel(editId||'');
+}
+function onOrderTypeChange(preselect){
+  const t=document.getElementById('of_type')?.value||'pullet';
+  const sel=document.getElementById('of_breed');
+  if(!sel)return;
+  const current=preselect!==undefined?preselect:sel.value;
+  sel.innerHTML=['',...(BREEDS_BY_TYPE[t]||[])]
+    .map(b=>`<option value="${b}" ${b===current?'selected':''}>${b||'— any —'}</option>`).join('');
+}
+function onOrderCustomerChange(){
+  const inputEl=document.getElementById('of_cust');
+  const panelEl=document.getElementById('of_cust_panel');
+  const idEl=document.getElementById('of_cust_id');
+  if(!inputEl||!panelEl||!idEl)return;
+  const typed=inputEl.value;
+  if(!normalizeCustomerName(typed)){panelEl.innerHTML='';idEl.value='';return;}
+  const exact=findCustomerByName(typed);
+  if(exact){
+    idEl.value=exact.id;
+    const owing=getCustomerOutstanding(exact.id);
+    panelEl.innerHTML=`<div style="margin-top:8px;padding:10px;background:var(--p5);border-radius:8px;border-left:3px solid var(--p3)">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
+        <div><div style="font-weight:700;color:var(--p2)">✓ ${exact.name}</div>
+          <div style="color:var(--p1);margin-top:2px">${exact.customer_type||'—'}${exact.phone?' · ☎ '+exact.phone:''} · ${getCustomerBirds(exact.id).toLocaleString()} birds to date</div></div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--gray)">Currently owes</div>
+          <div style="font-weight:800;color:${owing>0?'var(--amber)':'var(--g3)'}">${fmtMoney(owing)}</div></div>
+      </div></div>`;
+    return;
+  }
+  idEl.value='';
+  const fuzzy=fuzzyCustomerMatches(typed);
+  let html='';
+  if(fuzzy.length){
+    html+=`<div style="margin-top:8px;padding:10px;background:var(--p5);border-radius:8px;border-left:3px solid var(--amber)">
+      <div style="font-size:12px;color:var(--p1);font-weight:600;margin-bottom:6px">Did you mean?</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+      ${fuzzy.map(c=>`<button type="button" class="btn btn-secondary btn-sm" onclick="pickOrderCustomer('${c.id}')">${c.name}${c.customer_type?' · '+c.customer_type:''}</button>`).join('')}
+      </div></div>`;
+  }
+  html+=`<div style="margin-top:8px;padding:10px;border:1px dashed var(--p3);border-radius:8px">
+    <div style="font-size:12px;color:var(--p1);font-weight:600;margin-bottom:6px">+ New customer: "${typed.trim().replace(/</g,'&lt;')}"</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input type="tel" id="of_new_phone" placeholder="Phone (optional)" autocomplete="off" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px">
+      <select id="of_new_type" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px">
+        ${CUSTOMER_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('')}
+      </select>
+    </div>
+    <div style="font-size:11px;color:var(--gray);margin-top:6px">The customer record is created when you save.</div>
+  </div>`;
+  panelEl.innerHTML=html;
+}
+function pickOrderCustomer(id){
+  const c=DB.getCustomer(id);
+  if(!c)return;
+  document.getElementById('of_cust').value=c.name;
+  document.getElementById('of_cust_id').value=c.id;
+  onOrderCustomerChange();
+}
+function updateOrderValueHint(){
+  const el=document.getElementById('of_value_hint'); if(!el)return;
+  const q=parseInt(document.getElementById('of_qty')?.value,10)||0;
+  const p=parseFloat(document.getElementById('of_price')?.value)||0;
+  el.innerHTML=(q>0&&p>0)?`Order value <b>${fmtMoney(q*p)}</b>`:'';
+}
+// The answer to "can I take this?" before the promise is made.
+function updateOrderCapacityPanel(editId){
+  const panel=document.getElementById('of_capacity'); if(!panel)return;
+  const qty=parseInt(document.getElementById('of_qty')?.value,10)||0;
+  const batchId=document.getElementById('of_batch')?.value||'';
+  if(qty<=0){panel.innerHTML='';return;}
+  const existing=editId?DB.getOrder(editId):null;
+  // An order being edited already sits in the allocation, so take it back out
+  // before asking whether the new quantity fits.
+  const selfQty=(existing&&isOrderCommitted(existing)&&existing.batch_id===batchId)?Number(existing.quantity||0):0;
+  let body='';
+  if(batchId){
+    const b=DB.getBatches().find(x=>x.id===batchId);
+    if(b){
+      const p=getBatchPipeline(b);
+      const free=p.uncommitted+selfQty;
+      const over=qty>free;
+      body=`<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+          <span>${b.name} ready</span><b>${p.readyDate?fmtDate(p.readyDate):'—'}</b></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+          <span>Projected sellable</span><b>${p.sellable.toLocaleString()} birds</b></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
+          <span>Unsold after other orders</span>
+          <b style="color:${free<=0?'var(--red)':'var(--g3)'}">${free.toLocaleString()} birds</b></div>
+        <div style="font-size:12px;font-weight:700;color:${over?'var(--red)':'var(--g2)'}">
+          ${over?`⚠ This order is ${(qty-free).toLocaleString()} birds more than the batch will have`
+                :`✓ Fits — ${(free-qty).toLocaleString()} left over`}</div>`;
+    }
+  } else {
+    const wanted=document.getElementById('of_from')?.value||'';
+    const ym=wanted?wanted.slice(0,7):null;
+    const bucket=ym?getDemandVsSupply().find(b=>b.ym===ym):null;
+    const supply=bucket?bucket.supply:0;
+    const demand=(bucket?bucket.demand:0)-selfQty;
+    const free=supply-demand;
+    body=ym
+      ?`<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+          <span>Ready in ${monthLabel(ym)}</span><b>${supply.toLocaleString()} birds</b></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
+          <span>Already promised that month</span><b>${demand.toLocaleString()} birds</b></div>
+        <div style="font-size:12px;font-weight:700;color:${qty>free?'var(--red)':'var(--g2)'}">
+          ${qty>free?`⚠ ${(qty-free).toLocaleString()} birds short that month — allocate a batch or set a later date`
+                    :`✓ Fits — ${(free-qty).toLocaleString()} spare that month`}</div>`
+      :`<div style="font-size:12px;color:var(--gray)">Set a "wanted from" date to check this against the pipeline.</div>`;
+  }
+  panel.innerHTML=`<div style="margin:0 0 12px;padding:10px 12px;background:var(--p5);border-radius:8px;border-left:3px solid var(--p3)">
+    <div style="font-size:11px;font-weight:700;color:var(--p1);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Capacity check</div>
+    ${body}</div>`;
+}
+function saveOrder(editId){
+  const typed=(document.getElementById('of_cust')?.value||'').trim();
+  if(!typed){toast('Enter the customer name');return;}
+  const qty=parseInt(document.getElementById('of_qty').value,10)||0;
+  if(!Number.isInteger(qty)||qty<1){toast('Quantity must be a whole number of birds');return;}
+  const from=document.getElementById('of_from').value||null;
+  const to=document.getElementById('of_to').value||null;
+  if(from&&to&&to<from){toast('"Wanted by" cannot be before "wanted from"');return;}
+  let customerId=document.getElementById('of_cust_id')?.value||'';
+  if(!customerId)customerId=resolveCustomerFromInput(typed,'of_new_phone','of_new_type');
+  const cust=customerId?DB.getCustomer(customerId):null;
+  const existing=editId?DB.getOrder(editId):null;
+  const rec={
+    id:editId||uid(),
+    date:document.getElementById('of_date').value||DB.today(),
+    customer_id:customerId||null,
+    customer_name:cust?.name||typed,
+    bird_type:document.getElementById('of_type').value,
+    breed:document.getElementById('of_breed').value||'',
+    quantity:qty,
+    age_weeks_at_delivery:parseInt(document.getElementById('of_age').value,10)||null,
+    needed_from:from,
+    needed_to:to,
+    price_per_bird_ngn:parseFloat(document.getElementById('of_price').value)||0,
+    batch_id:document.getElementById('of_batch').value||null,
+    status:document.getElementById('of_status').value||'enquiry',
+    decline_reason:existing?.decline_reason||null,
+    sale_id:existing?.sale_id||null,
+    notes:document.getElementById('of_notes').value.trim()
+  };
+  // The reference is minted once and carried forward, so a number quoted to a
+  // buyer over the phone still finds the order after it has been edited.
+  rec.ref=existing?.ref||nextOrderRef(rec);
+  if(editId)DB.updOrder(editId,rec); else DB.addOrder(rec);
+  closeModal();
+  confirmSave(`Order ${rec.ref} saved`);
+  renderFinance();renderHome();
+}
+function setOrderStatus(id,status){
+  const o=DB.getOrder(id); if(!o)return;
+  DB.updOrder(id,{status});
+  confirmSave(`Order ${orderStatusMeta(status).label.toLowerCase()}`);
+  renderFinance();renderHome();
+}
+function openDeclineOrder(id){
+  const o=DB.getOrder(id); if(!o)return;
+  openModal(`<div class="modal-ttl">Decline this order <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div style="margin:-6px 0 12px;padding:10px 12px;background:var(--p5);border-radius:8px;font-size:13px">
+      <div style="font-weight:700;color:var(--p1)">${o.customer_name||'Buyer'} · ${Number(o.quantity||0).toLocaleString()} birds</div>
+      <div style="font-size:12px;color:var(--gray);margin-top:4px">
+        The order is kept, not deleted. Demand you could not meet is the only record that you are undersupplied — it is what a capacity decision gets argued from later.
+      </div>
+    </div>
+    <div class="field"><label>Why could this not be filled?</label>
+      <select id="dq_reason">
+        <option value="No birds available">No birds available at that date</option>
+        <option value="Wrong age at their date">Could not hit the age they wanted</option>
+        <option value="Breed not available">Breed not available</option>
+        <option value="Price not agreed">Price could not be agreed</option>
+        <option value="Buyer too far">Buyer too far / logistics</option>
+        <option value="Other">Other</option>
+      </select></div>
+    <div class="field"><label>Note <span style="color:var(--gray);font-weight:400">— optional</span></label>
+      <textarea id="dq_note" placeholder="Anything worth remembering when they ask again"></textarea></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-amber" onclick="doDeclineOrder('${id}')">Record as declined</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+function doDeclineOrder(id){
+  const reason=document.getElementById('dq_reason').value;
+  const note=document.getElementById('dq_note').value.trim();
+  DB.updOrder(id,{status:'declined',decline_reason:note?`${reason} — ${note}`:reason});
+  closeModal();confirmSave('Recorded as declined — kept as demand evidence');
+  renderFinance();renderHome();
+}
+function confirmDelOrder(id){
+  const o=DB.getOrder(id);
+  const dep=orderDepositTotal(id);
+  openModal(`<div class="modal-ttl">Delete Order? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:14px">
+      ${o?.ref?`<b>${o.ref}</b> · `:''}${Number(o?.quantity||0).toLocaleString()} birds for ${o?.customer_name||'this buyer'}.
+      ${dep>0?`<br><br><b style="color:var(--amber)">${fmtMoney(dep)}</b> in deposits is attached and will be deleted with it.`:''}
+      <br><br>If the buyer simply could not be served, use <b>Decline</b> instead — deleting loses the demand record.
+      <br><br>Recoverable for ${TRASH_TTL_DAYS} days from Settings → Recently Deleted.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();doDelOrder('${id}')">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+function doDelOrder(id){
+  orderDeposits(id).forEach(p=>DB.delPayment(p.id));
+  DB.delOrder(id);
+  confirmSave('Order deleted');renderFinance();renderHome();
+}
+
+// ── Deposits ────────────────────────────────────────────────────────────
+function openDepositForm(orderId,editId){
+  const o=DB.getOrder(orderId); if(!o){toast('Order not found');return;}
+  const rec=editId?orderDeposits(orderId).find(p=>p.id===editId):null;
+  const val=orderValue(o), held=orderDepositTotal(orderId);
+  const today=DB.today();
+  openModal(`<div class="modal-ttl">${rec?'Edit':'Record'} Deposit <button class="modal-x" onclick="closeModal()">×</button></div>
+    <div style="margin:-6px 0 12px;padding:10px 12px;background:var(--p5);border-radius:8px;font-size:13px">
+      <div style="font-weight:700;color:var(--p1)">${o.customer_name||'Buyer'} · ${Number(o.quantity||0).toLocaleString()} birds</div>
+      <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:12px;color:var(--p1)">
+        <span>Order ${val>0?`<b>${fmtMoney(val)}</b>`:'<b>no price yet</b>'}</span>
+        <span>Held <b style="color:var(--g3)">${fmtMoney(held)}</b></span>
+        ${val>0?`<span>Balance <b style="color:var(--amber)">${fmtMoney(orderBalance(o))}</b></span>`:''}
+      </div>
+      <div style="font-size:11px;color:var(--gray);margin-top:6px">Carried over as the first payment when this order becomes a sale.</div>
+    </div>
+    <div class="field"><label>Date</label>
+      <input type="date" id="dp_date" value="${rec?.date||today}" max="${today}"></div>
+    <div class="field"><label>Amount (₦)</label>
+      <input type="number" id="dp_amount" value="${rec?.amount_ngn||''}" min="0" step="100" inputmode="numeric" placeholder="0"></div>
+    <div class="field"><label>Method</label>
+      <select id="dp_method">
+        ${PAYMENT_METHODS.map(m=>`<option value="${m}" ${rec?.method===m?'selected':''}>${m}</option>`).join('')}
+      </select></div>
+    <div class="field"><label>Notes <span style="color:var(--gray);font-weight:400">optional</span></label>
+      <textarea id="dp_notes" placeholder="Optional">${rec?.notes||''}</textarea></div>
+    <button class="btn btn-primary" onclick="saveDeposit('${orderId}','${editId||''}')">Save Deposit</button>`);
+}
+function saveDeposit(orderId,editId){
+  const o=DB.getOrder(orderId); if(!o){toast('Order not found');closeModal();return;}
+  const amount=parseFloat(document.getElementById('dp_amount').value)||0;
+  if(amount<=0){toast('Amount must be greater than 0');return;}
+  const val=orderValue(o);
+  const others=orderDeposits(orderId).filter(p=>p.id!==editId)
+    .reduce((s,p)=>s+Number(p.amount_ngn||0),0);
+  // Only checked once there is a price — a deposit is often taken before the
+  // price is settled, and refusing it then would be the app getting in the way.
+  if(val>0&&others+amount>val+0.5){
+    toast(`Exceeds the order value by ${fmtMoney(others+amount-val)}`);return;
+  }
+  const date=document.getElementById('dp_date').value;
+  if(!lockGuard(date))return;
+  const method=document.getElementById('dp_method').value;
+  const notes=document.getElementById('dp_notes').value.trim();
+  if(editId)DB.updPayment(editId,{date,amount_ngn:amount,method,notes});
+  else DB.addPayment({id:uid(),order_id:orderId,sale_id:null,date,
+    amount_ngn:amount,method,kind:'order_deposit',notes});
+  closeModal();confirmSave('Deposit recorded');renderFinance();
+}
+function delDeposit(orderId,paymentId){
+  openModal(`<div class="modal-ttl">Delete Deposit? <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:14px;color:var(--gray);margin-bottom:18px">Recoverable for ${TRASH_TTL_DAYS} days from Settings → Recently Deleted.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-danger" onclick="closeModal();DB.delPayment('${paymentId}');confirmSave('Deposit removed');renderFinance()">Delete</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);
+}
+
+// ── Fulfilment ──────────────────────────────────────────────────────────
+// Hands the order to the sale form rather than duplicating it. saveSale() sees
+// the order id, links the two, and re-points any deposits at the new sale so
+// they count as money already paid.
+function fulfilOrder(orderId){
+  const o=DB.getOrder(orderId); if(!o){toast('Order not found');return;}
+  openSaleForm('',{orderId});
+}
 
 // ═══════════════════════════════════════════════
 // FEED STORE — STOCK, PROGRAMME, COVER, REORDER
@@ -1420,10 +2644,17 @@ function getBatchVaccStatus(batch){
     const fromDay=new Date(arrDate);fromDay.setDate(fromDay.getDate()+v.dayMin);
     const toDay=new Date(arrDate);toDay.setDate(toDay.getDate()+v.dayMax);
     const dueDate=fromDay.toISOString().slice(0,10);
-    const done=(batch.vaccinations||{})[v.name]||false;
+    // A tick used to be a bare `true`. It now carries the day it was ticked,
+    // so the printed health record can state when a bird was actually treated
+    // rather than when the programme said it was due. Old boolean ticks stay
+    // truthy and simply have no givenDate — the document falls back to the
+    // programme date and says on its face that it did.
+    const mark=(batch.vaccinations||{})[v.name];
+    const done=!!mark;
+    const givenDate=(mark&&typeof mark==='object'&&mark.date)?mark.date:null;
     const overdue=!done&&today>toDay.toISOString().slice(0,10);
     const due=!done&&today>=dueDate;
-    return{...v,dueDate,done,overdue,due};
+    return{...v,dueDate,done,givenDate,overdue,due};
   });
 }
 
@@ -1443,6 +2674,7 @@ function renderHome(){
   const today=DB.today();
   const totalActiveBirds=active.reduce((s,b)=>s+getBatchBirdCount(b),0);
   const todayDeaths=DB.getDaily().filter(r=>r.date===today).reduce((s,r)=>s+(r.deaths||0),0);
+  const promisedBirds=DB.getOrders().filter(isOrderCommitted).reduce((s,o)=>s+Number(o.quantity||0),0);
   const alerts=[];
   // Check today's temperature logs for any batch
   active.forEach(b=>{
@@ -1471,6 +2703,23 @@ function renderHome(){
     if(overdue.length)alerts.push(`<div class="alert-item alert-red">💉 ${b.name} — ${overdue.length} overdue vaccination${overdue.length>1?'s':''}</div>`);
     if(dueSoon.length)alerts.push(`<div class="alert-item alert-amber">💉 ${b.name} — ${dueSoon[0].name} due by ${fmtDate(dueSoon[0].dueDate)}</div>`);
   });
+  // The order book only works if it is in the way. A delivery window opening
+  // in the next fortnight, or a promise with nothing allocated behind it, is
+  // exactly the thing that gets discovered too late.
+  (()=>{
+    const soon=addDays(today,14);
+    DB.getOrders().filter(isOrderCommitted).forEach(o=>{
+      if(!o.needed_from)return;
+      const qty=Number(o.quantity||0).toLocaleString();
+      if(o.needed_to&&o.needed_to<today){
+        alerts.push(`<div class="alert-item alert-red" style="cursor:pointer" onclick="FIN_TAB='orders';go('finance')">📋 ${o.customer_name||'Order'} — ${qty} birds were due by ${fmtDate(o.needed_to)}</div>`);
+      } else if(o.needed_from<=soon){
+        alerts.push(`<div class="alert-item alert-amber" style="cursor:pointer" onclick="FIN_TAB='orders';go('finance')">📋 ${o.customer_name||'Order'} — ${qty} birds wanted from ${fmtDate(o.needed_from)}</div>`);
+      }
+    });
+    const unalloc=getUnallocatedDemand();
+    if(unalloc>0)alerts.push(`<div class="alert-item alert-amber" style="cursor:pointer" onclick="FIN_TAB='orders';go('finance')">📋 ${unalloc.toLocaleString()} promised bird${unalloc===1?'':'s'} not allocated to any batch</div>`);
+  })();
   // Feed alerts are deliberately not in this list. The ticker at the top of the
   // screen prints the same sentence from the same string, and feedHomeStrip()
   // below carries the numbers and somewhere to tap, so a third copy here only
@@ -1510,10 +2759,11 @@ function renderHome(){
   }).join('');
 
   el.innerHTML=`<div class="topbar"><div><h1>🐣 BroodTrack</h1><small>${DB.getFarm()?.name||'My Brooding Farm'} · ${fmtDate(today)}</small></div></div>
-    <div class="kpi-row-3">
-      <div class="kpi"><div class="kpi-val">${active.length}</div><div class="kpi-lbl">Active Batches</div></div>
-      <div class="kpi"><div class="kpi-val" style="color:var(--p2)">${totalActiveBirds}</div><div class="kpi-lbl">Birds On Farm</div></div>
-      <div class="kpi"><div class="kpi-val" style="color:${todayDeaths>0?'var(--red)':'var(--g2)'}">${todayDeaths}</div><div class="kpi-lbl">Deaths Today</div></div>
+    <div class="kpi-row-4">
+      <div class="kpi-sm"><div class="kpi-val-sm">${active.length}</div><div class="kpi-lbl">Batches</div></div>
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--p2)">${totalActiveBirds.toLocaleString()}</div><div class="kpi-lbl">On Farm</div></div>
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:${promisedBirds>totalActiveBirds?'var(--red)':'var(--g2)'}">${promisedBirds.toLocaleString()}</div><div class="kpi-lbl">Promised</div></div>
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:${todayDeaths>0?'var(--red)':'var(--g2)'}">${todayDeaths}</div><div class="kpi-lbl">Deaths Today</div></div>
     </div>
     ${alerts.length?`<div style="margin:0 16px 8px">${alerts.join('')}</div>`:''}
     ${feedHomeStrip()}
@@ -1541,7 +2791,7 @@ function renderBatches(){
         <div class="vacc-check ${v.done?'done':''}">${v.done?'✓':''}</div>
         <div style="flex:1">
           <div style="font-weight:700;font-size:13px">${v.name}</div>
-          <div style="font-size:11px;color:var(--gray)">${v.hatchery?'Done at hatchery':v.route+(v.optional?' · Around '+fmtDate(v.dueDate):' · Due by '+fmtDate(v.dueDate))}</div>
+          <div style="font-size:11px;color:var(--gray)">${v.hatchery?'Done at hatchery':v.route+(v.givenDate?' · Given '+fmtDate(v.givenDate):v.optional?' · Around '+fmtDate(v.dueDate):' · Due by '+fmtDate(v.dueDate))}</div>
           ${v.why?`<div style="font-size:11px;color:var(--gray);font-style:italic;margin-top:2px">${v.why}</div>`:''}
         </div>
         <span class="badge ${v.hatchery?'badge-gray':v.done?'badge-green':v.optional?'badge-gray':v.overdue?'badge-red':v.due?'badge-amber':'badge-gray'}">
@@ -1574,8 +2824,9 @@ function renderBatches(){
         </div>
       </div>
       <div style="border-top:1px solid #f5f5f5">
-        <div style="padding:10px 16px;font-size:12px;font-weight:800;color:var(--gray);text-transform:uppercase;cursor:pointer" onclick="toggleVaccPanel('${b.id}')">
-          💉 Vaccination Schedule <span id="vacc_arr_${b.id}">▾</span>
+        <div style="padding:8px 16px;font-size:12px;font-weight:800;color:var(--gray);text-transform:uppercase;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px" onclick="toggleVaccPanel('${b.id}')">
+          <span>💉 Vaccination Schedule <span id="vacc_arr_${b.id}">▾</span></span>
+          <button class="btn btn-secondary btn-sm" style="padding:5px 10px;font-size:11px;flex-shrink:0" onclick="event.stopPropagation();openVaccDoc('${b.id}')">🖨 Print</button>
         </div>
         <div id="vacc_panel_${b.id}" style="display:none">
           ${vaccRows}
@@ -1598,9 +2849,13 @@ function toggleVaccPanel(id){
 function toggleVacc(batchId,vaccName){
   const batch=DB.getBatches().find(b=>b.id===batchId); if(!batch)return;
   if(!batch.vaccinations)batch.vaccinations={};
-  batch.vaccinations[vaccName]=!batch.vaccinations[vaccName];
+  const wasDone=!!batch.vaccinations[vaccName];
+  // Stamp the day it was ticked. The tick is the only moment the app ever
+  // hears about a real date, and a health record handed to a buyer is worth
+  // very little without them.
+  batch.vaccinations[vaccName]=wasDone?false:{done:true,date:DB.today()};
   DB.updBatch(batchId,{vaccinations:batch.vaccinations});
-  confirmSave(batch.vaccinations[vaccName]?`${vaccName} marked done`:`${vaccName} unmarked`);
+  confirmSave(wasDone?`${vaccName} unmarked`:`${vaccName} marked done`);
   renderBatches();
 }
 function setAddBatchType(type,pfx){
@@ -1847,6 +3102,54 @@ function delDaily(id){
 // ═══════════════════════════════════════════════
 // WEIGHT
 // ═══════════════════════════════════════════════
+// Uniformity, not the average, is what a point-of-lay buyer is paying for. A
+// flock averaging 95% of target with the birds tightly grouped will come into
+// lay together; one averaging 100% with a wide spread carries a tail of birds
+// that never lay properly, and the average hides them completely.
+//
+// So the form takes the individual weights when they are available, and keeps
+// working on the average alone when they are not. Two figures come out of it:
+//   CV%          — spread as a share of the mean. Under 10 is the usual target.
+//   Uniformity%  — share of birds within ±10% of the mean. The number buyers ask for.
+const UNIFORMITY_BAND=0.10;   // ±10% of the mean is the industry definition
+const CV_GOOD=8, CV_OK=10;
+const UNIF_GOOD=80, UNIF_OK=70;
+// Accepts whatever someone types on a phone: commas, spaces, or one per line.
+function parseWeightList(text){
+  return String(text||'')
+    .split(/[^0-9.]+/)
+    .map(v=>parseFloat(v))
+    .filter(v=>Number.isFinite(v)&&v>0);
+}
+function weightStats(list){
+  const n=list.length;
+  if(n===0)return null;
+  const mean=list.reduce((a,b)=>a+b,0)/n;
+  // Sample standard deviation — these are a sample of the flock, not all of it.
+  const variance=n>1?list.reduce((a,b)=>a+(b-mean)*(b-mean),0)/(n-1):0;
+  const sd=Math.sqrt(variance);
+  const lo=mean*(1-UNIFORMITY_BAND), hi=mean*(1+UNIFORMITY_BAND);
+  const within=list.filter(w=>w>=lo&&w<=hi).length;
+  return {
+    n, mean:Math.round(mean), sd:Math.round(sd*10)/10,
+    cv:mean>0?Math.round(sd/mean*1000)/10:null,
+    uniformity:Math.round(within/n*100),
+    min:Math.round(Math.min(...list)), max:Math.round(Math.max(...list))
+  };
+}
+function cvColour(cv){
+  return cv==null?'var(--gray)':cv<=CV_GOOD?'var(--g2)':cv<=CV_OK?'var(--amber)':'var(--red)';
+}
+function unifColour(u){
+  return u==null?'var(--gray)':u>=UNIF_GOOD?'var(--g2)':u>=UNIF_OK?'var(--amber)':'var(--red)';
+}
+// The latest weighing that actually carries a uniformity figure. Older records
+// have none, and a batch should not look unmeasured because of them.
+function latestUniformity(batchId){
+  return DB.getWeight()
+    .filter(r=>r.batch_id===batchId&&r.uniformity_pct!=null)
+    .sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0]||null;
+}
 function renderWeight(){
   const el=document.getElementById('v-weight');
   const topbar=`<div class="topbar"><div><h1>Weight Tracking</h1><small>Weekly growth vs benchmark</small></div></div>`;
@@ -1862,9 +3165,14 @@ function renderWeight(){
     return`<div class="list-item">
       <div style="flex:1">
         <div style="font-weight:700;font-size:14px">Week ${r.week_num} <span style="font-size:11px;font-weight:400;color:var(--gray)">${fmtDate(r.date)}</span></div>
-        <div style="font-size:12px;color:var(--gray)">${r.sample_size} birds sampled</div>
+        <div style="font-size:12px;color:var(--gray)">${r.sample_size} birds sampled${(r.weights||[]).length?' · individually weighed':''}</div>
         <div style="font-size:14px;font-weight:800;color:var(--p2);margin-top:3px">${r.avg_weight_g}g
           <span style="font-size:11px;color:var(--gray);font-weight:400">target: ${benchmark?benchmark+'g':'—'}</span></div>
+        ${r.uniformity_pct!=null?`<div style="display:flex;gap:10px;margin-top:4px;font-size:11px;font-weight:700">
+          <span style="color:${unifColour(r.uniformity_pct)}">${r.uniformity_pct}% uniform</span>
+          ${r.cv_pct!=null?`<span style="color:${cvColour(r.cv_pct)}">CV ${r.cv_pct}%</span>`:''}
+          ${r.min_weight_g&&r.max_weight_g?`<span style="color:var(--gray);font-weight:400">${r.min_weight_g}–${r.max_weight_g}g</span>`:''}
+        </div>`:''}
         ${r.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:3px">"${r.notes}"</div>`:''}
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
@@ -1910,7 +3218,12 @@ function openWeightForm(batchId,editId){
       <div class="field"><label>Week Number</label><input type="number" id="wf_week" value="${rec?.week_num??ageWeeks}" min="1" max="24"></div>
       <div class="field"><label>Sample Size (birds)</label><input type="number" id="wf_sample" value="${rec?.sample_size||20}" min="1" max="100"></div>
     </div>
-    <div class="field"><label>Average Weight (g)</label><input type="number" id="wf_avg" value="${rec?.avg_weight_g||''}" min="0" step="1" placeholder="e.g. 750" oninput="showWeightStatus(${benchmark})"></div>
+    <div class="field"><label>Individual weights (g) <span style="color:var(--gray);font-weight:400">— the useful way</span></label>
+      <textarea id="wf_list" rows="3" placeholder="740 812 690 755 801 …  (commas, spaces or one per line)" oninput="onWeightListInput(${benchmark})">${(rec?.weights||[]).join(' ')}</textarea>
+      <div style="font-size:11px;color:var(--gray);margin-top:4px">Type each bird as you weigh it. Average, spread and uniformity are worked out from these — uniformity is the figure a pullet buyer asks for, and an average cannot produce it.</div></div>
+    <div id="wf_stats" style="margin:-6px 0 12px"></div>
+    <div class="field"><label>Average Weight (g) <span style="color:var(--gray);font-weight:400" id="wf_avg_note">— or enter it directly</span></label>
+      <input type="number" id="wf_avg" value="${rec?.avg_weight_g||''}" min="0" step="1" placeholder="e.g. 750" oninput="showWeightStatus(${benchmark})"></div>
     <div id="wf_status" style="font-size:12px;margin:-8px 0 10px;font-weight:700"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Lightest Bird (g) <span style="color:var(--gray);font-weight:400">opt</span></label><input type="number" id="wf_min" value="${rec?.min_weight_g||''}" min="0" step="1" placeholder="e.g. 650"></div>
@@ -1919,6 +3232,42 @@ function openWeightForm(batchId,editId){
     <div class="field"><label>Notes</label><textarea id="wf_notes" placeholder="e.g. Good uniformity, feed switch to grower this week">${rec?.notes||''}</textarea></div>
     <button class="btn btn-primary" onclick="saveWeight('${batchId}','${editId||''}')">Save</button>`);
   if(rec)showWeightStatus(benchmark);
+  onWeightListInput(benchmark);
+}
+// Live read-out while the weights are being typed, so a ragged sample is
+// obvious at the scale rather than three screens later.
+function onWeightListInput(benchmark){
+  const el=document.getElementById('wf_stats'); if(!el)return;
+  const st=weightStats(parseWeightList(document.getElementById('wf_list')?.value));
+  const note=document.getElementById('wf_avg_note');
+  if(!st){
+    el.innerHTML='';
+    if(note)note.textContent='— or enter it directly';
+    return;
+  }
+  // The typed list wins: it is the measurement, the average is a summary of it.
+  const avgEl=document.getElementById('wf_avg');
+  if(avgEl){avgEl.value=st.mean;showWeightStatus(benchmark);}
+  const minEl=document.getElementById('wf_min'); if(minEl)minEl.value=st.min;
+  const maxEl=document.getElementById('wf_max'); if(maxEl)maxEl.value=st.max;
+  const sampleEl=document.getElementById('wf_sample'); if(sampleEl)sampleEl.value=st.n;
+  if(note)note.textContent='— filled in from the weights above';
+  el.innerHTML=`<div style="background:var(--p5);border-radius:8px;padding:10px 12px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+      <div><div style="font-size:18px;font-weight:800;color:var(--p2)">${st.mean}g</div>
+        <div style="font-size:10px;color:var(--gray);font-weight:700;text-transform:uppercase">Mean · ${st.n} birds</div></div>
+      <div><div style="font-size:18px;font-weight:800;color:${unifColour(st.uniformity)}">${st.uniformity}%</div>
+        <div style="font-size:10px;color:var(--gray);font-weight:700;text-transform:uppercase">Uniform</div></div>
+      <div><div style="font-size:18px;font-weight:800;color:${cvColour(st.cv)}">${st.cv}%</div>
+        <div style="font-size:10px;color:var(--gray);font-weight:700;text-transform:uppercase">CV</div></div>
+    </div>
+    <div style="font-size:11px;color:var(--p1);margin-top:7px;line-height:1.5">
+      Range ${st.min}–${st.max}g. ${st.uniformity>=UNIF_GOOD
+        ?'Tight enough to come into lay together.'
+        :st.uniformity>=UNIF_OK
+          ?'Acceptable, but there is a tail — check feeder space and grading.'
+          :'Ragged. Grade the small birds out and give them their own feeder space.'}
+    </div></div>`;
 }
 function showWeightStatus(benchmark){
   const avg=parseFloat(document.getElementById('wf_avg')?.value);
@@ -1931,18 +3280,31 @@ function showWeightStatus(benchmark){
 }
 function saveWeight(batchId,editId){
   const batch=DB.getBatches().find(b=>b.id===batchId); if(!batch)return;
-  const avg=parseFloat(document.getElementById('wf_avg').value)||0;
-  if(avg<=0){toast('Enter average weight');return;}
+  const list=parseWeightList(document.getElementById('wf_list')?.value);
+  const st=weightStats(list);
+  const avg=st?st.mean:(parseFloat(document.getElementById('wf_avg').value)||0);
+  if(avg<=0){toast('Enter the individual weights, or an average');return;}
   const weekNum=parseInt(document.getElementById('wf_week').value)||batchAgeInWeeks(batch)||1;
   const benchmark=getWeightBenchmark(batch.breed,weekNum);
   const rec={id:editId||uid(),batch_id:batchId,batch_name:batch.name,breed:batch.breed,
     date:document.getElementById('wf_date').value,week_num:weekNum,
-    sample_size:parseInt(document.getElementById('wf_sample').value)||20,
-    avg_weight_g:avg,min_weight_g:parseFloat(document.getElementById('wf_min').value)||null,
-    max_weight_g:parseFloat(document.getElementById('wf_max').value)||null,
+    // With a list, the sample size is however many birds were actually weighed
+    // — a typed number that disagrees with the list would be a second truth.
+    sample_size:st?st.n:(parseInt(document.getElementById('wf_sample').value)||20),
+    avg_weight_g:avg,
+    min_weight_g:st?st.min:(parseFloat(document.getElementById('wf_min').value)||null),
+    max_weight_g:st?st.max:(parseFloat(document.getElementById('wf_max').value)||null),
+    // Null rather than absent when no list was given: the passport and the
+    // reports both need to tell "not measured" from "measured badly".
+    weights:st?list:[],
+    sd_g:st?st.sd:null,
+    cv_pct:st?st.cv:null,
+    uniformity_pct:st?st.uniformity:null,
     benchmark_g:benchmark,notes:document.getElementById('wf_notes').value.trim()};
   if(editId)DB.updWeight(editId,rec);else DB.addWeight(rec);
-  closeModal();confirmSave('Weight saved');renderWeight();
+  closeModal();
+  confirmSave(st?`Weight saved — ${st.uniformity}% uniform`:'Weight saved');
+  renderWeight();
 }
 function delWeight(id){
   openModal(`<div class="modal-ttl">Delete? <button class="modal-x" onclick="closeModal()">×</button></div>
@@ -2616,7 +3978,10 @@ function renderFinance(){
   // Owed is the sum of remaining balances, so a part payment reduces it.
   const totalOwed=unpaidCredit.reduce((s,r)=>s+getSaleBalance(r),0);
   const overdueCount=unpaidCredit.filter(s=>s.due_date&&s.due_date<today).length;
-  const scopeBar=_activeBatchId
+  const openOrders=DB.getOrders().filter(isOrderOpen);
+  const openOrderCount=openOrders.length;
+  const depositsHeld=openOrders.reduce((sum,o)=>sum+orderDepositTotal(o.id),0);
+  const scopeBar=(FIN_TAB==='orders'||FIN_TAB==='customers')?'':_activeBatchId
     ?`<div class="fin-scope-bar">${showAll?'All Batches':'Batch: <b style="margin-left:4px">'+batch?.name+'</b>'}
         <button class="scope-toggle" onclick="_finAllBatches=!_finAllBatches;renderFinance()">${showAll?'Filter by Batch':'View All Batches'}</button>
       </div>`
@@ -2661,10 +4026,12 @@ function renderFinance(){
                   :partial
                     ?`<span class="badge badge-amber">Credit — Partial</span>`
                     :`<span class="badge badge-amber">Credit — Pending</span>`;
+            const custName=(s.customer_id?DB.getCustomer(s.customer_id)?.name:null)||s.buyer||'';
+            const fromOrder=s.order_id?DB.getOrder(s.order_id):null;
             return`<div class="list-item">
               <div style="flex:1">
                 <div style="font-weight:700;font-size:14px">${s.batch_name||'—'} — ${s.quantity} birds @ Wk ${s.age_weeks_at_sale||'—'}</div>
-                <div style="font-size:12px;color:var(--gray);margin-top:2px">${fmtDate(s.date)}${s.buyer?' · '+s.buyer:''}</div>
+                <div style="font-size:12px;color:var(--gray);margin-top:2px">${fmtDate(s.date)}${custName?' · '+custName:''}${fromOrder?` · <span class="badge badge-gray" style="font-size:10px">${fromOrder.ref||'from order'}</span>`:''}</div>
                 <div style="margin-top:4px">${payBadge}${isCredit&&s.due_date?`<span style="font-size:11px;color:var(--gray);margin-left:6px">Due ${fmtDate(s.due_date)}</span>`:''}</div>
                 ${partial?`<div style="font-size:11px;color:var(--p1);margin-top:3px">Paid ${fmtMoney(paid)} · Owing <b style="color:var(--amber)">${fmtMoney(bal)}</b></div>`:''}
                 ${s.notes?`<div style="font-size:12px;color:var(--gray);font-style:italic;margin-top:4px">"${s.notes}"</div>`:''}
@@ -2674,6 +4041,7 @@ function renderFinance(){
                 <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end;flex-wrap:wrap">
                   ${isCredit&&!fullyPaid?`<button class="btn btn-primary btn-sm" onclick="openPaymentForm('${s.id}')">+ Payment</button>`:''}
                   <button class="btn btn-secondary btn-sm" onclick="openSaleDoc('${s.id}')">${fullyPaid?'Receipt':'Invoice'}</button>
+                  ${s.batch_id?`<button class="btn btn-green btn-sm" onclick="openPassport('${s.id}')">Passport</button>`:''}
                   ${isLocked(s.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openSaleForm('${s.id}')">Edit</button>
                   <button class="btn btn-danger btn-sm" onclick="delSale('${s.id}')">✕</button>`}
                 </div>
@@ -2698,9 +4066,13 @@ function renderFinance(){
             const overdue=!fullyPaid&&s.due_date&&s.due_date<today;
             const statusCls=fullyPaid?'badge-green':overdue?'badge-red':'badge-amber';
             const statusTxt=fullyPaid?'Paid ✓':overdue?'Overdue':partial?'Partial':'Pending';
+            const cust=s.customer_id?DB.getCustomer(s.customer_id):null;
+            const custName=cust?.name||s.buyer||'Unknown buyer';
+            const custSub=cust?`${cust.customer_type||'—'}${cust.phone?' · ☎ '+cust.phone:''}`:'';
             return`<div class="list-item">
               <div style="flex:1">
-                <div style="font-weight:700;font-size:14px">${s.buyer||'Unknown buyer'}</div>
+                <div style="font-weight:700;font-size:14px">${custName}</div>
+                ${custSub?`<div style="font-size:11px;color:var(--gray);margin-top:1px">${custSub}</div>`:''}
                 <div style="font-size:12px;color:var(--gray)">${s.batch_name||'—'} · ${s.quantity} birds · ${fmtDate(s.date)}</div>
                 <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
                   <span class="badge ${statusCls}">${statusTxt}</span>
@@ -2719,6 +4091,12 @@ function renderFinance(){
               </div></div>`;
           }).join('')}
       </div>`;
+
+  } else if(FIN_TAB==='orders'){
+    tabContent=renderOrdersTab();
+
+  } else if(FIN_TAB==='customers'){
+    tabContent=renderCustomersTab();
 
   } else if(FIN_TAB==='pl'){
     const batches=DB.getBatches();
@@ -2767,10 +4145,15 @@ function renderFinance(){
       <div style="text-align:right"><div style="font-size:11px;color:var(--g1);font-weight:700;text-transform:uppercase">Cash Collected</div>
         <div style="font-size:20px;font-weight:800;color:var(--g2)">${fmtMoney(sales.reduce((s,e)=>s+getSalePaid(e),0))}</div></div>
     </div>
+    ${depositsHeld>0?`<div style="margin:0 16px 8px;background:var(--p5);border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--p1)">
+      <span>💰 Deposits held against open orders</span><b style="font-size:15px">${fmtMoney(depositsHeld)}</b>
+    </div>`:''}
     <div class="inner-tabs">
-      <button class="inner-tab ${FIN_TAB==='expenses'?'active':''}" onclick="FIN_TAB='expenses';renderFinance()">Expenses</button>
-      <button class="inner-tab ${FIN_TAB==='sales'?'active':''}" onclick="FIN_TAB='sales';renderFinance()">POL Sales</button>
+      <button class="inner-tab ${FIN_TAB==='orders'?'active':''}" onclick="FIN_TAB='orders';renderFinance()">Orders${openOrderCount>0?' ('+openOrderCount+')':''}</button>
+      <button class="inner-tab ${FIN_TAB==='sales'?'active':''}" onclick="FIN_TAB='sales';renderFinance()">Sales</button>
       <button class="inner-tab ${FIN_TAB==='recv'?'active':''}" onclick="FIN_TAB='recv';renderFinance()">Receivables${overdueCount>0?' 🔴':unpaidCredit.length>0?' ('+unpaidCredit.length+')':''}</button>
+      <button class="inner-tab ${FIN_TAB==='customers'?'active':''}" onclick="FIN_TAB='customers';renderFinance()">Customers</button>
+      <button class="inner-tab ${FIN_TAB==='expenses'?'active':''}" onclick="FIN_TAB='expenses';renderFinance()">Expenses</button>
       <button class="inner-tab ${FIN_TAB==='pl'?'active':''}" onclick="FIN_TAB='pl';renderFinance()">Batch P&L</button>
     </div>
     ${tabContent}
@@ -3002,28 +4385,52 @@ function closeSaleDoc(){
   document.body.style.overflow='';
 }
 
-function openSaleForm(editId){
+function openSaleForm(editId,prefill){
   const today=DB.today(), rec=editId?DB.getSales().find(s=>s.id===editId):null;
   const batches=DB.getBatches();
-  const isCredit=rec?.payment_type==='credit';
-  openModal(`<div class="modal-ttl">${rec?'Edit':'Record'} POL Sale <button class="modal-x" onclick="closeModal()">×</button></div>
+  // Fulfilling an order: the sale is already described, so it is filled in
+  // rather than retyped, and the deposits already taken are shown before
+  // anyone works out what is still to collect.
+  const order=prefill&&prefill.orderId?DB.getOrder(prefill.orderId):null;
+  window._sf_orderId=order?order.id:'';
+  const carried=order?orderDepositTotal(order.id):0;
+  const existingCustomer=rec?.customer_id?DB.getCustomer(rec.customer_id):null;
+  const custName=existingCustomer?.name||rec?.buyer||order?.customer_name||'';
+  const custId=existingCustomer?.id||order?.customer_id||'';
+  const batchId=rec?.batch_id||order?.batch_id||'';
+  const qty=rec?.quantity??order?.quantity??'';
+  const price=rec?.price_per_bird_ngn??order?.price_per_bird_ngn??'';
+  const age=rec?.age_weeks_at_sale??order?.age_weeks_at_delivery??'';
+  const total=(Number(qty)||0)*(Number(price)||0);
+  // A deposit that already covers the lot means this is a cash sale on the
+  // day, not a credit one — default to whichever the money says it is.
+  const isCredit=rec?rec.payment_type==='credit':(order?(total>0&&carried<total-0.5):false);
+  openModal(`<div class="modal-ttl">${rec?'Edit':'Record'} Sale <button class="modal-x" onclick="closeModal()">×</button></div>
+    ${order?`<div style="margin:-6px 0 12px;padding:10px 12px;background:var(--p5);border-left:3px solid var(--p2);border-radius:0 8px 8px 0;font-size:12px;color:var(--p1)">
+      📋 Fulfilling order <b>${order.ref||''}</b> — ${Number(order.quantity||0).toLocaleString()} birds${order.needed_from?` wanted ${fmtDate(order.needed_from)}`:''}.
+      ${carried>0?`<br><b>${fmtMoney(carried)}</b> already held as deposit; it carries over as the first payment on this sale.`:''}
+    </div>`:''}
     <div class="field"><label>Date of Sale</label><input type="date" id="sf_date" value="${rec?rec.date:today}" max="${today}"></div>
     <div class="field"><label>Batch</label>
-      <select id="sf_batch" onchange="updateSaleAge()">${batches.map(b=>`<option value="${b.id}" ${rec?.batch_id===b.id?'selected':''} >${b.name} (${b.breed})</option>`).join('')}</select></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="field"><label>Quantity Sold</label><input type="number" id="sf_qty" value="${rec?.quantity||''}" min="1" placeholder="e.g. 200" oninput="calcSaleTotal()"></div>
-      <div class="field"><label>Age at Sale (weeks)</label><input type="number" id="sf_age" value="${rec?.age_weeks_at_sale||''}" min="1" max="24" placeholder="e.g. 18"></div>
+      <select id="sf_batch" onchange="updateSaleAge()">${batches.map(b=>`<option value="${b.id}" ${batchId===b.id?'selected':''} >${b.name} (${b.breed})</option>`).join('')}</select></div>
+    <div class="field">
+      <label id="sf_cust_lbl">Buyer ${isCredit?'<span style="color:var(--red)">*</span>':'<span style="color:var(--gray);font-weight:400">— optional</span>'}</label>
+      <input type="hidden" id="sf_cust_id" value="${custId}">
+      <input type="text" id="sf_cust" value="${String(custName).replace(/"/g,'&quot;')}" placeholder="Start typing a name…" oninput="onSaleCustomerChange()" autocomplete="off">
+      <div id="sf_cust_panel"></div>
     </div>
-    <div class="field"><label>Price Per Bird (₦)</label><input type="number" id="sf_price" value="${rec?.price_per_bird_ngn||''}" min="0" step="100" placeholder="e.g. 2500" oninput="calcSaleTotal()"></div>
-    <div class="field"><label>Total Amount (₦)</label><input type="number" id="sf_total" value="${rec?.total_amount_ngn||''}" placeholder="Auto-calculated" style="background:#f5f5f5"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Quantity Sold</label><input type="number" id="sf_qty" value="${qty}" min="1" placeholder="e.g. 200" oninput="calcSaleTotal()"></div>
+      <div class="field"><label>Age at Sale (weeks)</label><input type="number" id="sf_age" value="${age}" min="1" max="24" placeholder="e.g. 18"></div>
+    </div>
+    <div class="field"><label>Price Per Bird (₦)</label><input type="number" id="sf_price" value="${price}" min="0" step="100" placeholder="e.g. 2500" oninput="calcSaleTotal()"></div>
+    <div class="field"><label>Total Amount (₦)</label><input type="number" id="sf_total" value="${rec?.total_amount_ngn||(total||'')}" placeholder="Auto-calculated" style="background:#f5f5f5" oninput="updateSaleMoneyHint()"></div>
     <div class="field"><label>Payment</label>
       <select id="sf_pay" onchange="toggleSalePayFields()">
         <option value="cash" ${!isCredit?'selected':''}>Cash — collected immediately</option>
         <option value="credit" ${isCredit?'selected':''}>Credit — buyer pays later</option>
       </select></div>
     <div id="sf_credit_fields" style="display:${isCredit?'block':'none'}">
-      <div class="field"><label>Buyer Name <span style="color:var(--red)">*</span> <span style="font-size:11px;color:var(--gray);font-weight:400">required for credit</span></label>
-        <input type="text" id="sf_buyer" value="${isCredit?rec?.buyer||'':'' }" placeholder="e.g. Alhaji Musa"></div>
       <div class="field"><label>Payment Due Date</label>
         <input type="date" id="sf_due" value="${rec?.due_date||''}" min="${today}"></div>
       ${editId?`
@@ -3037,25 +4444,101 @@ function openSaleForm(editId){
           <div style="font-size:11px;color:var(--gray);margin-top:6px">To log a new payment, use <b>+ Payment</b> on the sale.</div>
         </div>
       `:`
-        <div class="field"><label>Down payment (₦) <span style="font-size:11px;color:var(--gray);font-weight:400">optional</span></label>
-          <input type="number" id="sf_down" value="0" min="0" step="100" placeholder="0"></div>
+        <div class="field"><label>Paid now (₦) <span style="font-size:11px;color:var(--gray);font-weight:400">on top of any deposit</span></label>
+          <input type="number" id="sf_down" value="0" min="0" step="100" placeholder="0" oninput="updateSaleMoneyHint()"></div>
       `}
     </div>
-    <div id="sf_cash_fields" style="display:${!isCredit?'block':'none'}">
-      <div class="field"><label>Buyer Name <span style="color:var(--gray);font-weight:400">— optional</span></label>
-        <input type="text" id="sf_buyer_cash" value="${!isCredit?rec?.buyer||'':'' }" placeholder="Buyer name (optional for cash)"></div>
-    </div>
+    <div id="sf_money_hint" style="margin:-4px 0 12px;font-size:13px;color:var(--gray)"></div>
     <div class="field"><label>Sold by <span style="color:var(--gray);font-weight:400">— optional, shows on the receipt</span></label>
       <input type="text" id="sf_seller" value="${rec?.seller||(editId?'':localStorage.getItem(LAST_SELLER_KEY)||'')}" placeholder="Who handled this sale" autocomplete="off"></div>
-    <div class="field"><label>Notes</label><textarea id="sf_notes" placeholder="Optional">${rec?.notes||''}</textarea></div>
+    <div class="field"><label>Notes</label><textarea id="sf_notes" placeholder="Optional">${rec?.notes||order?.notes||''}</textarea></div>
     <button class="btn btn-primary" onclick="saveSale('${editId||''}')">Save Sale</button>`);
   updateSaleAge();
+  onSaleCustomerChange();
+  updateSaleMoneyHint();
+}
+function onSaleCustomerChange(){
+  const inputEl=document.getElementById('sf_cust');
+  const panelEl=document.getElementById('sf_cust_panel');
+  const idEl=document.getElementById('sf_cust_id');
+  if(!inputEl||!panelEl||!idEl)return;
+  const typed=inputEl.value;
+  if(!normalizeCustomerName(typed)){panelEl.innerHTML='';idEl.value='';return;}
+  const exact=findCustomerByName(typed);
+  if(exact){
+    idEl.value=exact.id;
+    const owing=getCustomerOutstanding(exact.id);
+    panelEl.innerHTML=`<div style="margin-top:8px;padding:10px;background:var(--p5);border-radius:8px;border-left:3px solid var(--p3)">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px">
+        <div><div style="font-weight:700;color:var(--p2)">✓ ${exact.name}</div>
+          <div style="color:var(--p1);margin-top:2px">${exact.customer_type||'—'}${exact.phone?' · ☎ '+exact.phone:''} · ${getCustomerBirds(exact.id).toLocaleString()} birds to date</div></div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--gray)">Currently owes</div>
+          <div style="font-weight:800;color:${owing>0?'var(--amber)':'var(--g3)'}">${fmtMoney(owing)}</div></div>
+      </div></div>`;
+    return;
+  }
+  idEl.value='';
+  const fuzzy=fuzzyCustomerMatches(typed);
+  let html='';
+  if(fuzzy.length){
+    html+=`<div style="margin-top:8px;padding:10px;background:var(--p5);border-radius:8px;border-left:3px solid var(--amber)">
+      <div style="font-size:12px;color:var(--p1);font-weight:600;margin-bottom:6px">Did you mean?</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+      ${fuzzy.map(c=>`<button type="button" class="btn btn-secondary btn-sm" onclick="pickSaleCustomer('${c.id}')">${c.name}${c.customer_type?' · '+c.customer_type:''}</button>`).join('')}
+      </div></div>`;
+  }
+  html+=`<div style="margin-top:8px;padding:10px;border:1px dashed var(--p3);border-radius:8px">
+    <div style="font-size:12px;color:var(--p1);font-weight:600;margin-bottom:6px">+ New customer: "${typed.trim().replace(/</g,'&lt;')}"</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input type="tel" id="sf_new_phone" placeholder="Phone (optional)" autocomplete="off" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px">
+      <select id="sf_new_type" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px">
+        ${CUSTOMER_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('')}
+      </select>
+    </div>
+    <div style="font-size:11px;color:var(--gray);margin-top:6px">The customer record is created when you save.</div>
+  </div>`;
+  panelEl.innerHTML=html;
+}
+function pickSaleCustomer(id){
+  const c=DB.getCustomer(id);
+  if(!c)return;
+  document.getElementById('sf_cust').value=c.name;
+  document.getElementById('sf_cust_id').value=c.id;
+  onSaleCustomerChange();
 }
 function toggleSalePayFields(){
   const isCredit=document.getElementById('sf_pay')?.value==='credit';
-  const cf=document.getElementById('sf_credit_fields'), ca=document.getElementById('sf_cash_fields');
+  const cf=document.getElementById('sf_credit_fields');
+  const lbl=document.getElementById('sf_cust_lbl');
   if(cf)cf.style.display=isCredit?'block':'none';
-  if(ca)ca.style.display=isCredit?'none':'block';
+  if(lbl)lbl.innerHTML='Buyer '+(isCredit
+    ?'<span style="color:var(--red)">*</span>'
+    :'<span style="color:var(--gray);font-weight:400">— optional</span>');
+  updateSaleMoneyHint();
+}
+// One line saying what is actually being collected, deposit included, so the
+// figure on screen is the figure to ask the buyer for.
+function updateSaleMoneyHint(){
+  const hint=document.getElementById('sf_money_hint'); if(!hint)return;
+  const total=parseFloat(document.getElementById('sf_total')?.value)||0;
+  const orderId=window._sf_orderId||'';
+  const carried=orderId?orderDepositTotal(orderId):0;
+  if(total<=0){hint.innerHTML='';return;}
+  const isCredit=document.getElementById('sf_pay')?.value==='credit';
+  if(!isCredit){
+    hint.innerHTML=carried>0
+      ?`Deposit <b>${fmtMoney(carried)}</b> · collect <b>${fmtMoney(Math.max(0,total-carried))}</b> now.`
+      :`Collecting <b>${fmtMoney(total)}</b> now.`;
+    return;
+  }
+  const down=parseFloat(document.getElementById('sf_down')?.value)||0;
+  const bal=total-carried-down;
+  if(bal<=0.5){
+    hint.innerHTML=`<span style="color:var(--amber)">Deposit and payment cover the total — record it as Cash instead.</span>`;
+  } else {
+    hint.innerHTML=`${carried>0?`Deposit <b>${fmtMoney(carried)}</b>${down>0?` + <b>${fmtMoney(down)}</b> now`:''} · `:down>0?`Paid <b>${fmtMoney(down)}</b> · `:''}Balance <b style="color:var(--amber)">${fmtMoney(bal)}</b> on credit.`;
+  }
 }
 function updateSaleAge(){
   const batchId=document.getElementById('sf_batch')?.value;
@@ -3071,59 +4554,79 @@ function calcSaleTotal(){
 function saveSale(editId){
   const payType=document.getElementById('sf_pay').value;
   const isCredit=payType==='credit';
-  const buyer=isCredit
-    ?(document.getElementById('sf_buyer')?.value.trim()||''  )
-    :(document.getElementById('sf_buyer_cash')?.value.trim()||''  );
-  if(isCredit&&!buyer){toast('Enter buyer name for credit sale');return;}
+  const typed=(document.getElementById('sf_cust')?.value||'').trim();
+  if(isCredit&&!typed){toast('Enter the buyer name for a credit sale');return;}
   const batchId=document.getElementById('sf_batch').value;
   const batch=DB.getBatches().find(b=>b.id===batchId);
   const qty=parseInt(document.getElementById('sf_qty').value,10)||0;
   if(!Number.isInteger(qty)||qty<1){toast('Quantity must be a whole number of birds');return;}
   const price=parseFloat(document.getElementById('sf_price').value)||0;
   const existingRec=editId?DB.getSales().find(s=>s.id===editId):null;
+  const total=parseFloat(document.getElementById('sf_total').value)||(qty*price);
+  const orderId=editId?(existingRec?.order_id||''):(window._sf_orderId||'');
+  const order=orderId?DB.getOrder(orderId):null;
+  // Deposits already taken against the order count as money in. They are
+  // re-pointed at this sale below rather than re-entered, so what is paid is
+  // the deposit plus whatever is handed over today.
+  const carried=(order&&!editId)?orderDepositTotal(orderId):0;
+  let customerId=document.getElementById('sf_cust_id')?.value||'';
+  if(typed&&!customerId)customerId=resolveCustomerFromInput(typed,'sf_new_phone','sf_new_type');
+  const cust=customerId?DB.getCustomer(customerId):null;
+  let downPayment=0;
+  if(!editId&&isCredit){
+    downPayment=parseFloat(document.getElementById('sf_down')?.value)||0;
+    if(downPayment<0){toast('Amount paid cannot be negative');return;}
+    if(carried+downPayment>=total-0.5){toast('Deposit and payment cover the total — record it as Cash');return;}
+  }
   const rec={id:editId||uid(),date:document.getElementById('sf_date').value,
-    batch_id:batchId,batch_name:batch?.name||''  ,breed:batch?.breed||''  ,
+    batch_id:batchId,batch_name:batch?.name||'',breed:batch?.breed||'',
     quantity:qty,age_weeks_at_sale:parseInt(document.getElementById('sf_age').value)||null,
     price_per_bird_ngn:price,
-    total_amount_ngn:parseFloat(document.getElementById('sf_total').value)||(qty*price),
+    total_amount_ngn:total,
     payment_type:payType,
     paid:isCredit?(existingRec?.paid||false):true,
     due_date:isCredit?(document.getElementById('sf_due')?.value||null):null,
-    buyer, seller:(document.getElementById('sf_seller')?.value||'').trim(),
+    customer_id:customerId||null,
+    // `buyer` is kept in step with the customer record: the receipt prints it,
+    // and every sale made before customers existed has only this.
+    buyer:cust?.name||typed,
+    order_id:orderId||null,
+    seller:(document.getElementById('sf_seller')?.value||'').trim(),
     notes:document.getElementById('sf_notes').value.trim()};
   if(rec.seller)localStorage.setItem(LAST_SELLER_KEY,rec.seller);
   // Carry the reference forward on edit — a document already given to a buyer
   // keeps its number even if the sale's date or amount is corrected afterwards.
   rec.doc_ref=existingRec?.doc_ref||nextDocRef(rec);
   rec.doc_issued_at=existingRec?.doc_issued_at||rec.date;
-  const total=rec.total_amount_ngn;
-  // A down payment on a credit sale is just the first payment record. Cash
-  // sales get one covering the full amount, so money received always traces
-  // back to a payment rather than to a boolean.
-  const downPayment=isCredit&&!editId
-    ?Math.min(total,Math.max(0,parseFloat(document.getElementById('sf_down')?.value)||0))
-    :0;
-  if(isCredit&&!editId&&downPayment>=total-0.5)rec.paid=true;
+  if(isCredit&&!editId&&carried+downPayment>=total-0.5)rec.paid=true;
   if(editId){
     DB.updSale(editId,rec);
   } else {
     DB.addSale(rec);
+    // Re-point the deposits first, so the payment written below is sized
+    // against what is genuinely still outstanding.
+    if(order){
+      orderDeposits(orderId).forEach(p=>DB.updPayment(p.id,{sale_id:rec.id}));
+      DB.updOrder(orderId,{status:'fulfilled',sale_id:rec.id,
+        batch_id:order.batch_id||batchId||null});
+    }
     if(!isCredit){
-      DB.addPayment({id:uid(),sale_id:rec.id,date:rec.date,amount_ngn:total,
-        method:'Cash',kind:'sale_payment',notes:'Full payment at sale'});
+      const due=Math.max(0,total-carried);
+      if(due>0.5)DB.addPayment({id:uid(),sale_id:rec.id,date:rec.date,amount_ngn:due,
+        method:'Cash',kind:'sale_payment',notes:carried>0?'Balance at collection':'Full payment at sale'});
     } else if(downPayment>0){
       DB.addPayment({id:uid(),sale_id:rec.id,date:rec.date,amount_ngn:downPayment,
-        method:'Cash',kind:'down_payment',notes:'Down payment'});
+        method:'Cash',kind:'down_payment',notes:'Paid at collection'});
     }
   }
   if(batchId&&batch)syncBatchSoldStatus(batchId);
+  window._sf_orderId='';
   closeModal();
+  const owing=Math.max(0,total-carried-downPayment);
   confirmSave(isCredit
-    ?(downPayment>0
-        ?`Credit sale recorded — ${fmtMoney(Math.max(0,total-downPayment))} owing`
-        :'Credit sale recorded — see Receivables')
-    :'Cash sale recorded');
-  renderFinance();
+    ?`${order?'Order fulfilled — ':''}${fmtMoney(owing)} owing`
+    :`${order?'Order fulfilled — ':''}Cash sale recorded`);
+  renderFinance();renderHome();
 }
 // Replaces the old all-or-nothing "Paid ✓". A bird sale is large enough that
 // part payment is the norm, so every payment is logged individually and the
@@ -3210,6 +4713,460 @@ function delSale(id){openModal(`<div class="modal-ttl">Delete? <button class="mo
     <button class="btn btn-danger" onclick="closeModal();DB.paymentsForSale('${id}').forEach(p=>DB.delPayment(p.id));DB.delSale('${id}');confirmSave('Deleted');renderFinance()">Delete</button>
     <button class="btn btn-secondary" onclick="closeModal()">Cancel</button></div>`);}
 
+// ═══════════════════════════════════════════════
+// VACCINATION & MEDICATION RECORD
+// A batch's health history as a document a buyer can be handed. Point-of-lay
+// pullets are worth what their programme says they are worth, and a photo of
+// the app screen is not evidence — this prints the same rows the Batches tab
+// shows, on the same letterhead as the receipt.
+// Two sections, because they mean different things to whoever reads it: what
+// this farm actually gave, and what is still outstanding and becomes the
+// buyer's to continue after handover.
+// Shares #rd-overlay with the sale receipt, so only one document is ever
+// mounted and closeSaleDoc() closes either.
+// ═══════════════════════════════════════════════
+// Stable for the life of the batch: derived from the batch id and its arrival
+// date, never from today, so two copies printed months apart carry the same
+// number and a buyer can quote it back.
+function vaccDocRef(batch){
+  const d=String(batch.arrival_date||DB.today()).replace(/-/g,'').slice(2);
+  return `${DOC_REF_PREFIX}V-${d}-${_docRefHash(batch.id,'vax')}`;
+}
+
+function vaccDocRow(v,given){
+  const wk=Math.max(1,Math.ceil(v.dayMin/7));
+  let when;
+  if(v.hatchery)           when=`<span class="vx-soft">At hatchery</span>`;
+  else if(given&&v.givenDate) when=fmtDate(v.givenDate);
+  // Ticked before the app started stamping dates. Print the programme date
+  // rather than invent one, and say so in the footnote.
+  else if(given)           when=`<span class="vx-soft">${fmtDate(v.dueDate)}<sup>&dagger;</sup></span>`;
+  else if(v.optional)      when=`<span class="vx-soft">If needed</span>`;
+  else                     when=`<span class="vx-soft">${fmtDate(v.dueDate)}</span>`;
+  return `<div class="vx-row">
+    <div class="vx-tick">${given?'&#10003;':''}</div>
+    <div><div class="vx-day rd-m">Day ${v.dayMin}</div><div class="vx-wk">wk ${wk}</div></div>
+    <div>
+      <div class="vx-name">${rdEsc(v.name)}</div>
+      <div class="vx-route">${rdEsc(v.route)}</div>
+      ${!given&&v.why?`<div class="vx-why">${rdEsc(v.why)}</div>`:''}
+    </div>
+    <div class="vx-when rd-m">${when}</div>
+  </div>`;
+}
+
+function buildVaccDocHTML(batch){
+  const b=getDocBusiness();
+  const rows=getBatchVaccStatus(batch);
+  // A hatchery row counts as given: the bird has had it, just not here.
+  const given=rows.filter(v=>v.done||v.hatchery);
+  // Outstanding and conditional are kept apart on purpose. A conditional row
+  // is one the programme says to give only on evidence — printing it under
+  // "still to come" reads as a gap in the flock's cover when it is the
+  // opposite, a treatment deliberately not given to a healthy bird.
+  const todo=rows.filter(v=>!v.done&&!v.hatchery&&!v.optional);
+  const conditional=rows.filter(v=>!v.done&&!v.hatchery&&v.optional);
+  // Same reason for the headline: score against the required programme, or a
+  // flock that had everything it needed still reads as short.
+  const required=rows.filter(v=>!v.optional);
+  const requiredGiven=required.filter(v=>v.done||v.hatchery);
+  const estimated=given.some(v=>!v.hatchery&&!v.givenDate);
+  const ageDays=batchAgeInDays(batch), ageWeeks=batchAgeInWeeks(batch);
+  const birds=getBatchBirdCount(batch);
+
+  const sellerMeta=[
+    b.address&&rdEsc(b.address),
+    [b.phone&&rdEsc(b.phone),b.email&&rdEsc(b.email)].filter(Boolean).join(' · '),
+    b.rc&&('RC '+rdEsc(b.rc.replace(/^RC\s*/i,'')))
+  ].filter(Boolean).join('<br>');
+
+  return `
+  <div class="rd rd-vax">
+    <div class="rd-band"></div>
+    <div class="rd-pad">
+      <div class="rd-seller">${rdEsc(b.name)}</div>
+      ${sellerMeta?`<div class="rd-seller-meta">${sellerMeta}</div>`:''}
+    </div>
+    <div class="rd-rule"></div>
+    <div class="rd-id">
+      <div class="rd-type">VACCINATION &amp;<br>MEDICATION RECORD</div>
+      <div class="rd-ref rd-m">
+        <div class="rd-ref-no">${rdEsc(vaccDocRef(batch))}</div>
+        <div class="rd-ref-date">Issued ${fmtDate(DB.today())}</div>
+      </div>
+    </div>
+    <div class="rd-rule"></div>
+    <div class="rd-fields rd-m">
+      <div class="rd-row"><div class="rd-lbl">Batch</div><div class="rd-val">${rdEsc(batch.name)}</div></div>
+      ${batch.breed?`<div class="rd-row"><div class="rd-lbl">Breed</div><div class="rd-val">${rdEsc(batch.breed)}</div></div>`:''}
+      <div class="rd-row"><div class="rd-lbl">Bird type</div><div class="rd-val">${rdEsc(getBirdTypeLabel(getBirdType(batch)))}</div></div>
+      ${batch.arrival_date?`<div class="rd-row"><div class="rd-lbl">Arrived</div><div class="rd-val">${fmtDate(batch.arrival_date)}</div></div>`:''}
+      ${ageDays!==null?`<div class="rd-row"><div class="rd-lbl">Age today</div><div class="rd-val">${ageWeeks} week${ageWeeks===1?'':'s'} · ${ageDays} day${ageDays===1?'':'s'}</div></div>`:''}
+      <div class="rd-row"><div class="rd-lbl">Birds</div><div class="rd-val">${Number(birds||0).toLocaleString('en-NG')} in batch</div></div>
+    </div>
+
+    <div class="rd-hero" style="padding-top:13px;padding-bottom:13px">
+      <div class="rd-lbl">Required programme</div>
+      <div class="rd-qty">
+        <span class="rd-count" style="font-size:26px">${requiredGiven.length}</span>
+        <span class="rd-unit">of ${required.length} required treatments given</span>
+      </div>
+    </div>
+
+    <div class="vx-sec">
+      <div class="rd-lbl">Given on this farm</div>
+      <div class="vx-count">${given.length} ITEM${given.length===1?'':'S'}</div>
+    </div>
+    <div class="vx-list">
+      ${given.length?given.map(v=>vaccDocRow(v,true)).join('')
+        :'<div class="vx-route" style="padding:6px 0">Nothing recorded against this batch yet.</div>'}
+    </div>
+
+    ${todo.length?`
+      <div class="rd-rule"></div>
+      <div class="vx-sec">
+        <div class="rd-lbl">Still to come</div>
+        <div class="vx-count">${todo.length} ITEM${todo.length===1?'':'S'}</div>
+      </div>
+      <div class="vx-note">Not yet given. After handover these fall to the buyer —
+        the dates shown are counted from this batch's arrival date.</div>
+      <div class="vx-list">${todo.map(v=>vaccDocRow(v,false)).join('')}</div>
+    `:''}
+
+    ${conditional.length?`
+      <div class="rd-rule"></div>
+      <div class="vx-sec">
+        <div class="rd-lbl">Conditional — not routinely given</div>
+        <div class="vx-count">${conditional.length} ITEM${conditional.length===1?'':'S'}</div>
+      </div>
+      <div class="vx-note">The programme calls for these only on evidence, so a healthy
+        flock is not expected to have had them.</div>
+      <div class="vx-list">${conditional.map(v=>vaccDocRow(v,false)).join('')}</div>
+    `:''}
+
+    <div class="vx-foot">
+      ${rdEsc(VACC_NOTE)}
+      ${estimated?`<br><sup>&dagger;</sup> Recorded as given, but the exact day was not
+        logged — the programme date is shown.`:''}
+    </div>
+    <div class="rd-issuer">
+      <div><div class="rd-lbl">Issued by</div><div class="rd-issuer-name">${rdEsc(b.name)}</div></div>
+      <div class="rd-issuer-src rd-m">via BroodTrack</div>
+    </div>
+  </div>`;
+}
+
+function openVaccDoc(batchId){
+  const batch=DB.getBatches().find(b=>b.id===batchId);
+  if(!batch){toast('Batch not found');return;}
+  // Same reasoning as the receipt: a document with blank spaces where the
+  // farm's address should be is worse than no document.
+  if(!isDocSetupComplete()){
+    openModal(`<div class="modal-ttl">Finish your document details
+        <button class="modal-x" onclick="closeModal()">×</button></div>
+      <p style="font-size:14px;color:var(--gray);line-height:1.6;margin-bottom:14px">
+        A health record goes out on your letterhead, so it needs at least your
+        farm address and phone number.
+      </p>
+      <button class="btn btn-primary" onclick="closeModal();go('settings')">Open Settings</button>`);
+    return;
+  }
+  let ov=document.getElementById('rd-overlay');
+  if(!ov){
+    ov=document.createElement('div');
+    ov.id='rd-overlay';ov.className='rd-ov';
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML=`
+    <div class="rd-bar">
+      <button class="rd-bar-btn" onclick="closeSaleDoc()">Close</button>
+      <span class="rd-bar-ttl">Health Record</span>
+      <button class="rd-bar-btn primary" onclick="window.print()">Print / PDF</button>
+    </div>
+    <div class="rd-scroll">${buildVaccDocHTML(batch)}</div>`;
+  ov.style.display='flex';
+  document.body.style.overflow='hidden';
+}
+
+// ═══════════════════════════════════════════════
+// PULLET PASSPORT
+// ═══════════════════════════════════════════════
+// The receipt says what was paid. The health record says what was given. The
+// passport says what the buyer is actually getting: a lot of birds of a known
+// weight, a known spread, a known survival rate, reared under a known
+// programme — and it puts all of it on one sheet, over the farm's name.
+//
+// This is the document the business is differentiated by. Almost nobody in
+// this market can hand a buyer evidence rather than assurance, and every
+// figure on it is already being recorded for other reasons.
+//
+// Everything is derived from the batch as it stood on the day of the sale, not
+// as it stands today, so a passport reprinted a year later still describes the
+// birds that were handed over.
+const PASSPORT_REF_PREFIX='BTP';
+function passportRef(sale){
+  const d=String(sale.date||DB.today()).replace(/-/g,'').slice(2);
+  return `${PASSPORT_REF_PREFIX}-${d}-${_docRefHash(sale.id,'pass')}`;
+}
+// Deaths are cumulative, so livability has to be read at the sale date rather
+// than taken from today's bird count — a batch that lost birds after this lot
+// went out did not lose them on this buyer's behalf.
+function batchLivabilityAt(batch,onDate){
+  if(!batch||!(batch.doc_count>0))return null;
+  const deaths=DB.getDaily()
+    .filter(r=>r.batch_id===batch.id&&(!onDate||String(r.date)<=onDate))
+    .reduce((s,r)=>s+(r.deaths||0),0);
+  return Math.max(0,Math.min(100,(batch.doc_count-deaths)/batch.doc_count*100));
+}
+// Share of logged brooding days that sat inside the target band for the bird's
+// age. Only days with both a reading and a target are counted, so a flock past
+// the brooding window is not marked down for days that had no target.
+function batchTempComplianceAt(batch,onDate){
+  if(!batch)return null;
+  const bt=getBirdType(batch);
+  const rows=DB.getDaily().filter(r=>r.batch_id===batch.id
+    &&(!onDate||String(r.date)<=onDate)
+    &&r.temperature_c&&getTempTarget(r.age_days,bt));
+  if(rows.length===0)return null;
+  const ok=rows.filter(r=>{
+    const t=getTempTarget(r.age_days,bt);
+    return t&&r.temperature_c>=t.min&&r.temperature_c<=t.max;
+  }).length;
+  return {pct:Math.round(ok/rows.length*100),inBand:ok,days:rows.length};
+}
+// The weighing that best describes what went out: the last one on or before
+// the sale. Falling back to the most recent would describe birds the buyer
+// never saw.
+function weightRecordForSale(batch,sale){
+  if(!batch)return null;
+  const rows=DB.getWeight().filter(r=>r.batch_id===batch.id).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  if(rows.length===0)return null;
+  const upto=rows.filter(r=>String(r.date)<=String(sale.date));
+  return (upto.length?upto[upto.length-1]:rows[0]);
+}
+
+function buildPassportHTML(sale){
+  const b=getDocBusiness();
+  const batch=DB.getBatches().find(x=>x.id===sale.batch_id)||null;
+  const ref=passportRef(sale);
+  const qty=Number(sale.quantity||0);
+  const wks=Number(sale.age_weeks_at_sale);
+  const breed=(sale.breed||batch?.breed||'').trim();
+  const cust=sale.customer_id?DB.getCustomer(sale.customer_id):null;
+  const buyer=cust?.name||sale.buyer||'';
+
+  const w=weightRecordForSale(batch,sale);
+  const bench=w?(w.benchmark_g||getWeightBenchmark(breed||batch?.breed,w.week_num)):null;
+  const pctOfTarget=(w&&bench)?Math.round(w.avg_weight_g/bench*100):null;
+  const live=batchLivabilityAt(batch,sale.date);
+  const temp=batchTempComplianceAt(batch,sale.date);
+
+  const vacc=batch?getBatchVaccStatus(batch):[];
+  const required=vacc.filter(v=>!v.optional);
+  const requiredGiven=required.filter(v=>v.done||v.hatchery);
+  const given=vacc.filter(v=>v.done||v.hatchery);
+  const todo=vacc.filter(v=>!v.done&&!v.hatchery&&!v.optional);
+
+  const sellerMeta=[
+    b.address&&rdEsc(b.address),
+    [b.phone&&rdEsc(b.phone),b.email&&rdEsc(b.email)].filter(Boolean).join(' · '),
+    b.rc&&('RC '+rdEsc(b.rc.replace(/^RC\s*/i,'')))
+  ].filter(Boolean).join('<br>');
+
+  // Each cell says what it is and how it compares, because a bare number on a
+  // certificate invites the reader to assume the worst reading of it.
+  const cell=(val,lbl,sub,colour)=>`<div class="pp-cell">
+    <div class="pp-val" ${colour?`style="color:${colour}"`:''}>${val}</div>
+    <div class="pp-lbl">${lbl}</div>
+    ${sub?`<div class="pp-sub">${sub}</div>`:''}
+  </div>`;
+
+  // A weighing taken weeks before the birds went out still describes them,
+  // but only if the sheet says when it was taken. Printing "552g" beside "18
+  // weeks at dispatch" when the scale last came out in week 7 is the kind of
+  // overstatement that makes a buyer distrust the whole document.
+  const weighDaysBefore=w?daysBetween(w.date,sale.date):null;
+  const weighStale=weighDaysBefore!=null&&weighDaysBefore>14;
+  const weighWhen=w
+    ? (weighDaysBefore<=0?'weighed on the day'
+       :weighDaysBefore<14?`weighed ${weighDaysBefore} day${weighDaysBefore===1?'':'s'} before dispatch`
+       :`weighed at week ${w.week_num}, ${Math.round(weighDaysBefore/7)} weeks before dispatch`)
+    : '';
+  const weightCell=w
+    ? cell(`${w.avg_weight_g}<span class="pp-u">g</span>`,'Mean body weight',
+        (bench?`${pctOfTarget}% of ${breed||'breed'} standard for week ${w.week_num} (${bench}g)`
+              :`At week ${w.week_num}`)+`<br>${weighWhen}`,
+        pctOfTarget==null?null:pctOfTarget>=95?'#1b7a4b':pctOfTarget>=85?'#8a5c00':'#b3261e')
+    : cell('—','Mean body weight','Not recorded before dispatch');
+
+  const unifCell=(w&&w.uniformity_pct!=null)
+    ? cell(`${w.uniformity_pct}<span class="pp-u">%</span>`,'Uniformity',
+        `Birds within ±10% of the mean · ${w.sample_size} weighed${w.cv_pct!=null?` · CV ${w.cv_pct}%`:''}`
+        +(weighStale?`<br>${weighWhen}`:''),
+        w.uniformity_pct>=UNIF_GOOD?'#1b7a4b':w.uniformity_pct>=UNIF_OK?'#8a5c00':'#b3261e')
+    : cell('—','Uniformity','Birds were not individually weighed');
+
+  const liveCell=live!=null
+    ? cell(`${live.toFixed(1)}<span class="pp-u">%</span>`,'Livability to dispatch',
+        `${Number(batch.doc_count||0).toLocaleString('en-NG')} day-olds set on ${fmtDate(batch.arrival_date)}`,
+        live>=95?'#1b7a4b':live>=90?'#8a5c00':'#b3261e')
+    : cell('—','Livability to dispatch','');
+
+  const tempCell=temp
+    ? cell(`${temp.pct}<span class="pp-u">%</span>`,'Brooding temperature held',
+        `${temp.inBand} of ${temp.days} logged day${temp.days===1?'':'s'} inside the target band for age`,
+        temp.pct>=90?'#1b7a4b':temp.pct>=75?'#8a5c00':'#b3261e')
+    : cell('—','Brooding temperature held','No readings logged');
+
+  // The axis is pinned to ±25% of the mean, not to the sample, so the ±10%
+  // band lands in the same place on every passport and the bar's width is the
+  // spread itself. Scaling to the sample instead made every lot fill the
+  // track, which drew a tight flock and a ragged one identically.
+  const AXIS=0.25;
+  const rangeLine=(w&&w.min_weight_g&&w.max_weight_g&&w.avg_weight_g>0)
+    ? (()=>{
+        const mean=w.avg_weight_g;
+        // Position as a share of the mean, clamped to the axis. A bird beyond
+        // ±25% pins to the end and the caption says the bar was cut off, so a
+        // clamp can never be read as a tighter flock than it was.
+        const pos=v=>Math.max(0,Math.min(100,((v/mean-(1-AXIS))/(2*AXIS))*100));
+        const loPct=pos(w.min_weight_g), hiPct=pos(w.max_weight_g);
+        const bandLo=pos(mean*(1-UNIFORMITY_BAND)), bandHi=pos(mean*(1+UNIFORMITY_BAND));
+        const clipped=w.min_weight_g<mean*(1-AXIS)||w.max_weight_g>mean*(1+AXIS);
+        // Lightest and heaviest are two birds; they can look the same on two
+        // flocks that are nothing alike. The solid core is mean ±1 sd — where
+        // roughly two-thirds of the birds actually sit — and that is what
+        // separates a tight sample from a ragged one at a glance.
+        const sd=Number(w.sd_g)||0;
+        const core=sd>0
+          ?`<div class="pp-core" style="left:${pos(mean-sd).toFixed(1)}%;width:${Math.max(0.6,pos(mean+sd)-pos(mean-sd)).toFixed(1)}%"></div>`
+          :'';
+        return `<div class="pp-range">
+         <div class="rd-lbl">Spread of the weighed sample</div>
+         <div class="pp-range-row">
+           <span class="pp-axis-end rd-m">−25%</span>
+           <div class="pp-bar">
+             <div class="pp-band" style="left:${bandLo.toFixed(1)}%;width:${(bandHi-bandLo).toFixed(1)}%"></div>
+             <div class="pp-bar-fill" style="left:${loPct.toFixed(1)}%;width:${Math.max(0.6,hiPct-loPct).toFixed(1)}%"></div>
+             ${core}
+             <div class="pp-mean" style="left:${pos(mean).toFixed(1)}%"></div>
+           </div>
+           <span class="pp-axis-end rd-m">+25%</span>
+         </div>
+         <div class="pp-sub" style="text-align:center">lightest <b>${w.min_weight_g}g</b> &nbsp;·&nbsp; mean <b>${mean}g</b>${w.sd_g?` · sd ${w.sd_g}g`:''} &nbsp;·&nbsp; heaviest <b>${w.max_weight_g}g</b><br>
+           pale bar lightest to heaviest${sd>0?', solid core is where two thirds of the birds sit (±1 sd)':''}, dashed outline is ±10% of the mean${clipped?' · bar cut off at the axis':''}</div>
+       </div>`;
+      })()
+    : '';
+
+  const feedLine=batch
+    ? getBroodFeedProgramme(getBirdType(batch))
+        .filter(p=>p.type)
+        .map(p=>`<span class="pp-chip">${rdEsc(p.type)} <em>${p.maxDay>=999?'to sale':'to d'+p.maxDay}</em></span>`)
+        .join('')
+    : '';
+
+  return `
+  <div class="rd rd-pass">
+    <div class="rd-band"></div>
+    <div class="rd-pad">
+      <div class="rd-seller">${rdEsc(b.name)}</div>
+      ${sellerMeta?`<div class="rd-seller-meta">${sellerMeta}</div>`:''}
+    </div>
+    <div class="rd-rule"></div>
+    <div class="rd-id">
+      <div class="rd-type">PULLET<br>PASSPORT</div>
+      <div class="rd-ref rd-m">
+        <div class="rd-ref-no">${rdEsc(ref)}</div>
+        <div class="rd-ref-date">Issued ${fmtDate(DB.today())}</div>
+      </div>
+    </div>
+    <div class="rd-rule"></div>
+    ${buyer?`<div class="rd-party">
+      <div class="rd-lbl">Supplied to</div>
+      <div class="rd-party-name">${rdEsc(buyer)}</div>
+    </div>`:''}
+    <div class="rd-fields rd-m">
+      ${batch?`<div class="rd-row"><div class="rd-lbl">Lot</div><div class="rd-val">${rdEsc(batch.name)}</div></div>`:''}
+      ${breed?`<div class="rd-row"><div class="rd-lbl">Breed</div><div class="rd-val">${rdEsc(breed)}</div></div>`:''}
+      ${batch?.arrival_date?`<div class="rd-row"><div class="rd-lbl">Hatched / set</div><div class="rd-val">${fmtDate(batch.arrival_date)}</div></div>`:''}
+      ${batch?.supplier?`<div class="rd-row"><div class="rd-lbl">Hatchery</div><div class="rd-val">${rdEsc(batch.supplier)}</div></div>`:''}
+      ${Number.isFinite(wks)?`<div class="rd-row"><div class="rd-lbl">Age at dispatch</div><div class="rd-val">${wks} week${wks===1?'':'s'}</div></div>`:''}
+      <div class="rd-row"><div class="rd-lbl">Dispatched</div><div class="rd-val">${fmtDate(sale.date)}</div></div>
+      ${sale.doc_ref?`<div class="rd-row"><div class="rd-lbl">Invoice</div><div class="rd-val">${rdEsc(sale.doc_ref)}</div></div>`:''}
+    </div>
+    <div class="rd-hero">
+      <div class="rd-lbl">Birds supplied</div>
+      <div class="rd-qty">
+        <span class="rd-count">${qty.toLocaleString('en-NG')}</span>
+        <span class="rd-unit">${rdEsc(getDocUnitLabel(sale))}</span>
+      </div>
+    </div>
+
+    <div class="vx-sec"><div class="rd-lbl">Condition at dispatch</div></div>
+    <div class="pp-grid">${weightCell}${unifCell}${liveCell}${tempCell}</div>
+    ${rangeLine}
+
+    <div class="rd-rule"></div>
+    <div class="vx-sec">
+      <div class="rd-lbl">Health programme</div>
+      <div class="vx-count">${requiredGiven.length} OF ${required.length} REQUIRED</div>
+    </div>
+    ${given.length?`<div class="pp-chips">
+      ${given.map(v=>`<span class="pp-chip">✓ ${rdEsc(v.name)}</span>`).join('')}
+    </div>`:'<div class="vx-note">Nothing recorded against this lot.</div>'}
+    ${todo.length?`<div class="vx-note" style="padding-top:6px">
+      <b>Still to come — the buyer's to continue:</b> ${todo.map(v=>`${rdEsc(v.name)} (day ${v.dayMin})`).join(', ')}.
+      Days are counted from ${batch?.arrival_date?fmtDate(batch.arrival_date):'the set date'}.
+    </div>`:'<div class="vx-note" style="padding-top:6px">The full programme for this age has been completed on this farm.</div>'}
+    ${feedLine?`
+      <div class="rd-rule"></div>
+      <div class="vx-sec"><div class="rd-lbl">Reared on</div></div>
+      <div class="pp-chips">${feedLine}</div>`:''}
+
+    <div class="rd-terms">
+      <div class="rd-lbl">Terms</div>
+      <div class="rd-terms-body">${rdEsc(getDocTerms(sale))}</div>
+    </div>
+    <div class="vx-foot">
+      Every figure on this sheet is taken from the daily records kept for this lot
+      and is stated as at the date of dispatch. ${rdEsc(VACC_NOTE)}
+    </div>
+    <div class="rd-issuer">
+      <div><div class="rd-lbl">Issued by</div><div class="rd-issuer-name">${rdEsc(sale.seller||b.name)}</div></div>
+      <div class="rd-issuer-src rd-m">via BroodTrack</div>
+    </div>
+  </div>`;
+}
+
+function openPassport(saleId){
+  const sale=DB.getSales().find(s=>s.id===saleId);
+  if(!sale){toast('Sale not found');return;}
+  if(!isDocSetupComplete()){
+    openModal(`<div class="modal-ttl">Finish your document details
+        <button class="modal-x" onclick="closeModal()">×</button></div>
+      <p style="font-size:14px;color:var(--gray);line-height:1.6;margin-bottom:14px">
+        A passport goes out on your letterhead as the evidence behind the birds, so it needs at least your farm address and phone number.
+      </p>
+      <button class="btn btn-primary" onclick="closeModal();go('settings')">Open Settings</button>`);
+    return;
+  }
+  let ov=document.getElementById('rd-overlay');
+  if(!ov){
+    ov=document.createElement('div');
+    ov.id='rd-overlay';ov.className='rd-ov';
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML=`
+    <div class="rd-bar">
+      <button class="rd-bar-btn" onclick="closeSaleDoc()">Close</button>
+      <span class="rd-bar-ttl">Pullet Passport</span>
+      <button class="rd-bar-btn primary" onclick="window.print()">Print / PDF</button>
+    </div>
+    <div class="rd-scroll">${buildPassportHTML(sale)}</div>`;
+  ov.style.display='flex';
+  document.body.style.overflow='hidden';
+}
 
 // ═══════════════════════════════════════════════
 // REPORTS
@@ -3732,11 +5689,26 @@ function exportData(){
       temperature_c:r.temperature_c,humidity_pct:r.humidity_pct,notes:r.notes
     })),
     brooding_weight_log:DB.getWeight().map(r=>({
-      date:r.date,batch_id:r.batch_id,batch_name:r.batch_name,breed:r.breed,
+      id:r.id,date:r.date,batch_id:r.batch_id,batch_name:r.batch_name,breed:r.breed,
       week_num:r.week_num,sample_size:r.sample_size,avg_weight_g:r.avg_weight_g,
-      min_weight_g:r.min_weight_g,max_weight_g:r.max_weight_g,benchmark_g:r.benchmark_g,notes:r.notes
+      min_weight_g:r.min_weight_g,max_weight_g:r.max_weight_g,benchmark_g:r.benchmark_g,
+      weights:r.weights,sd_g:r.sd_g,cv_pct:r.cv_pct,uniformity_pct:r.uniformity_pct,
+      notes:r.notes
     })),
     brooding_health_log:DB.getHealth(),
+    customers:DB.getCustomers(),
+    // The order book, declined rows and all. A declined order is the only
+    // record of demand the farm could not meet, so an export that dropped it
+    // would quietly lose the case for more capacity.
+    orders:DB.getOrders().map(o=>({
+      id:o.id,ref:o.ref,date:o.date,customer_id:o.customer_id,customer_name:o.customer_name,
+      bird_type:o.bird_type,breed:o.breed,quantity:o.quantity,
+      age_weeks_at_delivery:o.age_weeks_at_delivery,
+      needed_from:o.needed_from,needed_to:o.needed_to,
+      price_per_bird_ngn:o.price_per_bird_ngn,status:o.status,
+      batch_id:o.batch_id,sale_id:o.sale_id,decline_reason:o.decline_reason,
+      deposits_ngn:orderDepositTotal(o.id),notes:o.notes
+    })),
     feed_store:DB.getFeedStock().map(r=>({id:r.id,date:r.date,kind:r.kind||'purchase',
       feed_type:r.feed_type,batch_id:r.batch_id,batch_name:r.batch_name,
       bags:r.bags,loose_kg:r.loose_kg,kg:r.kg,bag_kg:r.bag_kg,
@@ -3762,6 +5734,7 @@ function exportData(){
     // payment records below keep pointing at the right sale after a round trip.
     sales:DB.getSales().map(s=>({
       id:s.id,date:s.date,batch_id:s.batch_id,batch_name:s.batch_name,breed:s.breed,
+      customer_id:s.customer_id,order_id:s.order_id,
       quantity:s.quantity,age_weeks_at_sale:s.age_weeks_at_sale,
       price_per_bird_ngn:s.price_per_bird_ngn,total_amount_ngn:s.total_amount_ngn,
       payment_type:s.payment_type,paid:s.paid,due_date:s.due_date,
@@ -3769,7 +5742,7 @@ function exportData(){
       doc_ref:s.doc_ref,doc_issued_at:s.doc_issued_at
     })),
     payments:DB.getPayments().map(p=>({
-      id:p.id,sale_id:p.sale_id,date:p.date,amount_ngn:p.amount_ngn,
+      id:p.id,sale_id:p.sale_id,order_id:p.order_id,date:p.date,amount_ngn:p.amount_ngn,
       method:p.method,kind:p.kind,notes:p.notes
     }))
   };
@@ -3805,6 +5778,8 @@ function importData(input){
     if(data.brooding_health_log?.length){const m=_mergeById(DB._arr(KEYS.health),data.brooding_health_log);DB._set(KEYS.health,m);counts.health=data.brooding_health_log.length+' health records merged';}
     if(data.feed_store?.length){const m=_mergeById(DB._arr(KEYS.feedstock),data.feed_store);DB._set(KEYS.feedstock,m);counts.feedstock=data.feed_store.length+' feed store entries merged';}
     if(data.expenses?.length){const m=_mergeById(DB._arr(KEYS.expenses),data.expenses);DB._set(KEYS.expenses,m);counts.expenses=data.expenses.length+' expenses merged';}
+    if(data.customers?.length){const m=_mergeById(DB._arr(KEYS.customers),data.customers);DB._set(KEYS.customers,m);counts.customers=data.customers.length+' customer(s) merged';}
+    if(data.orders?.length){const m=_mergeById(DB._arr(KEYS.orders),data.orders);DB._set(KEYS.orders,m);counts.orders=data.orders.length+' order(s) merged';}
     if(data.sales?.length){const m=_mergeById(DB._arr(KEYS.sales),data.sales);DB._set(KEYS.sales,m);counts.sales=data.sales.length+' sales merged';}
     if(data.payments?.length){const m=_mergeById(DB._arr(KEYS.payments),data.payments);DB._set(KEYS.payments,m);counts.payments=data.payments.length+' payments merged';}
     renderHome();renderDaily();renderFeed();renderHealth();renderFinance();renderReports();renderSettings();
@@ -3878,6 +5853,7 @@ async function doRestoreTrash(batchId,btn){
 // INIT
 // ═══════════════════════════════════════════════
 initApp();
+// ==== END GENERATED APP SCRIPT ====
 </script>
 </body>
 </html>

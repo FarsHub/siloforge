@@ -1,0 +1,12 @@
+# build_apps.py writes LayerTrack.html and BroodTrack.html with LF endings and
+# then compares them byte-for-byte. With core.autocrlf=true (the Windows
+# default, and what this machine is set to) a fresh checkout would hand them
+# back as CRLF, so every build would look like a full-file rewrite and
+# `build_apps.py --check` would never pass. Pin the whole repo to LF; every
+# file committed so far already is.
+* text=auto eol=lf
+
+# Not text.
+*.png binary
+*.jpg binary
+*.xlsx binary

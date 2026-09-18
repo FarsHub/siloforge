@@ -10,6 +10,10 @@ rather than duplicated by hand. Re-run it after editing that file.
 The block is delimited by markers, so re-running replaces the previous copy
 instead of stacking another one.
 
+Every open() pins newline="\n". On Windows the default writes the whole file
+back as CRLF, which makes build_apps.py see the HTML as changed on every run
+and git show it as a full-file rewrite.
+
 Usage: python inject_receipt_css.py
        python build_receipt_fonts.py   # run first if the subset changed
 """
@@ -35,8 +39,8 @@ TARGETS = [
 
 
 def build_block(theme):
-    fonts = io.open(FONTS, encoding="utf-8").read().strip()
-    doc = io.open(DOC, encoding="utf-8").read().strip()
+    fonts = io.open(FONTS, encoding="utf-8", newline="\n").read().strip()
+    doc = io.open(DOC, encoding="utf-8", newline="\n").read().strip()
     vars_ = (
         ".rd-ov,.rd{"
         f"--rd-brand:{theme['brand']};"
@@ -53,7 +57,7 @@ def main():
         sys.exit(f"Missing {missing} — run build_receipt_fonts.py first.")
 
     for path, theme in TARGETS:
-        src = io.open(path, encoding="utf-8").read()
+        src = io.open(path, encoding="utf-8", newline="\n").read()
         block = build_block(theme)
 
         if BEGIN in src:
@@ -66,7 +70,7 @@ def main():
             out = src[:close] + block + src[close:]
             action = "inserted"
 
-        io.open(path, "w", encoding="utf-8").write(out)
+        io.open(path, "w", encoding="utf-8", newline="\n").write(out)
         print(f"{path:<20} {action}  ({len(block)/1024:.1f} KB block, "
               f"file now {len(out)/1024:.1f} KB)")
 

@@ -123,7 +123,10 @@ def main():
         f"   {len(chars)} codepoints, {len(FACES)} faces, ~{total/1024:.0f} KB base64 total.\n"
         "   Archivo and IBM Plex Mono, both SIL Open Font License 1.1. */\n"
     )
-    with open(OUT, "w", encoding="utf-8") as f:
+    # newline="\n": on Windows the default would emit CRLF, which then rides
+    # into both HTML files via inject_receipt_css.py and makes build_apps.py
+    # see them as changed on every run.
+    with open(OUT, "w", encoding="utf-8", newline="\n") as f:
         f.write(header + "\n".join(blocks) + "\n")
     print(f"\nwrote {OUT}  ({os.path.getsize(OUT)/1024:.1f} KB)")
 

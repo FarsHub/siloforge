@@ -285,6 +285,71 @@ body.has-ticker .sync-badge{top:calc(var(--ticker-h) + 8px)}
   font-variant-numeric:tabular-nums;color:var(--rd-accent)}
 .rd-due .rd-stub-amt{color:#8a5c00}
 
+/* ── Vaccination & medication record (BroodTrack) ──────────────────────
+   A second document on the receipt's chrome — same letterhead, same band,
+   same toolbar — but it is a list rather than a slip, so it is the one
+   document allowed to run past a single sheet. .rd sets break-inside:avoid
+   in print to keep a receipt whole; that is undone here and applied to the
+   individual rows instead, so a page break never lands inside one.
+   LayerTrack carries these rules unused: the two apps share one stylesheet,
+   and splitting it would mean duplicating the print rules above.      */
+.rd-vax .rd-type{font-size:13px;letter-spacing:.02em;line-height:1.25}
+.vx-sec{padding:12px 20px 3px;display:flex;align-items:baseline;
+  justify-content:space-between;gap:10px}
+.vx-count{font-size:9.5px;font-weight:800;color:var(--rd-muted);
+  font-variant-numeric:tabular-nums;flex-shrink:0}
+.vx-note{padding:0 20px 10px;font-size:10.5px;color:var(--rd-muted);line-height:1.5}
+.vx-list{padding:2px 20px 12px}
+.vx-row{display:grid;grid-template-columns:13px 46px 1fr auto;gap:9px;
+  align-items:baseline;padding:5px 0;border-top:1px solid #f0eef2}
+.vx-row:first-child{border-top:none}
+.vx-tick{font-size:11px;font-weight:800;color:var(--rd-accent);line-height:1.3}
+.vx-day{font-size:10.5px;line-height:1.3;color:#17131a}
+.vx-wk{font-size:8.5px;color:var(--rd-muted);margin-top:1px}
+.vx-name{font-size:11.5px;font-weight:800;line-height:1.35;letter-spacing:-.005em}
+.vx-route{font-size:10px;color:var(--rd-muted);line-height:1.4;margin-top:1px}
+.vx-why{font-size:9.5px;color:var(--rd-muted);font-style:italic;
+  line-height:1.4;margin-top:2px}
+.vx-when{font-size:10.5px;text-align:right;flex-shrink:0;line-height:1.3;
+  font-variant-numeric:tabular-nums}
+.vx-soft{color:var(--rd-muted)}
+.vx-foot{padding:10px 20px 12px;border-top:1px solid var(--rd-edge);
+  font-size:10px;color:var(--rd-muted);line-height:1.55}
+.vx-foot sup{font-size:8px}
+
+/* Pullet passport — the quality grid and the spread bar. Everything else on
+   the sheet reuses the receipt and health-record rules above. */
+.pp-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rd-edge);
+  border-top:1px solid var(--rd-edge);border-bottom:1px solid var(--rd-edge)}
+.pp-cell{background:#fff;padding:11px 20px 12px}
+.pp-val{font-size:23px;font-weight:800;line-height:1.05;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;color:#17131a}
+.pp-u{font-size:13px;font-weight:700;margin-left:1px}
+.pp-lbl{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--rd-muted);margin-top:4px}
+.pp-sub{font-size:10px;color:var(--rd-muted);line-height:1.45;margin-top:3px}
+.pp-range{padding:11px 20px 13px}
+.pp-range-row{display:flex;align-items:center;gap:9px;margin-top:6px}
+.pp-axis-end{font-size:9.5px;font-weight:700;flex-shrink:0;
+  font-variant-numeric:tabular-nums;color:var(--rd-muted)}
+.pp-bar{position:relative;flex:1;height:9px;border-radius:5px;background:#f1eef4}
+.pp-band{position:absolute;top:-3px;bottom:-3px;z-index:2;border-radius:6px;
+  border:1px dashed var(--rd-accent);opacity:.6}
+.pp-bar-fill{position:absolute;top:3px;bottom:3px;z-index:1;border-radius:2px;
+  background:var(--rd-accent);opacity:.3;min-width:2px}
+.pp-core{position:absolute;top:1px;bottom:1px;z-index:2;border-radius:4px;
+  background:var(--rd-accent);min-width:2px}
+.pp-mean{position:absolute;top:-3px;bottom:-3px;z-index:3;width:2px;margin-left:-1px;
+  background:var(--rd-brand);border-radius:1px}
+.pp-chips{padding:2px 20px 12px;display:flex;flex-wrap:wrap;gap:5px}
+.pp-chip{display:inline-block;font-size:9.5px;font-weight:700;line-height:1.3;
+  padding:4px 8px;border-radius:20px;background:var(--rd-wash);color:var(--rd-brand)}
+.pp-chip em{font-style:normal;font-weight:500;color:var(--rd-muted)}
+@media (max-width:380px){
+  .pp-cell{padding-left:15px;padding-right:15px}
+  .pp-range,.pp-chips{padding-left:15px;padding-right:15px}
+}
+
 @media (max-width:380px){
   .rd-pad,.rd-id,.rd-party,.rd-fields,.rd-hero,.rd-settle,.rd-payto,.rd-terms,.rd-issuer,.rd-stub{
     padding-left:15px;padding-right:15px}
@@ -305,6 +370,21 @@ body.has-ticker .sync-badge{top:calc(var(--ticker-h) + 8px)}
    lines, of headroom. Re-measure before loosening any of this; at the screen
    rhythm the same document is 979px and breaks to a second sheet. */
 @page{size:203mm 254mm;margin:0}
+/* Named page for the multi-sheet health record — see .rd-vax in @media print
+   below. Chrome has supported named pages since 85; where it is not
+   supported this rule is ignored and the document simply prints as it does
+   today, at margin 0.
+   The 8mm is measured, not chosen for looks, and it is the whole trick.
+   Chrome draws its own date and file:// URL into the top and bottom page
+   margin whenever there is room, and that has no place on a document going
+   to a customer. Sweeping the margin (tools/probe_headerfooter.py) puts the
+   cutoff between 8mm and 9mm: at 9mm and above Chrome prints its header and
+   footer, at 8mm and below it gives up. 8mm also clears the ~5mm strip most
+   printers physically cannot reach, so rows at a page break survive.
+   Left and right play no part in it — the header only lives top and bottom —
+   so those stay at a comfortable 10mm.
+   Re-run the probe before changing this number. */
+@page vax{size:203mm 254mm;margin:8mm 10mm}
 @media print{
   body>*{display:none!important}
   .rd-ov{display:flex!important;position:static;background:#fff;height:auto}
@@ -328,6 +408,28 @@ body.has-ticker .sync-badge{top:calc(var(--ticker-h) + 8px)}
   .rd-count{font-size:28px}
   .rd-total{font-size:30px}
   .rd-owed-amt{font-size:23px}
+  /* The one document that may run to a second sheet. Rows stay whole, and a
+     section heading never gets stranded at the foot of a page.
+     It also needs its own page box. margin:0 above is what stops Chrome
+     drawing the date and URL onto a receipt, and a receipt is one sheet so
+     the padding on .rd-scroll is enough. A full pullet programme is two
+     sheets, and at margin:0 the rows either side of the break sit in the
+     printer's non-printable edge and come out clipped — so this document
+     gets real page margins and drops the scroll padding that would
+     otherwise double up on the first sheet. */
+  .rd-vax,.rd-pass{break-inside:auto;page:vax}
+  .rd-scroll:has(.rd-vax),.rd-scroll:has(.rd-pass){padding:0}
+  .rd-pass .pp-grid,.rd-pass .pp-range,.rd-pass .pp-chips{break-inside:avoid}
+  .rd-pass .vx-sec{break-after:avoid;padding:9px 18px 2px}
+  .rd-pass .pp-cell{padding:9px 18px 10px}
+  .rd-pass .pp-range,.rd-pass .pp-chips{padding-left:18px;padding-right:18px}
+  .rd-pass .vx-note,.rd-pass .vx-foot{padding-left:18px;padding-right:18px}
+  .pp-grid,.pp-chip,.pp-bar,.pp-band,.pp-bar-fill,.pp-core,.pp-mean{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .rd-vax .vx-row{break-inside:avoid}
+  .rd-vax .vx-sec{break-after:avoid;padding:9px 18px 2px}
+  .rd-vax .vx-list{padding:2px 18px 9px}
+  .rd-vax .vx-note{padding:0 18px 7px}
+  .rd-vax .vx-foot{padding:8px 18px 9px}
   .rd-band,.rd-hero,.rd-owed,.rd-payto,.rd-stub-amt,.rd-owed-amt,.rd-type,.rd-paid{
     -webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
@@ -404,6 +506,7 @@ body.has-ticker .sync-badge{top:calc(var(--ticker-h) + 8px)}
 </div>
 
 <script>
+// ==== BEGIN GENERATED APP SCRIPT — build_apps.py ====
 // ═══════════════════════════════════════════════
 // FIREBASE & SYNC
 // ═══════════════════════════════════════════════
@@ -3939,7 +4042,6 @@ function doAutoMigrateAll(){
   renderSettings();
 }
 
-
 // ═══════════════════════════════════════════════
 // REPORTS — MULTI-MODULE ANALYTICS
 // ═══════════════════════════════════════════════
@@ -5454,6 +5556,7 @@ function positionTrendTip(evt) {
   tip.style.top=Math.max(y-th,8)+'px';
 }
 function hideTrendTip(){document.getElementById('trendTip').style.display='none';}
+// ==== END GENERATED APP SCRIPT ====
 </script>
 <div id="trendTip" style="display:none;position:fixed;background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:9px 13px;box-shadow:0 3px 14px rgba(0,0,0,0.13);pointer-events:none;z-index:9999;min-width:120px"></div>
 </body>
