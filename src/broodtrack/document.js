@@ -177,6 +177,7 @@ function openSaleDoc(saleId){
       <span class="rd-bar-ttl">${settled?'Receipt':'Invoice'}</span>
       <button class="rd-bar-btn primary" onclick="window.print()">Print / PDF</button>
     </div>
+    <div class="rd-hint">Printing? If the date and web address appear at the top and bottom of the sheet, untick <b>Headers and footers</b> under <b>More settings</b> in the print dialog.</div>
     <div class="rd-scroll">${buildSaleDocHTML(sale)}</div>`;
   ov.style.display='flex';
   document.body.style.overflow='hidden';

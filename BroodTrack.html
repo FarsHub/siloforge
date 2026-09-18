@@ -160,6 +160,13 @@ body.has-ticker .sync-badge{top:calc(var(--ticker-h) + 8px)}
   padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
 .rd-bar-btn:active{background:rgba(255,255,255,.28)}
 .rd-bar-btn.primary{background:#fff;color:var(--rd-toolbar)}
+/* Chrome prints its own date and URL into the page margin whenever the margin
+   is tall enough to hold them. @page above keeps ours below that threshold,
+   but the print dialog can override the margin and then nothing in this file
+   can stop it. This says so, where the person about to print is looking. */
+.rd-hint{background:#fff7e0;color:#7d4e00;font-size:11.5px;line-height:1.5;
+  padding:8px 14px;border-bottom:1px solid #f0e2bd;flex-shrink:0}
+.rd-hint b{font-weight:800}
 .rd-scroll{flex:1;overflow-y:auto;padding:16px 14px 40px;-webkit-overflow-scrolling:touch}
 
 .rd{--rd-band:var(--rd-accent);--rd-edge:#dcd8e0;--rd-muted:#6c757d;
@@ -338,11 +345,11 @@ body.has-ticker .sync-badge{top:calc(var(--ticker-h) + 8px)}
    Left and right play no part in it — the header only lives top and bottom —
    so those stay at a comfortable 10mm.
    Re-run the probe before changing this number. */
-@page vax{size:203mm 254mm;margin:8mm 10mm}
+@page vax{size:203mm 254mm;margin:7mm 10mm}
 @media print{
   body>*{display:none!important}
   .rd-ov{display:flex!important;position:static;background:#fff;height:auto}
-  .rd-bar{display:none!important}
+  .rd-bar,.rd-hint{display:none!important}
   .rd-scroll{overflow:visible;padding:7mm}
   .rd{box-shadow:none;max-width:none;margin:0;break-inside:avoid}
   /* Screen spacing is sized for thumbs; print needs none of it, and the height
@@ -656,7 +663,7 @@ function initApp(){
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.09.18-b15';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.09.18-b16';  // bump on each deploy; shown on login screen + console
 const BREEDS_BY_TYPE={
   broiler:['Arbor Acres','Marshall','Other'],
   pullet:['Isa Brown','Lohmann Brown','Hy-Line Brown','Black Pullet','Other'],
@@ -4375,6 +4382,7 @@ function openSaleDoc(saleId){
       <span class="rd-bar-ttl">${settled?'Receipt':'Invoice'}</span>
       <button class="rd-bar-btn primary" onclick="window.print()">Print / PDF</button>
     </div>
+    <div class="rd-hint">Printing? If the date and web address appear at the top and bottom of the sheet, untick <b>Headers and footers</b> under <b>More settings</b> in the print dialog.</div>
     <div class="rd-scroll">${buildSaleDocHTML(sale)}</div>`;
   ov.style.display='flex';
   document.body.style.overflow='hidden';
@@ -4883,6 +4891,7 @@ function openVaccDoc(batchId){
       <span class="rd-bar-ttl">Health Record</span>
       <button class="rd-bar-btn primary" onclick="window.print()">Print / PDF</button>
     </div>
+    <div class="rd-hint">Printing? If the date and web address appear at the top and bottom of the sheet, untick <b>Headers and footers</b> under <b>More settings</b> in the print dialog.</div>
     <div class="rd-scroll">${buildVaccDocHTML(batch)}</div>`;
   ov.style.display='flex';
   document.body.style.overflow='hidden';
@@ -5163,6 +5172,7 @@ function openPassport(saleId){
       <span class="rd-bar-ttl">Pullet Passport</span>
       <button class="rd-bar-btn primary" onclick="window.print()">Print / PDF</button>
     </div>
+    <div class="rd-hint">Printing? If the date and web address appear at the top and bottom of the sheet, untick <b>Headers and footers</b> under <b>More settings</b> in the print dialog.</div>
     <div class="rd-scroll">${buildPassportHTML(sale)}</div>`;
   ov.style.display='flex';
   document.body.style.overflow='hidden';

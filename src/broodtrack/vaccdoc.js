@@ -168,6 +168,7 @@ function openVaccDoc(batchId){
       <span class="rd-bar-ttl">Health Record</span>
       <button class="rd-bar-btn primary" onclick="window.print()">Print / PDF</button>
     </div>
+    <div class="rd-hint">Printing? If the date and web address appear at the top and bottom of the sheet, untick <b>Headers and footers</b> under <b>More settings</b> in the print dialog.</div>
     <div class="rd-scroll">${buildVaccDocHTML(batch)}</div>`;
   ov.style.display='flex';
   document.body.style.overflow='hidden';

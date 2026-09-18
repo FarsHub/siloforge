@@ -34,7 +34,7 @@ CHROME = [
     r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
 ]
 PREVIEW = "demos/vaccdoc-preview.html"
-RULE = "@page vax{size:203mm 254mm;margin:8mm 10mm}"
+RULE = "@page vax{size:203mm 254mm;margin:7mm 10mm}"
 MARGINS = [0, 3, 5, 6, 7, 8, 9, 10, 11, 12, 15, 20]
 
 
