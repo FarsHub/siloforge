@@ -160,11 +160,11 @@ body.has-ticker .sync-badge{top:calc(var(--ticker-h) + 8px)}
   padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
 .rd-bar-btn:active{background:rgba(255,255,255,.28)}
 .rd-bar-btn.primary{background:#fff;color:var(--rd-toolbar)}
-/* Chrome prints its own date and URL into the page margin whenever there is a
-   margin to draw them into. Every document here prints at margin:0 so there is
-   not one — but a dialog set to a fixed paper margin, and some mobile print
-   services, reintroduce it regardless. The checkbox that always works is in
-   the dialog, so this says so where the person about to print is looking. */
+/* Chrome prints its own date, tab title and URL onto the sheet whenever
+   "Headers and footers" is ticked, and it enlarges the page margin to fit them
+   when it is. No @page rule prevents that, which is why this strip is not
+   decoration: unticking that box is the fix, and it is the only one. It sticks
+   once set, so the reminder only has to work the first time. */
 .rd-hint{background:#fff7e0;color:#7d4e00;font-size:11.5px;line-height:1.5;
   padding:8px 14px;border-bottom:1px solid #f0e2bd;flex-shrink:0}
 .rd-hint b{font-weight:800}
@@ -322,12 +322,11 @@ body.has-ticker .sync-badge{top:calc(var(--ticker-h) + 8px)}
 /* Quarto, 8 x 10 in. CSS has no named quarto size so the dimensions are
    explicit; Chrome honours them for Save as PDF, though a paper size chosen
    in the print dialog still wins.
-   margin:0 is what suppresses the browser's own header and footer, and it is
-   the only thing that does: Chrome draws the date, tab title and URL into the
-   page margin whenever there is a margin to draw them into, and the dialog can
-   override a margin this file sets but cannot invent one where there is none.
-   Every document prints in this box for that reason — see .rd-vax below for
-   what it costs the multi-sheet ones. Real margins come from .rd-scroll.
+   margin:0 here is for tidiness, not for suppressing the browser's header and
+   footer — it does not. Verified against the deployed file: with margin:0 live,
+   Chrome still printed its date and URL, because a ticked "Headers and footers"
+   makes it enlarge the margin to fit them regardless. Real margins for the
+   single-sheet documents come from .rd-scroll.
    Sizing is measured, not guessed: the page is 960px tall at 96dpi, leaving
    908px inside 7mm padding. The longest realistic document — part paid, so it
    carries a paid line, a balance block and bank details, with a long buyer
@@ -335,6 +334,14 @@ body.has-ticker .sync-badge{top:calc(var(--ticker-h) + 8px)}
    lines, of headroom. Re-measure before loosening any of this; at the screen
    rhythm the same document is 979px and breaks to a second sheet. */
 @page{size:203mm 254mm;margin:0}
+/* The two documents that can run past one sheet get real page margins, so a
+   row landing either side of a break is not clipped by the ~5mm strip most
+   printers cannot reach. This has nothing to do with the browser's own
+   header and footer: those are drawn or not drawn by a checkbox in the print
+   dialog, which enlarges the margin to fit them when it is ticked and
+   ignores what is asked for here. Chasing that from CSS does not work --
+   see .rd-hint above for the control that does. */
+@page vax{size:203mm 254mm;margin:7mm 10mm}
 @media print{
   body>*{display:none!important}
   .rd-ov{display:flex!important;position:static;background:#fff;height:auto}
@@ -372,7 +379,8 @@ body.has-ticker .sync-badge{top:calc(var(--ticker-h) + 8px)}
      to draw its date and URL, and no stylesheet can stop it once that room
      exists. Rows stay whole and a heading is never stranded at a page foot,
      so a break costs at most a tight line against the paper edge. */
-  .rd-vax,.rd-pass{break-inside:auto}
+  .rd-vax,.rd-pass{break-inside:auto;page:vax}
+  .rd-scroll:has(.rd-vax),.rd-scroll:has(.rd-pass){padding:0}
   .rd-pass .pp-grid,.rd-pass .pp-range,.rd-pass .pp-chips{break-inside:avoid}
   .rd-pass .vx-sec{break-after:avoid;padding:9px 18px 2px}
   .rd-pass .pp-cell{padding:9px 18px 10px}
@@ -656,7 +664,7 @@ function initApp(){
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.09.18-b17';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.09.18-b18';  // bump on each deploy; shown on login screen + console
 const BREEDS_BY_TYPE={
   broiler:['Arbor Acres','Marshall','Other'],
   pullet:['Isa Brown','Lohmann Brown','Hy-Line Brown','Black Pullet','Other'],
@@ -4375,7 +4383,7 @@ function openSaleDoc(saleId){
       <span class="rd-bar-ttl">${settled?'Receipt':'Invoice'}</span>
       <button class="rd-bar-btn primary" onclick="window.print()">Print / PDF</button>
     </div>
-    <div class="rd-hint">Printing? If the date and web address appear at the top and bottom of the sheet, untick <b>Headers and footers</b> under <b>More settings</b> in the print dialog.</div>
+    <div class="rd-hint">In the print dialog, open <b>More settings</b> and untick <b>Headers and footers</b> — otherwise the browser prints the date and this page&rsquo;s web address on every sheet. It only needs setting once.</div>
     <div class="rd-scroll">${buildSaleDocHTML(sale)}</div>`;
   ov.style.display='flex';
   document.body.style.overflow='hidden';
@@ -4884,7 +4892,7 @@ function openVaccDoc(batchId){
       <span class="rd-bar-ttl">Health Record</span>
       <button class="rd-bar-btn primary" onclick="window.print()">Print / PDF</button>
     </div>
-    <div class="rd-hint">Printing? If the date and web address appear at the top and bottom of the sheet, untick <b>Headers and footers</b> under <b>More settings</b> in the print dialog.</div>
+    <div class="rd-hint">In the print dialog, open <b>More settings</b> and untick <b>Headers and footers</b> — otherwise the browser prints the date and this page&rsquo;s web address on every sheet. It only needs setting once.</div>
     <div class="rd-scroll">${buildVaccDocHTML(batch)}</div>`;
   ov.style.display='flex';
   document.body.style.overflow='hidden';
@@ -5165,7 +5173,7 @@ function openPassport(saleId){
       <span class="rd-bar-ttl">Pullet Passport</span>
       <button class="rd-bar-btn primary" onclick="window.print()">Print / PDF</button>
     </div>
-    <div class="rd-hint">Printing? If the date and web address appear at the top and bottom of the sheet, untick <b>Headers and footers</b> under <b>More settings</b> in the print dialog.</div>
+    <div class="rd-hint">In the print dialog, open <b>More settings</b> and untick <b>Headers and footers</b> — otherwise the browser prints the date and this page&rsquo;s web address on every sheet. It only needs setting once.</div>
     <div class="rd-scroll">${buildPassportHTML(sale)}</div>`;
   ov.style.display='flex';
   document.body.style.overflow='hidden';
