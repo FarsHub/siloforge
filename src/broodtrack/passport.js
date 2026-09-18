@@ -211,8 +211,10 @@ function buildPassportHTML(sale){
         const span=r.from===r.to?`d${r.from}`
           :r.current&&reared.source==='programme'?`d${r.from}–d${r.to}, current`
           :`d${r.from}–d${r.to}`;
-        const qty=r.kg>0?` · ${Math.round(r.kg).toLocaleString('en-NG')} kg`:'';
-        return `<span class="pp-chip">${rdEsc(r.type)} <em>${span}${qty}</em></span>`;
+        // Deliberately no tonnage. What the whole lot ate is an operating
+        // figure for this farm, not evidence about the bird in front of the
+        // buyer — the regime is the sack and the days it was fed.
+        return `<span class="pp-chip">${rdEsc(r.type)} <em>${span}</em></span>`;
       }).join('')
     : '';
 
@@ -278,7 +280,7 @@ function buildPassportHTML(sale){
       <div class="pp-chips">${feedLine}</div>
       ${reared.source==='programme'?`<div class="vx-note" style="padding-top:2px">
         From the farm's feed programme — daily feed was not logged for this lot, so
-        quantities are not stated and phases the birds had not reached are not shown.
+        phases the birds had not reached are not shown.
       </div>`:''}`:''}
 
     <div class="rd-terms">

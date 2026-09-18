@@ -375,8 +375,10 @@ section("Reared on — what the lot actually ate");
         log.rows.map(r => r.type).join(","));
 
   const doc = call("buildPassportHTML", sale);
-  check("the passport prints the logged feeds with quantities",
-        doc.includes("390 kg") && doc.includes("Grower Mash"));
+  check("the passport prints the logged feeds with their day span",
+        doc.includes("Grower Mash") && doc.includes("d64"));
+  check("tonnage stays off the customer's copy — it says nothing about their bird",
+        !/\d[\d,]*\s*kg/.test(doc), (doc.match(/\d[\d,]*\s*kg/g) || []).join(","));
   check("the passport does not print an unfed sack",
         !doc.includes("Pre-Layer Mash"));
   check("the section is stamped with the age it describes",

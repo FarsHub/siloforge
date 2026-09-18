@@ -301,7 +301,7 @@ ${style}
 
 <div id="rd-overlay" class="rd-ov">
   <div class="rd-scroll">
-    ${note("Lot A —", "a good run. 96% livability, weights just under the Isa Brown standard, 85% uniformity, temperature held on 28 of 30 logged days, and the full programme given through to the EDS booster. Feed was logged daily, so \"reared on\" quotes the actual sacks and quantities. This is the sheet that justifies a premium.")}
+    ${note("Lot A —", "a good run. 96% livability, weights just under the Isa Brown standard, 85% uniformity, temperature held on 28 of 30 logged days, and the full programme given through to the EDS booster. Feed was logged daily, so \"reared on\" quotes the sacks actually fed. This is the sheet that justifies a premium.")}
     ${call("buildPassportHTML", saleA)}
     ${note("Lot B —", "a hard run, and the document says so. 91% livability, 89% of the Lohmann standard, 60% uniformity, temperature held on only 20 of 28 days, and two vaccinations still outstanding that now fall to the buyer. Daily feed was never logged for it, so \"reared on\" falls back to the programme, truncated at the age the birds actually reached, and says so. Handing this over honestly is what makes Lot A’s sheet believable.")}
     ${call("buildPassportHTML", saleB)}
