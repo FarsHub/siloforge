@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.09.18-b14';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.09.18-b15';  // bump on each deploy; shown on login screen + console
 const ROUNDS = [
   {id:1,label:'1st Pick',sub:'Morning',  cls:'round-1'},
   {id:2,label:'2nd Pick',sub:'Afternoon',cls:'round-2'},

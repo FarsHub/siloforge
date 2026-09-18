@@ -14,10 +14,11 @@
   padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
 .rd-bar-btn:active{background:rgba(255,255,255,.28)}
 .rd-bar-btn.primary{background:#fff;color:var(--rd-toolbar)}
-/* Chrome prints its own date and URL into the page margin whenever the margin
-   is tall enough to hold them. @page above keeps ours below that threshold,
-   but the print dialog can override the margin and then nothing in this file
-   can stop it. This says so, where the person about to print is looking. */
+/* Chrome prints its own date and URL into the page margin whenever there is a
+   margin to draw them into. Every document here prints at margin:0 so there is
+   not one — but a dialog set to a fixed paper margin, and some mobile print
+   services, reintroduce it regardless. The checkbox that always works is in
+   the dialog, so this says so where the person about to print is looking. */
 .rd-hint{background:#fff7e0;color:#7d4e00;font-size:11.5px;line-height:1.5;
   padding:8px 14px;border-bottom:1px solid #f0e2bd;flex-shrink:0}
 .rd-hint b{font-weight:800}
@@ -175,9 +176,12 @@
 /* Quarto, 8 x 10 in. CSS has no named quarto size so the dimensions are
    explicit; Chrome honours them for Save as PDF, though a paper size chosen
    in the print dialog still wins.
-   margin:0 is what suppresses the browser's own header and footer — Chrome
-   draws the date, tab title and URL into the page margin, which has no place
-   on a customer's receipt. Real margins come from .rd-scroll below.
+   margin:0 is what suppresses the browser's own header and footer, and it is
+   the only thing that does: Chrome draws the date, tab title and URL into the
+   page margin whenever there is a margin to draw them into, and the dialog can
+   override a margin this file sets but cannot invent one where there is none.
+   Every document prints in this box for that reason — see .rd-vax below for
+   what it costs the multi-sheet ones. Real margins come from .rd-scroll.
    Sizing is measured, not guessed: the page is 960px tall at 96dpi, leaving
    908px inside 7mm padding. The longest realistic document — part paid, so it
    carries a paid line, a balance block and bank details, with a long buyer
@@ -185,21 +189,6 @@
    lines, of headroom. Re-measure before loosening any of this; at the screen
    rhythm the same document is 979px and breaks to a second sheet. */
 @page{size:203mm 254mm;margin:0}
-/* Named page for the multi-sheet health record — see .rd-vax in @media print
-   below. Chrome has supported named pages since 85; where it is not
-   supported this rule is ignored and the document simply prints as it does
-   today, at margin 0.
-   The 8mm is measured, not chosen for looks, and it is the whole trick.
-   Chrome draws its own date and file:// URL into the top and bottom page
-   margin whenever there is room, and that has no place on a document going
-   to a customer. Sweeping the margin (tools/probe_headerfooter.py) puts the
-   cutoff between 8mm and 9mm: at 9mm and above Chrome prints its header and
-   footer, at 8mm and below it gives up. 8mm also clears the ~5mm strip most
-   printers physically cannot reach, so rows at a page break survive.
-   Left and right play no part in it — the header only lives top and bottom —
-   so those stay at a comfortable 10mm.
-   Re-run the probe before changing this number. */
-@page vax{size:203mm 254mm;margin:7mm 10mm}
 @media print{
   body>*{display:none!important}
   .rd-ov{display:flex!important;position:static;background:#fff;height:auto}
@@ -232,8 +221,12 @@
      printer's non-printable edge and come out clipped — so this document
      gets real page margins and drops the scroll padding that would
      otherwise double up on the first sheet. */
-  .rd-vax,.rd-pass{break-inside:auto;page:vax}
-  .rd-scroll:has(.rd-vax),.rd-scroll:has(.rd-pass){padding:0}
+  /* The two documents that may run past one sheet. They stay in the default
+     zero-margin page box: a non-zero margin is exactly the room Chrome needs
+     to draw its date and URL, and no stylesheet can stop it once that room
+     exists. Rows stay whole and a heading is never stranded at a page foot,
+     so a break costs at most a tight line against the paper edge. */
+  .rd-vax,.rd-pass{break-inside:auto}
   .rd-pass .pp-grid,.rd-pass .pp-range,.rd-pass .pp-chips{break-inside:avoid}
   .rd-pass .vx-sec{break-after:avoid;padding:9px 18px 2px}
   .rd-pass .pp-cell{padding:9px 18px 10px}

@@ -12,6 +12,13 @@ may be a window: big enough to clear the printer's dead zone (~5 mm), small
 enough that Chrome gives up. This sweeps the margin and reports where the
 line falls.
 
+CAVEAT, learned the hard way: this drives headless --print-to-pdf, where the
+header and footer templates are empty by default and the margin comes from API
+parameters rather than from @page. It reported a clean window at 7-8mm that
+does not survive contact with the real print dialog, which drew the header at
+that margin anyway. Treat a "suppressed" reading above 0mm as unproven until
+it has been checked on paper. margin:0 is the only value that cannot fail.
+
 Detection: render the same page twice at the same margin, once with Chrome's
 header/footer forced on and once off, and compare. Drawing them embeds a
 system font and two more content streams, so the file grows by tens of KB.
@@ -34,7 +41,7 @@ CHROME = [
     r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
 ]
 PREVIEW = "demos/vaccdoc-preview.html"
-RULE = "@page vax{size:203mm 254mm;margin:7mm 10mm}"
+RULE = "@page{size:203mm 254mm;margin:0}"
 MARGINS = [0, 3, 5, 6, 7, 8, 9, 10, 11, 12, 15, 20]
 
 
