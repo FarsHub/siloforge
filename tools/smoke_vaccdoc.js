@@ -100,6 +100,48 @@ const check = (label, cond, detail) => {
   else console.log("  ok    " + label);
 };
 
+// Schedule shape. These are husbandry rules, not display rules, so they are
+// checked against the constant rather than the rendered document.
+//  - Two routine rows on one day means two treatments in one visit, and where
+//    one of them is a drinking-water vaccine it means a handled flock that
+//    will not drink it. Conditional rows are exempt: they fire on evidence,
+//    rarely, and never both at once.
+//  - Point of lay sells at 12 weeks on most farms, so the week before the
+//    transfer stays clear of anything that needs a bird picked up.
+{
+  console.log("\nLayer schedule shape");
+  const sched = vm.runInContext("LAYER_VACC_SCHEDULE", sandbox);
+  const routine = sched.filter(v => !v.optional && !v.hatchery);
+
+  // Day 1 is exempt and always will be: the chicks arrive, get water with
+  // glucose and electrolytes, and get their day-old vaccine. Marek's is
+  // already done at the hatchery. Nothing there is a second handling of the
+  // same bird, which is what this rule exists to catch.
+  const byDay = {};
+  for (const v of routine) {
+    if (v.dayMin === 1) continue;
+    (byDay[v.dayMin] = byDay[v.dayMin] || []).push(v.name);
+  }
+  const shared = Object.entries(byDay).filter(([, n]) => n.length > 1);
+  check("no two routine rows share a day (day 1 exempt)",
+        shared.length === 0,
+        shared.map(([d, n]) => "day " + d + ": " + n.join(" + ")).join("; "));
+
+  check("strict age order",
+        sched.every((v, i) => i === 0 || sched[i - 1].dayMin <= v.dayMin));
+
+  const SALE_DAY = 84;          // 12 weeks
+  const QUIET_FROM = 78;
+  const handled = v => !/Drinking Water/i.test(v.route);
+  const inWindow = routine.filter(v => v.dayMin >= QUIET_FROM && v.dayMin <= SALE_DAY);
+  check("nothing routine in the pre-sale window (d" + QUIET_FROM + "-" + SALE_DAY + ")",
+        inWindow.length === 0, inWindow.map(v => v.name).join(", "));
+
+  const lateHandling = routine.filter(v => handled(v) && v.dayMin > 70 && v.dayMin <= SALE_DAY);
+  check("no bird is picked up after day 70",
+        lateHandling.length === 0, lateHandling.map(v => v.name).join(", "));
+}
+
 for (const b of batches) {
   console.log("\n" + b.name);
   const rows = sandbox.getBatchVaccStatus(b);

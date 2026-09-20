@@ -67,6 +67,52 @@ const BROILER_VACC_SCHEDULE=[
 // serotype-specific and short-lived; it is a site-history call, not a universal (farm
 // vet's advice). Fowl Typhoid 9R stays REQUIRED: S. Gallinarum is endemic nationwide and
 // vertically transmitted, so a clean site does not make the flock safe.
+// Clash + handling audit (2026-09-20), days only — no name or route changes, so
+// every existing done-mark survives and batches mid-programme only re-date what
+// they have not had yet. Four pairs used to fall on one day. The rule now is
+// that no two ROUTINE rows share a date, and in particular a drinking-water
+// vaccine never shares a day with a catch-and-handle event: a bird that has
+// just been caught and injected does not drink, and a water vaccine that is not
+// drunk in its short window is a dose paid for and wasted.
+//   Coccidiostat 1  d21 -> d28  was landing one day into the Lasota 1 take,
+//     when the live ND reaction is still building (and a sulfa coccidiostat
+//     would blunt the response outright).
+//   Coryza 1        d42 -> d49  Coccidiostat 2 keeps d42. On deep litter — how
+//     most Nigerian pullets are reared, and what this schedule is written for —
+//     d28 + d42 puts both coccidiostat courses inside the week 4-6 oocyst peak,
+//     so the vaccine moved rather than the drug. Prime to booster is still 6 wk.
+//   9R 1 (prime)    d56 -> d63  was sharing d56 with Fowl Pox: two live
+//     vaccines, and two separate handlings of every bird (wing-web stab plus an
+//     injection). Pox interferon can suppress 9R establishment, and a systemic
+//     9R reaction makes the pox take unreadable at d+7 to d+10.
+//   Coryza 2        d70 -> d91  was sharing d70 with ND Lasota 2 (water).
+//   Dewormer 1      d63 -> d77
+//   Dewormer 2      d77 -> d98
+// Point of lay is sold at 12 weeks on most farms, so d78-d84 is deliberately
+// clear of every routine row and nothing from d70 on asks for a bird to be
+// picked up. Dewormer 1 sits at d77 only because it is drinking water: no
+// catching, no injection, finished by about d80, so the flock travels wormed
+// and with four clear days behind it. Fowl Cholera keeps d84 — it is
+// conditional, never alerts, and a farm selling at 12 weeks leaves it to the
+// buyer, while a farm keeping its own pullets has that day free.
+// Everything from Coryza 2 (d91) on lands after a 12-week sale, which is
+// exactly what the printed health record hands over under "Still to come".
+// Known, reviewed 2026-09-20, and deliberately left alone: Gumboro 2 (d17) to
+// ND Lasota 1 (d20) is only 3 days, and IBD does suppress the bursa enough to
+// blunt an ND response. Textbook spacing is >=7 days. Both fixes cost more
+// than they buy. Moving Lasota to d24 drops Coccidiostat 1 (d28) back inside
+// its take. Swapping the two — Lasota d17, Gumboro 2 d24 — is tidier on paper
+// but pushes the second IBD dose a week deeper into the 3-6 week window where
+// velogenic Gumboro kills, and IBD timing beats ND titre in Nigeria.
+// Three things make 3 days tolerable: the strain here is intermediate, not
+// intermediate-plus, so bursal damage is mild and transient; Lasota in water
+// is a mucosal prime and mucosal immunity is far less bursa-dependent than a
+// systemic one; and ND cover does not rest on this dose anyway — HB1 (d1),
+// Lasota 2 (d70) and killed EDS+NDV (d112) all sit clear of every Gumboro.
+// The mitigation is technique on the day, not a date: withhold water 1-2 hrs
+// so they drink fast, no chlorine or sanitiser in the line, skim-milk
+// stabiliser, dose consumed inside two hours, vitamins after. A well-given
+// Lasota at d20 beats a badly-given one at d24.
 const LAYER_VACC_SCHEDULE=[
   {dayMin:1,  dayMax:1,  name:"Marek's Disease",              route:"Subcutaneous",hatchery:true},
   {dayMin:1,  dayMax:1,  name:"Glucose + Electrolytes (arrival, first 4–6 hrs)",route:"Drinking Water"},
@@ -75,20 +121,20 @@ const LAYER_VACC_SCHEDULE=[
   {dayMin:10, dayMax:10, name:"Gumboro 1 (IBD, intermediate)",route:"Drinking Water"},
   {dayMin:17, dayMax:17, name:"Gumboro 2 (IBD, intermediate)",route:"Drinking Water"},
   {dayMin:20, dayMax:20, name:"ND Lasota 1 + IB",             route:"Drinking Water"},
-  {dayMin:21, dayMax:21, name:"Coccidiostat 1",               route:"Drinking Water"},
+  {dayMin:28, dayMax:28, name:"Coccidiostat 1",               route:"Drinking Water"},
   {dayMin:35, dayMax:35, name:"Gumboro 3 (IBD, intermediate)",route:"Drinking Water"},
   {dayMin:42, dayMax:42, name:"Coccidiostat 2",               route:"Drinking Water"},
-  {dayMin:42, dayMax:42, name:"Coryza 1 (Pullet)",            route:"Intramuscular / Subcutaneous"},
+  {dayMin:49, dayMax:49, name:"Coryza 1 (Pullet)",            route:"Intramuscular / Subcutaneous"},
   {dayMin:49, dayMax:49, name:"Antibiotics 2",                route:"Drinking Water",optional:true,
    why:"Only if birds show illness — routine dosing breeds resistance. Skip if the flock is healthy."},
   {dayMin:56, dayMax:56, name:"Fowl Pox",                     route:"Wing Web"},
-  {dayMin:56, dayMax:56, name:"Fowl Typhoid 9R 1 (prime)",    route:"Subcutaneous / IM"},
-  {dayMin:63, dayMax:63, name:"Dewormer 1",                   route:"Drinking Water"},
+  {dayMin:63, dayMax:63, name:"Fowl Typhoid 9R 1 (prime)",    route:"Subcutaneous / IM"},
   {dayMin:70, dayMax:70, name:"ND Lasota 2 + IB",             route:"Drinking Water"},
-  {dayMin:70, dayMax:70, name:"Coryza 2 (Pullet, booster)",   route:"Intramuscular / Subcutaneous"},
-  {dayMin:77, dayMax:77, name:"Dewormer 2",                   route:"Drinking Water"},
+  {dayMin:77, dayMax:77, name:"Dewormer 1",                   route:"Drinking Water"},
   {dayMin:84, dayMax:84, name:"Fowl Cholera (Pullet)",        route:"Subcutaneous",optional:true,
-   why:"Only if this site has had cholera before, or birds go on deep litter / range. Cage-reared with rodent control can skip."},
+   why:"Only if this site has had cholera before, or birds go on deep litter / range. Cage-reared with rodent control can skip. Selling at 12 weeks? Leave it to the buyer."},
+  {dayMin:91, dayMax:91, name:"Coryza 2 (Pullet, booster)",   route:"Intramuscular / Subcutaneous"},
+  {dayMin:98, dayMax:98, name:"Dewormer 2",                   route:"Drinking Water"},
   {dayMin:105,dayMax:105,name:"Fowl Typhoid 9R 2 (booster)",  route:"Subcutaneous / IM"},
   {dayMin:112,dayMax:112,name:"EDS + NDV (Killed)",           route:"Intramuscular / Subcutaneous"},
 ];
