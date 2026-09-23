@@ -175,6 +175,75 @@ function penTrendChartData(pens,weekly){
   }));
   return{rows,byPen};
 }
+// The trend chart is drawn by hand rather than through lineChartSvg. A lay
+// curve is read differently from a feed chart: the eye wants a dot on every
+// week, the 70 and 80 lines it is judged against, and the best week called out
+// without hovering. A generic auto-scaled chart gives none of those, and pads
+// the axis below zero where a rate can never go.
+function penTrendSvg(rows,drawn,isWeekly){
+  const multi=drawn.length>1;
+  const vals=rows.flatMap(r=>drawn.map(p=>r['hdp_'+p.id])).filter(v=>v!=null);
+  if(rows.length<2||!vals.length)
+    return`<div style="color:var(--gray);font-size:13px;padding:24px 0;text-align:center">Not enough data — log eggs across at least 2 ${isWeekly?'weeks':'months'} to see the trend.</div>`;
+  const rawMax=Math.max(Math.ceil(Math.max(...vals)/5)*5+5,20);
+  const yMax=Math.ceil(rawMax/10)*10;
+  const svgW=600,cH=110,lblH=multi?30:18,svgH=cH+lblH,padL=36,padR=8,plotW=svgW-padL-padR;
+  const n=rows.length;
+  const yp=v=>(cH-6)-(Math.min(Math.max(v,0),yMax)/yMax)*(cH-12)+2;
+  const xp=i=>padL+(i/Math.max(n-1,1))*plotW;
+  const rateCol=v=>v>=80?'#27ae60':v>=70?'#e67e22':'#c0392b';
+
+  let axis='';
+  for(let v=0;v<=yMax;v+=10)
+    axis+=`<text x="${padL-3}" y="${(yp(v)+3).toFixed(1)}" text-anchor="end" font-size="8" fill="#bbb">${v}</text>`;
+  axis+=`<line x1="${padL}" y1="${yp(0).toFixed(1)}" x2="${svgW-padR}" y2="${yp(0).toFixed(1)}" stroke="#eee" stroke-width="1"/>`;
+  const guide=(v,col)=>yMax>=v?`<line x1="${padL}" y1="${yp(v).toFixed(1)}" x2="${svgW-padR}" y2="${yp(v).toFixed(1)}" stroke="${col}" stroke-width="1" stroke-dasharray="5,3" opacity="0.7"/>
+    <text x="${padL-3}" y="${(yp(v)+3).toFixed(1)}" text-anchor="end" font-size="8" fill="${col}" font-weight="700">${v}</text>`:'';
+  const bench=guide(80,'#27ae60')+guide(70,'#e67e22');
+
+  const tips=[];
+  const body=drawn.map((pen,pi)=>{
+    const penCol=PEN_LINE_COLOURS[pi%PEN_LINE_COLOURS.length];
+    const pts=rows.map((r,i)=>r['hdp_'+pen.id]==null?null
+      :{i,x:xp(i),y:yp(r['hdp_'+pen.id]),hdp:r['hdp_'+pen.id],eggs:r['eggs_'+pen.id]||0,label:r.label}).filter(Boolean);
+    if(!pts.length)return'';
+    const peak=pts.reduce((b,x)=>!b||x.hdp>b.hdp?x:b,null);
+    // Only join points that sit on consecutive buckets, so a pen that was not
+    // laying for a stretch shows a break instead of a line across the gap.
+    let segs='';
+    for(let k=1;k<pts.length;k++){
+      const a=pts[k-1],b=pts[k];
+      if(b.i!==a.i+1)continue;
+      const col=multi?penCol:rateCol((a.hdp+b.hdp)/2);
+      segs+=`<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="${col}" stroke-width="2.5" stroke-linecap="round"/>`;
+    }
+    // The soft fill under the curve only works for one line; with two it turns
+    // into mud, so it is dropped as soon as a second pen is on the axis.
+    const area=multi?'':`<polygon points="${pts[0].x.toFixed(1)},${cH+2} ${pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')} ${pts[pts.length-1].x.toFixed(1)},${cH+2}" fill="url(#tGrad)" opacity="0.18"/>`;
+    const dots=pts.map(p=>{
+      const isPk=p===peak, col=multi?penCol:rateCol(p.hdp);
+      const ti=tips.push({label:(multi?pen.name+' · ':'')+p.label,hdp:p.hdp,eggs:p.eggs})-1;
+      return`<g onmouseenter="showTrendTip(event,_trendPts[${ti}])" onmouseleave="hideTrendTip()" onmousemove="positionTrendTip(event)" style="cursor:pointer">
+        <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="11" fill="transparent"/>
+        <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${isPk?4.5:2.5}" fill="${col}" stroke="white" stroke-width="1.5"/>
+        ${isPk?`<text x="${p.x.toFixed(1)}" y="${(p.y-10).toFixed(1)}" text-anchor="middle" font-size="9" fill="${col}" font-weight="800">▲${p.hdp.toFixed(0)}%</text>`:''}</g>`;
+    }).join('');
+    return area+segs+dots;
+  }).join('');
+  window._trendPts=tips;
+
+  const lstep=Math.ceil(n/10);
+  const xlbls=rows.map((r,i)=>i%lstep===0||i===n-1
+    ?`<text x="${xp(i).toFixed(1)}" y="${(cH+lblH-(multi?13:1)).toFixed(1)}" text-anchor="middle" font-size="7.5" fill="#aaa">${r.label}</text>`:'').join('');
+  const legend=multi?drawn.map((pen,pi)=>{
+    const x=padL+pi*120;
+    return`<circle cx="${x}" cy="${svgH-4}" r="3.5" fill="${PEN_LINE_COLOURS[pi%PEN_LINE_COLOURS.length]}"/>
+      <text x="${x+8}" y="${svgH-1}" font-size="8.5" fill="var(--gray)">${pen.name}</text>`;}).join(''):'';
+
+  return`<svg viewBox="0 0 ${svgW} ${svgH}" style="width:100%;height:auto;display:block;overflow:visible">
+    <defs><linearGradient id="tGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#27ae60" stop-opacity="0.4"/><stop offset="100%" stop-color="#27ae60" stop-opacity="0"/></linearGradient></defs>
+    ${axis}${bench}${body}${xlbls}${legend}</svg>`;
+}
 const PEN_LINE_COLOURS=['#12946a','#c77dff','#e67e22','#4895ef','#c0392b'];
 
 // ── The main roll-up ────────────────────────────────────────────────────

@@ -446,17 +446,7 @@ function renderReports(){
       const tPens=(farm.pens||[]).filter(p=>inScope(p.id));
       const {rows:tRows,byPen}=penTrendChartData(tPens,isWeekly);
       const drawn=tPens.filter(p=>byPen[p.id].length>0);
-      // With a single flock there is nothing to tell apart, so keep the line
-      // coloured by the rate itself the way it has always read. Only once two
-      // pens share the axis does a flat colour per pen carry more information.
-      const tSeries=drawn.map((p,i)=>drawn.length>1
-        ?{name:p.name,color:PEN_LINE_COLOURS[i%PEN_LINE_COLOURS.length],get:r=>r['hdp_'+p.id]}
-        :{name:p.name,color:'var(--g2)',colorOf:rateColor,get:r=>r['hdp_'+p.id]});
-      const chart=tRows.length>1&&drawn.length
-        ?lineChartSvg('pentrend',tRows,tSeries,{dec:1,unit:'%',band:[80,100],bandLabel:'target ≥ 80%',xOf:r=>r.label,
-           extra:r=>drawn.map(p=>r['eggs_'+p.id]!=null
-             ?`<div class="ttr"><em>${p.name} eggs</em><strong>${r['eggs_'+p.id].toLocaleString()}</strong></div>`:'').join('')})
-        :`<div style="color:var(--gray);font-size:13px;padding:24px 0;text-align:center">Not enough data — log eggs across at least 2 ${isWeekly?'weeks':'months'} to see the trend.</div>`;
+      const chart=penTrendSvg(tRows,drawn,isWeekly);
 
       // Headline tiles are per pen, never blended.
       const tiles=drawn.map(p=>{
@@ -472,7 +462,7 @@ function renderReports(){
         }
         return`<div class="card" style="margin-bottom:8px">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-            <span style="width:10px;height:10px;border-radius:50%;background:${drawn.length>1?PEN_LINE_COLOURS[drawn.indexOf(p)%PEN_LINE_COLOURS.length]:'var(--g2)'};flex-shrink:0"></span>
+            ${drawn.length>1?`<span style="width:10px;height:10px;border-radius:50%;background:${PEN_LINE_COLOURS[drawn.indexOf(p)%PEN_LINE_COLOURS.length]};flex-shrink:0"></span>`:''}
             <b style="font-size:14px">${p.name}</b></div>
           <div class="kpi-row-3" style="margin:0">
             <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${peak?peak.hdp.toFixed(0)+'%':'—'}</div><div class="kpi-lbl">Peak${peak?' ('+peak.label+')':''}</div></div>
@@ -828,8 +818,7 @@ function renderReports(){
     </div>
     ${tabContent}
     <div style="height:12px"></div>`;
-  // The trend overlay uses the same chart helper, so it needs the same wiring.
-  if(REP_TAB==='feed'||(REP_TAB==='eggs'&&ANA_TAB==='trend'))wireFeedCharts();
+  if(REP_TAB==='feed')wireFeedCharts();
 }
 function confirmReset(){
   openModal(`<div class="modal-ttl">Reset Data? <button class="modal-x" onclick="closeModal()">×</button></div>
