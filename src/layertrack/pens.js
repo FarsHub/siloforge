@@ -49,42 +49,39 @@ function legacyPenId(){
 // kg and revalues at the prevailing unit price, a usage draws both down.
 //
 // Returns the usage prices plus the running totals needed to show, on screen,
-// that no feed money went missing: what was bought, what has been eaten and
-// charged to pens, and what is still sitting in the store. All time — stock
-// reconciles over its life, not inside a reporting window.
+// that no feed money went missing.
+//
+// The rule that keeps feed from being counted twice: a pen is charged only for
+// feed the store actually held. Feed bought outside the store — entered as an
+// ordinary expense rather than a store purchase — was already expensed the day
+// it was paid for, so charging it again when the birds eat it would bill the
+// same sack twice. Those kg are counted and reported, never re-priced.
 function feedValuation(){
   const out={};
-  let storeValue=0,bought=0,eaten=0,unpricedKg=0,
-      // Feed the birds ate that no recorded purchase covers — eaten before the
-      // feed store was ever used, or after the book ran dry. It is real feed and
-      // a real cost, so the pen is still charged for it at the best price on
-      // record, but it is kept out of the purchase reconciliation because there
-      // is no purchase behind it.
-      uncoveredKg=0,uncoveredNgn=0,coveredEaten=0;
+  let storeValue=0,bought=0,coveredEaten=0,uncoveredKg=0,countFound=0,countLost=0;
   feedStoreTypes().forEach(t=>{
     let balKg=0,balVal=0,unit=null;
     const avg=avgFeedPricePerKg(t);
     feedStockEvents(t).forEach(e=>{
       const kg=Number(e.kg)||0;
       if(e.kind==='count'){
+        // A count overwrites the book. Finding more than the book means sacks
+        // were on the floor that were never booked in as a purchase; finding
+        // less means stock left without being logged. Both are real, and each
+        // gets its own line rather than being netted into one vague figure.
         const u=balKg>0?balVal/balKg:(unit??avg??0);
-        balKg=kg; balVal=kg*u;
+        const newVal=kg*u, delta=newVal-balVal;
+        if(delta>0)countFound+=delta; else countLost+=-delta;
+        balKg=kg; balVal=newVal;
       } else if(e.kind==='usage'){
         const u=balKg>0?balVal/balKg:(unit??avg??0);
-        const val=kg*u;
-        out[e.rec.id]={ngn:val,unit:u};
-        eaten+=val;
-        // Feed eaten with no purchase anywhere on record cannot be priced.
-        // Count the kg so the report can say so instead of charging ₦0.
-        if(!(u>0))unpricedKg+=kg;
-        // Split what the book could actually cover from what it could not. Only
-        // the covered part draws the store down, so bought still equals eaten
-        // plus what is left plus whatever counts wrote off.
+        // Only what the store could cover becomes a cost here.
         const coveredKg=Math.min(kg,Math.max(0,balKg));
-        const uncKg=kg-coveredKg;
-        coveredEaten+=coveredKg*u;
-        uncoveredKg+=uncKg; uncoveredNgn+=uncKg*u;
-        balKg=Math.max(0,balKg-kg); balVal=Math.max(0,balVal-coveredKg*u);
+        const val=coveredKg*u;
+        out[e.rec.id]={ngn:val,coveredKg,uncoveredKg:kg-coveredKg,unit:u};
+        coveredEaten+=val;
+        uncoveredKg+=kg-coveredKg;
+        balKg=Math.max(0,balKg-kg); balVal=Math.max(0,balVal-val);
       } else {
         const cost=Number(e.rec.cost_ngn)||0;
         bought+=cost;
@@ -96,7 +93,8 @@ function feedValuation(){
     });
     storeValue+=balVal;
   });
-  return{usage:out,storeValue,bought,eaten,coveredEaten,uncoveredKg,uncoveredNgn,unpricedKg};
+  // bought + countFound = coveredEaten + storeValue + countLost
+  return{usage:out,storeValue,bought,coveredEaten,uncoveredKg,countFound,countLost};
 }
 // Weighted average of every priced purchase of a feed type. Used to value kg
 // that the moving average cannot price — feed eaten before the first purchase
@@ -167,7 +165,11 @@ function penEconomics(range){
     // on the day each of those kg was eaten.
     const pFeed=feedRecs.filter(x=>(x.pen_id||legacy)===pen.id);
     const feedKg=pFeed.reduce((s,x)=>s+Number(x.feed_kg_used||0),0);
+    // Covered naira only. The uncovered kg were bought outside the store and
+    // are already in the tagged expenses, so they are carried as kg for the
+    // report to explain, not as money to charge again.
     const feedCost=pFeed.reduce((s,x)=>s+((usageVal[x.id]||{}).ngn||0),0);
+    const feedUncoveredKg=pFeed.reduce((s,x)=>s+((usageVal[x.id]||{}).uncoveredKg||0),0);
     const feedDates=[...new Set(pFeed.map(x=>x.date))];
     const feedBirdDays=feedDates.reduce((s,d)=>s+(birdsOn(d)||0),0);
 
@@ -195,7 +197,7 @@ function penEconomics(range){
     return{pen,stage:getPenStage(pen),birdsNow,eggs,broken,
       crackPct:eggs>0?broken/eggs*100:null,
       hdp:eggBirdDays>0?eggs/eggBirdDays*100:null,
-      feedKg,feedCost,feedDays:feedDates.length,
+      feedKg,feedCost,feedUncoveredKg,feedDays:feedDates.length,
       gPerBirdDay:feedBirdDays>0?feedKg*1000/feedBirdDays:null,
       fcr:eggs>0&&feedKg>0?feedKg/(eggs*EGG_KG):null,
       gPerEgg:eggs>0&&feedKg>0?feedKg*1000/eggs:null,
@@ -225,11 +227,10 @@ function penEconomics(range){
       .filter(x=>(x.kind||'purchase')==='purchase'&&inRange(x.date,r))
       .reduce((s,x)=>s+Number(x.cost_ngn||0),0),
     feedFedPeriod:rows.reduce((s,x)=>s+x.feedCost,0),
-    // All time — these three are what must reconcile.
+    // All time — bought + found = eaten + in store + lost.
     feedBought:fv.bought,feedFed:fv.coveredEaten,feedInStore:fv.storeValue,
-    feedEatenTotal:fv.eaten,
-    feedUncoveredKg:fv.uncoveredKg,feedUncoveredNgn:fv.uncoveredNgn,
-    feedUnpricedKg:fv.unpricedKg};
+    feedCountFound:fv.countFound,feedCountLost:fv.countLost,
+    feedUncoveredKg:fv.uncoveredKg};
 }
 
 // ── Report tab ──────────────────────────────────────────────────────────
@@ -305,30 +306,28 @@ function renderPensReport(){
       ${unCatRows?`<div style="padding:4px 0 8px 10px;border-bottom:1px solid #f5f5f5">${unCatRows}</div>`:''}
       ${ec.otherRevenue>0?penMoneyRow('Non-egg sales (birds, manure…)',fmtMoney(Math.round(ec.otherRevenue)),'var(--g2)'):''}
       ${ec.feedBoughtPeriod>0?`<div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-top:10px">
-        🌾 Feed purchases of <b>${fmtMoney(Math.round(ec.feedBoughtPeriod))}</b> in this period are not counted above. They are stock, not a pen's cost, until the birds eat them — ${fmtMoney(Math.round(ec.feedFedPeriod))} of feed was eaten in this period and is already inside the pen costs. The trail below shows where the rest sits.
+        🌾 <b>${fmtMoney(Math.round(ec.feedBoughtPeriod))}</b> of feed was bought through the store in this period and is not counted above — store feed is stock until the birds eat it. Of it, <b>${fmtMoney(Math.round(ec.feedFedPeriod))}</b> has been eaten and is already inside the pen costs. Feed you recorded as an ordinary expense is not affected: it sits in the list above like any other cost.
       </div>`:''}
     </div>
     ${(()=>{
       // Stock reconciles over its whole life, not inside a window, so this
-      // block ignores the date filter. Bought = eaten + in store + the gap,
-      // and the gap is named rather than quietly absorbed.
-      const gap=ec.feedBought-ec.feedFed-ec.feedInStore;  // feedFed is the covered part
-      const shown=Math.abs(gap)>=100;
+      // block ignores the date filter.
+      const inflow=ec.feedBought+ec.feedCountFound;
+      const outflow=ec.feedFed+ec.feedInStore+ec.feedCountLost;
+      const gap=inflow-outflow, ties=Math.abs(gap)<100;
       return `<div class="sec-hdr">Feed Money Trail — All Time</div>
     <div class="card">
-      <p style="font-size:12px;color:var(--gray);margin:0 0 8px">A feed purchase is stock, not a cost. It becomes a pen's cost on the day that pen eats it, priced at what the store was worth per kg that day — so the full purchase never lands on one pen, and feed is never counted twice. These figures tie:</p>
-      ${penMoneyRow('Bought (all time)',fmtMoney(Math.round(ec.feedBought)))}
+      <p style="font-size:12px;color:var(--gray);margin:0 0 8px">Feed bought through the store is stock, not a cost. It becomes a pen's cost on the day that pen eats it. Feed bought outside the store was already a cost the day you paid for it, so it is never charged again here.</p>
+      ${penMoneyRow('Bought through the store',fmtMoney(Math.round(ec.feedBought)))}
+      ${ec.feedCountFound>=100?penMoneyRow('+ Found by stock count — never booked in',fmtMoney(Math.round(ec.feedCountFound)),'var(--g2)'):''}
       ${penMoneyRow('↓ Eaten from that stock — charged to pens',fmtMoney(Math.round(ec.feedFed)),'var(--red)')}
       ${penMoneyRow('↓ Still in the store, not yet a cost',fmtMoney(Math.round(ec.feedInStore)),'var(--g2)')}
-      ${shown?penMoneyRow('↓ Unaccounted — stock counts and spillage',fmtMoney(Math.round(gap)),'var(--amber)'):''}
-      ${shown?`<p style="font-size:11px;color:var(--gray);margin:8px 0 0">The unaccounted line is feed the store no longer holds that no pen was charged for — usually a physical count finding less than the book. It is shown rather than hidden so it can be chased.</p>`:
-        `<p style="font-size:11px;color:var(--g2);font-weight:700;margin:8px 0 0">✓ Every naira of purchased feed is either eaten and charged to a pen, or still in the store.</p>`}
-      ${ec.feedUncoveredKg>0?`<div style="background:var(--amberBg);border-radius:6px;padding:9px 11px;font-size:12px;color:#7d4e00;margin-top:10px;line-height:1.5">
-        ℹ <b>${Math.round(ec.feedUncoveredKg).toLocaleString()}kg</b> eaten in your logs is not backed by any purchase in the store — feed the birds ate before you started booking purchases in, or after the book ran dry.
-        It is still real feed, so pens are charged <b>${fmtMoney(Math.round(ec.feedUncoveredNgn))}</b> for it at the best price on record. That figure is an estimate, not a receipt, and it sits outside the reconciliation above because there is no purchase behind it.
-      </div>`:''}
-      ${ec.feedUnpricedKg>0?`<div style="background:var(--amberBg);border-radius:6px;padding:8px 10px;font-size:12px;color:#7d4e00;margin-top:10px">
-        ⚠ ${Math.round(ec.feedUnpricedKg).toLocaleString()}kg was eaten with no purchase price on record at all, so it was charged at ₦0. Add a purchase in Feed → Store to price it.
+      ${ec.feedCountLost>=100?penMoneyRow('↓ Lost — stock count found less than the book',fmtMoney(Math.round(ec.feedCountLost)),'var(--amber)'):''}
+      ${ties?`<p style="font-size:11px;color:var(--g2);font-weight:700;margin:8px 0 0">✓ Balances. Every naira of store feed is eaten, still in the store, or accounted for by a count.</p>`
+        :`<p style="font-size:11px;color:var(--amber);font-weight:700;margin:8px 0 0">Out by ${fmtMoney(Math.round(gap))} — worth a look at the feed store ledger.</p>`}
+      ${ec.feedCountFound>=100?`<p style="font-size:11px;color:var(--gray);margin:8px 0 0">Feed found by a count is stock that was really on the floor but never entered as a store purchase — normally because it was bought back when you recorded feed as a plain expense.</p>`:''}
+      ${ec.feedUncoveredKg>0?`<div style="background:var(--g5);border-radius:6px;padding:9px 11px;font-size:12px;color:var(--g1);margin-top:10px;line-height:1.5">
+        ℹ <b>${Math.round(ec.feedUncoveredKg).toLocaleString()}kg</b> of the feed in your usage logs never passed through the store — it was bought before you started booking purchases in. Its cost is already sitting in your <b>Feed Purchase</b> expenses, so no pen is charged for it a second time here. It still counts towards FCR and feed per bird, which are measured in kg, not naira.
       </div>`:''}
     </div>`;})()}`;
 }
