@@ -48,53 +48,40 @@ function legacyPenId(){
 // worth per kg that day. A purchase adds value, a physical count re-anchors the
 // kg and revalues at the prevailing unit price, a usage draws both down.
 //
-// Returns the usage prices plus the running totals needed to show, on screen,
-// that no feed money went missing.
-//
 // The rule that keeps feed from being counted twice: a pen is charged only for
 // feed the store actually held. Feed bought outside the store — entered as an
 // ordinary expense rather than a store purchase — was already expensed the day
 // it was paid for, so charging it again when the birds eat it would bill the
-// same sack twice. Those kg are counted and reported, never re-priced.
+// same sack twice. Those kg still count towards FCR; they just cost nothing here.
 function feedValuation(){
   const out={};
-  let storeValue=0,bought=0,coveredEaten=0,uncoveredKg=0,countFound=0,countLost=0;
   feedStoreTypes().forEach(t=>{
     let balKg=0,balVal=0,unit=null;
     const avg=avgFeedPricePerKg(t);
     feedStockEvents(t).forEach(e=>{
       const kg=Number(e.kg)||0;
       if(e.kind==='count'){
-        // A count overwrites the book. Finding more than the book means sacks
-        // were on the floor that were never booked in as a purchase; finding
-        // less means stock left without being logged. Both are real, and each
-        // gets its own line rather than being netted into one vague figure.
+        // A count overwrites the book, carrying the prevailing unit price
+        // onto whatever was actually found on the floor.
         const u=balKg>0?balVal/balKg:(unit??avg??0);
-        const newVal=kg*u, delta=newVal-balVal;
-        if(delta>0)countFound+=delta; else countLost+=-delta;
-        balKg=kg; balVal=newVal;
+        balKg=kg; balVal=kg*u;
       } else if(e.kind==='usage'){
         const u=balKg>0?balVal/balKg:(unit??avg??0);
         // Only what the store could cover becomes a cost here.
         const coveredKg=Math.min(kg,Math.max(0,balKg));
         const val=coveredKg*u;
-        out[e.rec.id]={ngn:val,coveredKg,uncoveredKg:kg-coveredKg,unit:u};
-        coveredEaten+=val;
-        uncoveredKg+=kg-coveredKg;
+        out[e.rec.id]={ngn:val,unit:u};
         balKg=Math.max(0,balKg-kg); balVal=Math.max(0,balVal-val);
       } else {
         const cost=Number(e.rec.cost_ngn)||0;
-        bought+=cost;
         // A purchase logged without a price still adds kg; value those kg at
         // the going rate so they do not enter the store for free.
         balKg+=kg; balVal+=cost>0?cost:kg*(unit??avg??0);
       }
       if(balKg>0)unit=balVal/balKg;
     });
-    storeValue+=balVal;
   });
-  // bought + countFound = coveredEaten + storeValue + countLost
-  return{usage:out,storeValue,bought,coveredEaten,uncoveredKg,countFound,countLost};
+  return out;
 }
 // Weighted average of every priced purchase of a feed type. Used to value kg
 // that the moving average cannot price — feed eaten before the first purchase
@@ -133,7 +120,7 @@ function penEconomics(range){
   const pens=farm.pens||[];
   const r=range||anaDateRange();
   const legacy=legacyPenId();
-  const fv=feedValuation(), usageVal=fv.usage;
+  const usageVal=feedValuation();
 
   const cols=DB.getCols().filter(c=>inRange(c.date,r));
   const feedRecs=DB.getFeed().filter(x=>inRange(x.date,r)&&Number(x.feed_kg_used)>0);
@@ -144,6 +131,10 @@ function penEconomics(range){
   const sales=DB.getSales().filter(x=>inRange(x.date,r));
   const eggRevenue=sales.filter(s=>s.product===EGG_PRODUCT)
     .reduce((s,e)=>s+Number(e.total_amount_ngn||0),0);
+  // Birds, manure and the rest come off one identifiable flock — cockerels sold
+  // out of a pen are that pen's money. Untagged ones follow the same rule as
+  // every other legacy record and go to the oldest pen.
+  const otherSales=sales.filter(s=>s.product!==EGG_PRODUCT);
 
   // Eggs per pen first — the revenue split depends on the totals.
   const eggsBy={},brokenBy={},eggDatesBy={};
@@ -169,7 +160,6 @@ function penEconomics(range){
     // are already in the tagged expenses, so they are carried as kg for the
     // report to explain, not as money to charge again.
     const feedCost=pFeed.reduce((s,x)=>s+((usageVal[x.id]||{}).ngn||0),0);
-    const feedUncoveredKg=pFeed.reduce((s,x)=>s+((usageVal[x.id]||{}).uncoveredKg||0),0);
     const feedDates=[...new Set(pFeed.map(x=>x.date))];
     const feedBirdDays=feedDates.reduce((s,d)=>s+(birdsOn(d)||0),0);
 
@@ -192,18 +182,21 @@ function penEconomics(range){
     pExp.forEach(x=>{cats[x.category]=(cats[x.category]||0)+Number(x.amount_ngn||0);});
     if(feedCost>0)cats['Feed (eaten)']=(cats['Feed (eaten)']||0)+feedCost;
     const cost=tagged+feedCost;
-    const revenue=totalEggs>0?eggRevenue*eggs/totalEggs:0;
+    const eggRev=totalEggs>0?eggRevenue*eggs/totalEggs:0;
+    const otherRev=otherSales.filter(x=>(x.pen_id||legacy)===pen.id)
+      .reduce((s,e)=>s+Number(e.total_amount_ngn||0),0);
+    const revenue=eggRev+otherRev;
 
     return{pen,stage:getPenStage(pen),birdsNow,eggs,broken,
       crackPct:eggs>0?broken/eggs*100:null,
       hdp:eggBirdDays>0?eggs/eggBirdDays*100:null,
-      feedKg,feedCost,feedUncoveredKg,feedDays:feedDates.length,
+      feedKg,feedCost,feedDays:feedDates.length,
       gPerBirdDay:feedBirdDays>0?feedKg*1000/feedBirdDays:null,
       fcr:eggs>0&&feedKg>0?feedKg/(eggs*EGG_KG):null,
       gPerEgg:eggs>0&&feedKg>0?feedKg*1000/eggs:null,
       deaths,culls,
       mortalityPct:opening>0?deaths/opening*100:null,
-      tagged,cats,cost,revenue,
+      tagged,cats,cost,revenue,eggRev,otherRev,
       sharePct:totalEggs>0?eggs/totalEggs*100:null,
       margin:revenue-cost,
       costPerEgg:eggs>0?cost/eggs:null,
@@ -215,29 +208,26 @@ function penEconomics(range){
   const unCats={};
   untagged.forEach(x=>{unCats[x.category]=(unCats[x.category]||0)+Number(x.amount_ngn||0);});
 
-  return{rows,range:r,totalEggs,eggRevenue,
-    otherRevenue:sales.filter(s=>s.product!==EGG_PRODUCT)
-      .reduce((s,e)=>s+Number(e.total_amount_ngn||0),0),
+  return{rows,range:r,
     unallocated:untagged.reduce((s,x)=>s+Number(x.amount_ngn||0),0),
     unallocatedCats:unCats,
-    untaggedCount:untagged.length,
-    // Feed purchases sitting in this window, for the note that explains why
-    // they are not in anybody's cost yet.
-    feedBoughtPeriod:DB.getFeedStock()
-      .filter(x=>(x.kind||'purchase')==='purchase'&&inRange(x.date,r))
-      .reduce((s,x)=>s+Number(x.cost_ngn||0),0),
-    feedFedPeriod:rows.reduce((s,x)=>s+x.feedCost,0),
-    // All time — bought + found = eaten + in store + lost.
-    feedBought:fv.bought,feedFed:fv.coveredEaten,feedInStore:fv.storeValue,
-    feedCountFound:fv.countFound,feedCountLost:fv.countLost,
-    feedUncoveredKg:fv.uncoveredKg};
+    untaggedCount:untagged.length};
 }
 
-// ── Report tab ──────────────────────────────────────────────────────────
+// ── Report tab ────────────────────────────────────────────────
+// Cost breakdowns are collapsed by default, same as the feed report's tables —
+// the headline figures are what get read daily.
+const PEN_TBL={};
+function togglePenTbl(id){ PEN_TBL[id]=!PEN_TBL[id]; renderReports(); }
 function penMoneyRow(label,value,color){
   return `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f5f5f5">
     <span style="font-size:13px;color:var(--gray)">${label}</span>
     <span style="font-weight:800;font-size:13px;color:${color||'var(--g1)'}">${value}</span></div>`;
+}
+function penCatRows(cats){
+  return Object.entries(cats).sort((a,b)=>b[1]-a[1])
+    .map(([c,v])=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--gray)">
+      <span>${c}</span><span style="font-weight:700;color:var(--g1)">${fmtMoney(Math.round(v))}</span></div>`).join('');
 }
 function renderPensReport(){
   const ec=penEconomics();
@@ -248,10 +238,7 @@ function renderPensReport(){
   const cards=ec.rows.map(p=>{
     const st=p.stage;
     const src=[p.pen.breed,p.pen.source].filter(Boolean).join(' · ');
-    const marginCol=p.margin>=0?'var(--g2)':'var(--red)';
-    const catRows=Object.entries(p.cats).sort((a,b)=>b[1]-a[1])
-      .map(([c,v])=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--gray)">
-        <span>${c}</span><span style="font-weight:700;color:var(--g1)">${fmtMoney(Math.round(v))}</span></div>`).join('');
+    const open=!!PEN_TBL[p.pen.id];
     return `<div class="card">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px">
         <div>
@@ -276,13 +263,16 @@ function renderPensReport(){
         <div class="kpi-sm"><div class="kpi-val-sm">${p.feedKg>0?p.feedKg.toFixed(0)+'kg':'—'}</div><div class="kpi-lbl-sm">Feed Used</div></div>
       </div>
 
-      <div style="font-size:10px;font-weight:800;color:var(--gray);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">Money</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+        <div style="font-size:10px;font-weight:800;color:var(--gray);text-transform:uppercase;letter-spacing:.4px">Money</div>
+        ${Object.keys(p.cats).length?`<button class="tbtn" onclick="togglePenTbl('${p.pen.id}')">${open?'Hide breakdown':'Breakdown'}</button>`:''}
+      </div>
       ${penMoneyRow('Direct cost',fmtMoney(Math.round(p.cost)),'var(--red)')}
-      ${catRows?`<div style="padding:4px 0 8px 10px;border-bottom:1px solid #f5f5f5">${catRows}</div>`:''}
-      ${penMoneyRow(`Revenue — ${p.sharePct!==null?p.sharePct.toFixed(0):'0'}% share of eggs`,fmtMoney(Math.round(p.revenue)),'var(--g2)')}
+      ${open?`<div style="padding:4px 0 8px 10px;border-bottom:1px solid #f5f5f5">${penCatRows(p.cats)}</div>`:''}
+      ${penMoneyRow('Revenue',fmtMoney(Math.round(p.revenue)),'var(--g2)')}
       <div style="display:flex;justify-content:space-between;padding:9px 0;font-size:15px">
         <span style="font-weight:800">Margin</span>
-        <span style="font-weight:800;color:${marginCol}">${p.margin>=0?'+':''}${fmtMoney(Math.round(p.margin))}</span></div>
+        <span style="font-weight:800;color:${p.margin>=0?'var(--g2)':'var(--red)'}">${p.margin>=0?'+':''}${fmtMoney(Math.round(p.margin))}</span></div>
       <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray);border-top:1px solid #f5f5f5;padding-top:8px">
         <span>Cost/egg <b style="color:var(--g1)">${p.costPerEgg?'₦'+p.costPerEgg.toFixed(1):'—'}</b></span>
         <span>Cost/crate <b style="color:var(--g1)">${p.costPerCrate?'₦'+p.costPerCrate.toFixed(0):'—'}</b></span>
@@ -290,44 +280,16 @@ function renderPensReport(){
     </div>`;
   }).join('');
 
-  const unCatRows=Object.entries(ec.unallocatedCats).sort((a,b)=>b[1]-a[1])
-    .map(([c,v])=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--gray)">
-      <span>${c}</span><span style="font-weight:700;color:var(--g1)">${fmtMoney(Math.round(v))}</span></div>`).join('');
-
-  return `${(farm.pens||[]).length>1?'':`<div style="margin:10px 16px 0;background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8">
-      Only one pen is set up, so every figure below is the whole farm. Add the second pen in Settings to compare the two intakes.
-    </div>`}
-    <div class="sec-hdr" style="margin-top:8px">Per Pen — ${anaModeLabel()}</div>
+  const unOpen=!!PEN_TBL._un;
+  return `<div class="sec-hdr" style="margin-top:8px">Per Pen — ${anaModeLabel()}</div>
     ${cards}
-    <div class="sec-hdr">Not Charged to Any Pen</div>
+    ${ec.unallocated>0?`<div class="sec-hdr">Not Charged to Any Pen</div>
     <div class="card">
-      <p style="font-size:12px;color:var(--gray);margin:0 0 8px">Farm-wide spending stays here rather than being split across pens, so a pen's cost is only money you assigned to it. Tag an expense to a pen when you log it and it moves up.</p>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+        <div style="font-size:10px;font-weight:800;color:var(--gray);text-transform:uppercase;letter-spacing:.4px">Farm-wide</div>
+        <button class="tbtn" onclick="togglePenTbl('_un')">${unOpen?'Hide breakdown':'Breakdown'}</button>
+      </div>
       ${penMoneyRow('Unassigned expenses'+(ec.untaggedCount?` (${ec.untaggedCount})`:''),fmtMoney(Math.round(ec.unallocated)),'var(--red)')}
-      ${unCatRows?`<div style="padding:4px 0 8px 10px;border-bottom:1px solid #f5f5f5">${unCatRows}</div>`:''}
-      ${ec.otherRevenue>0?penMoneyRow('Non-egg sales (birds, manure…)',fmtMoney(Math.round(ec.otherRevenue)),'var(--g2)'):''}
-      ${ec.feedBoughtPeriod>0?`<div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-top:10px">
-        🌾 <b>${fmtMoney(Math.round(ec.feedBoughtPeriod))}</b> of feed was bought through the store in this period and is not counted above — store feed is stock until the birds eat it. Of it, <b>${fmtMoney(Math.round(ec.feedFedPeriod))}</b> has been eaten and is already inside the pen costs. Feed you recorded as an ordinary expense is not affected: it sits in the list above like any other cost.
-      </div>`:''}
-    </div>
-    ${(()=>{
-      // Stock reconciles over its whole life, not inside a window, so this
-      // block ignores the date filter.
-      const inflow=ec.feedBought+ec.feedCountFound;
-      const outflow=ec.feedFed+ec.feedInStore+ec.feedCountLost;
-      const gap=inflow-outflow, ties=Math.abs(gap)<100;
-      return `<div class="sec-hdr">Feed Money Trail — All Time</div>
-    <div class="card">
-      <p style="font-size:12px;color:var(--gray);margin:0 0 8px">Feed bought through the store is stock, not a cost. It becomes a pen's cost on the day that pen eats it. Feed bought outside the store was already a cost the day you paid for it, so it is never charged again here.</p>
-      ${penMoneyRow('Bought through the store',fmtMoney(Math.round(ec.feedBought)))}
-      ${ec.feedCountFound>=100?penMoneyRow('+ Found by stock count — never booked in',fmtMoney(Math.round(ec.feedCountFound)),'var(--g2)'):''}
-      ${penMoneyRow('↓ Eaten from that stock — charged to pens',fmtMoney(Math.round(ec.feedFed)),'var(--red)')}
-      ${penMoneyRow('↓ Still in the store, not yet a cost',fmtMoney(Math.round(ec.feedInStore)),'var(--g2)')}
-      ${ec.feedCountLost>=100?penMoneyRow('↓ Lost — stock count found less than the book',fmtMoney(Math.round(ec.feedCountLost)),'var(--amber)'):''}
-      ${ties?`<p style="font-size:11px;color:var(--g2);font-weight:700;margin:8px 0 0">✓ Balances. Every naira of store feed is eaten, still in the store, or accounted for by a count.</p>`
-        :`<p style="font-size:11px;color:var(--amber);font-weight:700;margin:8px 0 0">Out by ${fmtMoney(Math.round(gap))} — worth a look at the feed store ledger.</p>`}
-      ${ec.feedCountFound>=100?`<p style="font-size:11px;color:var(--gray);margin:8px 0 0">Feed found by a count is stock that was really on the floor but never entered as a store purchase — normally because it was bought back when you recorded feed as a plain expense.</p>`:''}
-      ${ec.feedUncoveredKg>0?`<div style="background:var(--g5);border-radius:6px;padding:9px 11px;font-size:12px;color:var(--g1);margin-top:10px;line-height:1.5">
-        ℹ <b>${Math.round(ec.feedUncoveredKg).toLocaleString()}kg</b> of the feed in your usage logs never passed through the store — it was bought before you started booking purchases in. Its cost is already sitting in your <b>Feed Purchase</b> expenses, so no pen is charged for it a second time here. It still counts towards FCR and feed per bird, which are measured in kg, not naira.
-      </div>`:''}
-    </div>`;})()}`;
+      ${unOpen?`<div style="padding:4px 0 8px 10px">${penCatRows(ec.unallocatedCats)}</div>`:''}
+    </div>`:''}`;
 }

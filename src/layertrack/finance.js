@@ -249,7 +249,7 @@ function renderFinance(){
         <button class="btn btn-secondary btn-sm" style="flex-shrink:0" onclick="undoBulkTagExpenses()">Undo</button>
       </div>`:''}
       ${!penScoped&&untagged>0?`<div style="margin:0 16px 8px;background:var(--g5);border-radius:8px;padding:10px 12px">
-        <div style="font-size:12px;color:var(--g1);margin-bottom:8px">💡 <b>${untagged}</b> expense${untagged>1?'s are':' is'} not charged to a pen, so ${untagged>1?'they do':'it does'} not appear in any pen's cost.</div>
+        <div style="font-size:12px;color:var(--g1);margin-bottom:8px"><b>${untagged}</b> expense${untagged>1?'s':''} not charged to a pen.</div>
         <div style="display:flex;gap:6px">
           <button class="btn btn-primary btn-sm" style="flex:1" onclick="openBulkTagExpenses()">Assign to a Pen</button>
           <button class="btn btn-secondary btn-sm" style="flex:1" onclick="REP_TAB='pens';go('reports')">See Pen Costs</button>
@@ -490,12 +490,12 @@ function openBulkTagExpenses(){
   if(!pens.length){toast('Add a pen in Settings first');return;}
   const today=DB.today(), def=legacyPenId();
   openModal(`<div class="modal-ttl">Assign Expenses to a Pen <button class="modal-x" onclick="closeModal()">×</button></div>
-    <p style="font-size:13px;color:var(--gray);margin:0 0 14px">Charges every expense that is not yet on a pen to the pen you pick. Only the pen changes — amounts, dates and notes stay exactly as they are, and locked records are included.</p>
+    <p style="font-size:13px;color:var(--gray);margin:0 0 14px">Charges every expense not yet on a pen to the pen you pick. Only the pen changes; locked records are included.</p>
     <div class="field"><label>Charge them to</label>
       <select id="bt_pen">${pens.map(p=>`<option value="${p.id}" ${p.id===def?'selected':''}>${p.name}</option>`).join('')}</select></div>
     <div class="field"><label>Only expenses dated on or before</label>
       <input type="date" id="bt_before" value="${today}" onchange="previewBulkTag()" oninput="previewBulkTag()">
-      <div style="font-size:11px;color:var(--gray);margin-top:5px">Leave as today to take the whole backlog. Set it earlier if a newer pen has already started picking up its own costs.</div></div>
+      <div style="font-size:11px;color:var(--gray);margin-top:5px">Leave as today to take the whole backlog.</div></div>
     <div id="bt_preview"></div>
     <button class="btn btn-primary" id="bt_go" onclick="doBulkTagExpenses()">Assign</button>`);
   previewBulkTag();
@@ -511,7 +511,7 @@ function previewBulkTag(){
   const skipped=DB.getExpenses().filter(e=>!e.pen_id&&e.feed_stock_id);
   const skippedNgn=skipped.reduce((s,e)=>s+Number(e.amount_ngn||0),0);
   const feedNote=skipped.length?`<div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:14px">
-    🌾 ${skipped.length} feed purchase${skipped.length>1?'s':''} (${fmtMoney(Math.round(skippedNgn))}) ${skipped.length>1?'are':'is'} left out on purpose. Feed reaches a pen through the kg it eats, so this money is already being charged to your pen as the birds eat through the store. Tagging it here would charge it twice.
+    ${skipped.length} store feed purchase${skipped.length>1?'s':''} (${fmtMoney(Math.round(skippedNgn))}) left out — charged to a pen as the birds eat it.
   </div>`:'';
   if(rows.length===0){
     box.innerHTML=feedNote+`<div style="background:#f5f5f5;border-radius:8px;padding:12px;font-size:13px;color:var(--gray);margin-bottom:14px">Nothing else to assign in that date range.</div>`;
@@ -566,7 +566,7 @@ function openExpenseForm(editId){
         <option value="">Farm-wide — not one pen</option>
         ${pens.map(p=>`<option value="${p.id}" ${rec?.pen_id===p.id?'selected':''}>${p.name}</option>`).join('')}
       </select>
-      <div style="font-size:11px;color:var(--gray);margin-top:5px">Pick a pen and this cost counts towards that flock in Reports → Pens. Leave it farm-wide for labour, power and anything shared — shared costs are never split across pens.</div></div>
+      <div style="font-size:11px;color:var(--gray);margin-top:5px">Leave farm-wide for labour, power and anything shared.</div></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Amount (₦ NGN)</label><input type="number" id="ef_ngn" value="${rec?.amount_ngn||''}" min="0" step="100" placeholder="0"></div>
       <div class="field"><label>Amount ($ USD) <span style="color:var(--gray);font-weight:400">opt</span></label><input type="number" id="ef_usd" value="${rec?.amount_usd||''}" min="0" step="0.01" placeholder="0.00"></div>

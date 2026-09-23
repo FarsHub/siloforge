@@ -189,6 +189,15 @@ function openSaleForm(editId){
     </div>
     <div class="field"><label>Total Amount (₦)</label>
       <input type="number" id="sf_total" value="${rec?.total_amount_ngn||''}" placeholder="Auto-calculated" style="background:#f5f5f5"></div>
+    ${(()=>{const pens=((DB.getFarm()||{}).pens)||[];
+      if(pens.length===0)return'';
+      const sel=rec?.pen_id||(pens.length===1?pens[0].id:'');
+      return `<div class="field"><label>From pen</label>
+        <select id="sf_pen">
+          <option value="">— not pen-specific —</option>
+          ${pens.map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${p.name}</option>`).join('')}
+        </select>
+        <div style="font-size:11px;color:var(--gray);margin-top:5px">Egg sales are split across pens by eggs laid, whatever is picked here. Birds, manure and other products go to the pen chosen.</div></div>`;})()}
     <div class="field"><label>Payment</label>
       <select id="sf_pay" onchange="toggleSalePayFields()">
         <option value="cash" ${!isCredit?'selected':''}>Cash — full payment now</option>
@@ -478,6 +487,7 @@ function saveSale(editId){
     due_date:isCredit?(document.getElementById('sf_due')?.value||null):null,
     customer_id:customerId||null,
     customer:typedName,
+    pen_id:document.getElementById('sf_pen')?.value||null,
     seller:(document.getElementById('sf_seller')?.value||'').trim(),
     notes:document.getElementById('sf_notes').value.trim(),
     credit_gate_override_reason:gateBreached?overrideReason:(existingRec?.credit_gate_override_reason||null)
