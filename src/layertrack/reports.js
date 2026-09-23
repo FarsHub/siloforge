@@ -131,13 +131,16 @@ function fcrAgeHint(age){
 // birds were alive that day. Bird records are authoritative; where none exist we
 // back it out of the saved requirement (req kg = birds x rate), then fall back to
 // the configured flock size.
-function feedDailySeries(validPenIds){
+function feedDailySeries(validPenIds,penId){
   const farm=DB.getFarm()||{pens:[]};
-  const sortedBirds=DB.getBirds().filter(b=>(b.closing_birds||0)>0).sort((a,b)=>a.date.localeCompare(b.date));
-  const totalNow=getFarmTotalBirds(farm)||0;
+  const legacy=legacyPenId();
+  const mine=r=>!penId||(r.pen_id||legacy)===penId;
+  const pen=penId?(farm.pens||[]).find(p=>p.id===penId):null;
+  const sortedBirds=DB.getBirds().filter(b=>(b.closing_birds||0)>0&&mine(b)).sort((a,b)=>a.date.localeCompare(b.date));
+  const totalNow=(pen?getPenTotalBirds(pen):getFarmTotalBirds(farm))||0;
   const map={};
   const touch=d=>(map[d]=map[d]||{date:d,kg:0,req:0,eggs:0,rate:0,rateN:0,age:null,types:{}});
-  DB.getFeed().forEach(r=>{
+  DB.getFeed().filter(mine).forEach(r=>{
     const d=touch(r.date);
     d.kg+=r.feed_kg_used||0; d.req+=r.feed_req_kg||0;
     if(r.feed_type)d.types[r.feed_type]=1;
@@ -203,6 +206,8 @@ function _niceTicks(min,max,n){
 function lineChartSvg(id,rows,series,opts){
   opts=opts||{};
   const dec=opts.dec||0, unit=opts.unit||'', band=opts.band;
+  // FCR wants a ceiling, lay rate wants a floor, so the caller names the band.
+  const bandLabel=opts.bandLabel||(band?`target &lt; ${band[1]}`:'');
   const W=640,H=190,PL=38,PR=46,PT=12,PB=26,cw=W-PL-PR,ch=H-PT-PB;
   const all=rows.flatMap(r=>series.map(s=>s.get(r))).filter(v=>v!=null&&isFinite(v));
   if(!all.length||rows.length<2)return '<div style="color:var(--gray);font-size:13px;padding:20px 0">Not enough data yet.</div>';
@@ -214,7 +219,7 @@ function lineChartSvg(id,rows,series,opts){
   if(band){ // clamped, or it paints outside the plot
     const b0=Math.max(lo,Math.min(band[0],hi)), b1=Math.max(lo,Math.min(band[1],hi));
     if(b1>b0)bandSvg=`<rect x="${PL}" y="${yOf(b1).toFixed(1)}" width="${cw}" height="${(yOf(b0)-yOf(b1)).toFixed(1)}" fill="#12946a" opacity=".08"/>
-      <text x="${W-PR-2}" y="${(yOf(b1)-4).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--gray)">target &lt; ${band[1]}</text>`;
+      <text x="${W-PR-2}" y="${(yOf(b1)-4).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--gray)">${bandLabel}</text>`;
   }
   const grid=ticks.map(t=>`<line x1="${PL}" y1="${yOf(t).toFixed(1)}" x2="${W-PR}" y2="${yOf(t).toFixed(1)}" stroke="#ecefed" stroke-width="1"/>
     <text x="${PL-6}" y="${(yOf(t)+3.5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="var(--gray)">${t}</text>`).join('');
@@ -271,15 +276,37 @@ function wireFeedCharts(){
     hit.addEventListener('pointerleave',()=>{tt.style.opacity=0;cx.setAttribute('opacity','0');});
   });
 }
+// Reports follow the pen you opened from Home. Choosing "All pens" clears the
+// selection, which is also what the data-entry screens read — one idea of
+// "which pen am I looking at", not two that can disagree.
+function setReportPen(id){ _activePenId=id||null; renderReports(); }
+function reportPenBar(farm){
+  const pens=(farm.pens||[]);
+  if(pens.length<2)return'';
+  return`<div style="background:var(--white);padding:10px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px">
+    <span style="font-size:12px;font-weight:700;color:var(--gray);white-space:nowrap">Pen:</span>
+    <select style="flex:1;padding:8px 12px;border:1.5px solid #ddd;border-radius:10px;font-size:14px;font-weight:600;background:var(--white)"
+      onchange="setReportPen(this.value)">
+      <option value="" ${!_activePenId?'selected':''}>All pens</option>
+      ${pens.map(p=>`<option value="${p.id}" ${_activePenId===p.id?'selected':''}>${p.name}</option>`).join('')}
+    </select></div>`;
+}
 function renderReports(){
   const el=document.getElementById('v-reports');
   const farm=DB.getFarm();
   if(!farm){el.innerHTML=`<div class="topbar"><div><h1>Reports</h1></div></div><div class="empty"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><h3>No data yet</h3><p>Start logging data to see reports.</p></div>`;return;}
 
   const allCols=DB.getCols();
-  const farmBirds=getFarmTotalBirds(farm);
-  const validPenIds=new Set((farm.pens||[]).map(p=>p.id));
+  const scopePen=_activePenId?(farm.pens||[]).find(p=>p.id===_activePenId):null;
+  const legacyPen=legacyPenId();
+  const inScope=id=>!_activePenId||id===_activePenId;
+  const farmBirds=scopePen?getPenTotalBirds(scopePen):getFarmTotalBirds(farm);
+  const validPenIds=new Set((farm.pens||[]).filter(p=>inScope(p.id)).map(p=>p.id));
   const cols=filterColsByDate(allCols).filter(c=>validPenIds.has(c.penId));
+  // Flock and feed records predate pen tagging, so an untagged one belongs to
+  // the oldest pen — the same rule the pen economics uses.
+  const scopedBirds=DB.getBirds().filter(r=>inScope(r.pen_id||legacyPen));
+  const scopedFeed=DB.getFeed().filter(r=>inScope(r.pen_id||legacyPen));
   const modeLabel=anaModeLabel();
   const finMonthLabel=(()=>{const m=FIN_MONTH||DB.today().slice(0,7);const d=new Date(m+'-01T00:00:00');return d.toLocaleDateString('en-GB',{month:'long',year:'numeric'});})();
   const topbarLabel=REP_TAB==='finance'?finMonthLabel:modeLabel;
@@ -310,7 +337,7 @@ function renderReports(){
     let totalEggs=0,totalBroken=0;
     cols.forEach(col=>(col.entries||[]).forEach(e=>{totalEggs+=(e.eggs||0);totalBroken+=(e.broken||0);}));
     // Avg daily Hen Day Production: for each egg-collection day, use actual bird count from bird log
-    const _birdLog=DB.getBirds().sort((a,b)=>a.date.localeCompare(b.date));
+    const _birdLog=scopedBirds.slice().sort((a,b)=>a.date.localeCompare(b.date));
     const _birdDateMap={};_birdLog.forEach(r=>{_birdDateMap[r.date]=(r.closing_birds||r.opening_birds||0);});
     const _birdDates=Object.keys(_birdDateMap).sort();
     function _birdsOn(date){if(_birdDateMap[date])return _birdDateMap[date];const p=_birdDates.filter(d=>d<=date).pop();return p?_birdDateMap[p]:farmBirds;}
@@ -412,108 +439,65 @@ function renderReports(){
           </table></div>`;
     }
     if(ANA_TAB==='trend'){
-      // All-time egg data (independent of ANA_DATE filter)
-      const _allColsTrend=DB.getCols().filter(c=>validPenIds.has(c.penId));
-      const _allEggsByDate={};
-      _allColsTrend.forEach(col=>(col.entries||[]).forEach(e=>{_allEggsByDate[col.date]=(_allEggsByDate[col.date]||0)+(e.eggs||0);}));
-      // Date → flock age week (from bird log, with interpolation fallback)
-      const _firstPen=(farm.pens||[])[0];
-      const _bwAge=_birdLog.filter(r=>r.age_weeks!=null);
-      const _ageWeekOn=(date)=>{
-        const exact=_birdLog.find(r=>r.date===date&&r.age_weeks!=null);
-        if(exact)return exact.age_weeks;
-        const prior=_bwAge.filter(r=>r.date<=date).pop();
-        if(prior){const dd=Math.floor((new Date(date)-new Date(prior.date+'T00:00:00'))/(864e5));return prior.age_weeks+Math.floor(dd/7);}
-        if(_firstPen?.flockStartDate){const wk=Math.floor((new Date(date)-new Date(_firstPen.flockStartDate+'T00:00:00'))/(7*864e5));return wk+(_firstPen.flockAgeAtArrival||0);}
-        return null;
-      };
+      // One line per pen, drawn against each pen's own flock age. Two flocks of
+      // different ages then sit on the same axis and can be read against each
+      // other week for week, which is the whole reason for keeping them apart.
       const isWeekly=TREND_MODE==='weekly';
-      const _buckets={};
-      const _moN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      Object.entries(_allEggsByDate).forEach(([date,eggs])=>{
-        const birds=_birdsOn(date); if(!birds)return;
-        const dHDP=eggs/birds*100;
-        let key,label,sortKey;
-        if(isWeekly){const w=_ageWeekOn(date);if(w===null||w===undefined)return;key=w;label=`Wk ${w}`;sortKey=w;}
-        else{key=date.slice(0,7);const mo=parseInt(date.slice(5,7))-1;label=`${_moN[mo]} '${date.slice(2,4)}`;sortKey=key;}
-        if(!_buckets[key])_buckets[key]={hdpSum:0,days:0,eggs:0,label,sortKey};
-        _buckets[key].hdpSum+=dHDP;_buckets[key].days++;_buckets[key].eggs+=eggs;
-      });
-      const _tPoints=Object.values(_buckets).sort((a,b)=>isWeekly?a.sortKey-b.sortKey:a.sortKey.localeCompare(b.sortKey))
-        .map(b=>({...b,hdp:b.hdpSum/b.days})).filter(p=>!isNaN(p.hdp));
-      const _peakPt=_tPoints.length>0?_tPoints.reduce((best,p)=>p.hdp>best.hdp?p:best):null;
-      const _pdsAbove80=_tPoints.filter(p=>p.hdp>=80).length;
-      const _lastPt=_tPoints[_tPoints.length-1];
-      let _tArrow='→',_tCol='var(--gray)';
-      if(_tPoints.length>=4){
-        const l3=_tPoints.slice(-3).reduce((s,p)=>s+p.hdp,0)/3;
-        const p3=_tPoints.slice(-6,-3);if(p3.length){const p3a=p3.reduce((s,p)=>s+p.hdp,0)/p3.length;if(l3>p3a+2){_tArrow='↑';_tCol='var(--g2)';}else if(l3<p3a-2){_tArrow='↓';_tCol='var(--red)';}}
-      }
-      const _maxRate=_tPoints.length>0?Math.max(..._tPoints.map(p=>p.hdp)):20;
-      const _rawMax=Math.max(Math.ceil(_maxRate/5)*5+5,20);
-      const _yMax=Math.ceil(_rawMax/10)*10;
-      window._trendPts=_tPoints;
-      const _trendSvg=(()=>{
-        const pts=_tPoints,n=pts.length;
-        if(n<2)return`<div style="color:var(--gray);font-size:13px;padding:24px 0;text-align:center">Not enough data — log eggs across at least 2 ${isWeekly?'weeks':'months'} to see the trend.</div>`;
-        const svgW=600,cH=110,lblH=18,svgH=cH+lblH,padL=36,padR=8,plotW=svgW-padL-padR;
-        const yp=(v)=>(cH-6)-(Math.min(Math.max(v,0),_yMax)/_yMax)*(cH-12)+2;
-        const xp=(i)=>padL+(i/Math.max(n-1,1))*plotW;
-        const yAxisLbls=(()=>{
-          const parts=[];
-          for(let v=0;v<=_yMax;v+=10){
-            const y=yp(v);
-            parts.push(`<text x="${padL-3}" y="${(y+3).toFixed(1)}" text-anchor="end" font-size="8" fill="#bbb">${v}</text>`);
-          }
-          parts.push(`<line x1="${padL}" y1="${yp(0).toFixed(1)}" x2="${svgW-padR}" y2="${yp(0).toFixed(1)}" stroke="#eee" stroke-width="1"/>`);
-          return parts.join('');
-        })();
-        const bench=(_yMax>=80?`<line x1="${padL}" y1="${yp(80).toFixed(1)}" x2="${svgW-padR}" y2="${yp(80).toFixed(1)}" stroke="#27ae60" stroke-width="1" stroke-dasharray="5,3" opacity="0.7"/>
-          <text x="${padL-3}" y="${(yp(80)+3).toFixed(1)}" text-anchor="end" font-size="8" fill="#27ae60" font-weight="700">80</text>`:'')
-          +(_yMax>=70?`<line x1="${padL}" y1="${yp(70).toFixed(1)}" x2="${svgW-padR}" y2="${yp(70).toFixed(1)}" stroke="#e67e22" stroke-width="1" stroke-dasharray="5,3" opacity="0.7"/>
-          <text x="${padL-3}" y="${(yp(70)+3).toFixed(1)}" text-anchor="end" font-size="8" fill="#e67e22" font-weight="700">70</text>`:'');
-        const linePts=pts.map((p,i)=>`${xp(i).toFixed(1)},${yp(p.hdp).toFixed(1)}`).join(' ');
-        const area=`<polygon points="${xp(0).toFixed(1)},${cH+2} ${linePts} ${xp(n-1).toFixed(1)},${cH+2}" fill="url(#tGrad)" opacity="0.18"/>`;
-        const segs=pts.slice(0,-1).map((p,i)=>{const x1=xp(i),y1=yp(p.hdp),x2=xp(i+1),y2=yp(pts[i+1].hdp);const avg=(p.hdp+pts[i+1].hdp)/2;const col=avg>=80?'#27ae60':avg>=70?'#e67e22':'#c0392b';return`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${col}" stroke-width="2.5" stroke-linecap="round"/>`;}).join('');
-        const dots=pts.map((p,i)=>{const x=xp(i),y=yp(p.hdp),isPk=p===_peakPt,col=p.hdp>=80?'#27ae60':p.hdp>=70?'#e67e22':'#c0392b';return`<g onmouseenter="showTrendTip(event,_trendPts[${i}])" onmouseleave="hideTrendTip()" onmousemove="positionTrendTip(event)" style="cursor:pointer"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="11" fill="transparent"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${isPk?4.5:2.5}" fill="${col}" stroke="white" stroke-width="1.5"/>${isPk?`<text x="${x.toFixed(1)}" y="${(y-10).toFixed(1)}" text-anchor="middle" font-size="9" fill="${col}" font-weight="800">▲${p.hdp.toFixed(0)}%</text>`:''}</g>`;}).join('');
-        const lstep=Math.ceil(n/10);
-        const xlbls=pts.map((p,i)=>i%lstep===0||i===n-1?`<text x="${xp(i).toFixed(1)}" y="${svgH-1}" text-anchor="middle" font-size="7.5" fill="#aaa">${p.label}</text>`:'').join('');
-        return`<svg viewBox="0 0 ${svgW} ${svgH}" style="width:100%;height:auto;display:block;overflow:visible">
-          <defs><linearGradient id="tGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#27ae60" stop-opacity="0.4"/><stop offset="100%" stop-color="#27ae60" stop-opacity="0"/></linearGradient></defs>
-          ${yAxisLbls}${bench}${area}${segs}${dots}${xlbls}</svg>`;
-      })();
-      const _lbl=isWeekly?'Week':'Month';
+      const tPens=(farm.pens||[]).filter(p=>inScope(p.id));
+      const {rows:tRows,byPen}=penTrendChartData(tPens,isWeekly);
+      const drawn=tPens.filter(p=>byPen[p.id].length>0);
+      // With a single flock there is nothing to tell apart, so keep the line
+      // coloured by the rate itself the way it has always read. Only once two
+      // pens share the axis does a flat colour per pen carry more information.
+      const tSeries=drawn.map((p,i)=>drawn.length>1
+        ?{name:p.name,color:PEN_LINE_COLOURS[i%PEN_LINE_COLOURS.length],get:r=>r['hdp_'+p.id]}
+        :{name:p.name,color:'var(--g2)',colorOf:rateColor,get:r=>r['hdp_'+p.id]});
+      const chart=tRows.length>1&&drawn.length
+        ?lineChartSvg('pentrend',tRows,tSeries,{dec:1,unit:'%',band:[80,100],bandLabel:'target ≥ 80%',xOf:r=>r.label,
+           extra:r=>drawn.map(p=>r['eggs_'+p.id]!=null
+             ?`<div class="ttr"><em>${p.name} eggs</em><strong>${r['eggs_'+p.id].toLocaleString()}</strong></div>`:'').join('')})
+        :`<div style="color:var(--gray);font-size:13px;padding:24px 0;text-align:center">Not enough data — log eggs across at least 2 ${isWeekly?'weeks':'months'} to see the trend.</div>`;
+
+      // Headline tiles are per pen, never blended.
+      const tiles=drawn.map(p=>{
+        const pts=byPen[p.id];
+        const peak=pts.reduce((b,x)=>!b||x.hdp>b.hdp?x:b,null);
+        const last=pts[pts.length-1];
+        const above=pts.filter(x=>x.hdp>=80).length;
+        let arrow='→',col='var(--gray)';
+        if(pts.length>=4){
+          const l3=pts.slice(-3).reduce((s,x)=>s+x.hdp,0)/3, prev=pts.slice(-6,-3);
+          if(prev.length){const p3=prev.reduce((s,x)=>s+x.hdp,0)/prev.length;
+            if(l3>p3+2){arrow='↑';col='var(--g2)';}else if(l3<p3-2){arrow='↓';col='var(--red)';}}
+        }
+        return`<div class="card" style="margin-bottom:8px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span style="width:10px;height:10px;border-radius:50%;background:${drawn.length>1?PEN_LINE_COLOURS[drawn.indexOf(p)%PEN_LINE_COLOURS.length]:'var(--g2)'};flex-shrink:0"></span>
+            <b style="font-size:14px">${p.name}</b></div>
+          <div class="kpi-row-3" style="margin:0">
+            <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${peak?peak.hdp.toFixed(0)+'%':'—'}</div><div class="kpi-lbl">Peak${peak?' ('+peak.label+')':''}</div></div>
+            <div class="kpi"><div class="kpi-val">${above}</div><div class="kpi-lbl">${isWeekly?'Weeks':'Months'} ≥80%</div></div>
+            <div class="kpi"><div class="kpi-val" style="color:${col}">${arrow} ${last?last.hdp.toFixed(0)+'%':'—'}</div><div class="kpi-lbl">Latest</div></div>
+          </div></div>`;
+      }).join('');
+
+      const tblPen=drawn.find(p=>p.id===_activePenId)||drawn[0];
       tabContent=`
-        <div style="display:flex;align-items:center;gap:8px;margin:10px 16px 2px">
-          <button class="btn ${TREND_MODE==='weekly'?'btn-primary':'btn-secondary'} btn-sm" style="min-width:72px" onclick="TREND_MODE='weekly';renderReports()">Weekly</button>
-          <button class="btn ${TREND_MODE==='monthly'?'btn-primary':'btn-secondary'} btn-sm" style="min-width:72px" onclick="TREND_MODE='monthly';renderReports()">Monthly</button>
+        <div style="display:flex;gap:8px;margin:10px 16px 4px">
+          <button class="btn btn-sm ${isWeekly?'btn-primary':'btn-secondary'}" style="flex:1" onclick="TREND_MODE='weekly';renderReports()">Weekly</button>
+          <button class="btn btn-sm ${!isWeekly?'btn-primary':'btn-secondary'}" style="flex:1" onclick="TREND_MODE='monthly';renderReports()">Monthly</button>
         </div>
-        <div class="kpi-row-3">
-          <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${_peakPt?_peakPt.hdp.toFixed(0)+'%':'—'}</div><div class="kpi-lbl">Peak${_peakPt?' ('+_peakPt.label+')':''}</div></div>
-          <div class="kpi"><div class="kpi-val">${_pdsAbove80}</div><div class="kpi-lbl">${_lbl}s ≥80%</div></div>
-          <div class="kpi"><div class="kpi-val" style="color:${_tCol}">${_tArrow} ${_lastPt?_lastPt.hdp.toFixed(0)+'%':'—'}</div><div class="kpi-lbl">Latest ${_lbl}</div></div>
-        </div>
+        <div style="margin:0 16px">${tiles}</div>
         <div class="sec-hdr" style="margin-top:4px">Production Trend — ${isWeekly?'By Flock Age Week':'By Calendar Month'}</div>
-        <div class="card" style="padding:16px">
-          ${_trendSvg}
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--gray)">
-            <span><svg width="20" height="8" viewBox="0 0 20 8" style="vertical-align:middle"><line x1="1" y1="4" x2="19" y2="4" stroke="#27ae60" stroke-width="2.5"/></svg> ≥80%</span>
-            <span><svg width="20" height="8" viewBox="0 0 20 8" style="vertical-align:middle"><line x1="1" y1="4" x2="19" y2="4" stroke="#e67e22" stroke-width="2.5"/></svg> 70–80%</span>
-            <span><svg width="20" height="8" viewBox="0 0 20 8" style="vertical-align:middle"><line x1="1" y1="4" x2="19" y2="4" stroke="#c0392b" stroke-width="2.5"/></svg> &lt;70%</span>
-            ${_yMax>=80?`<span><svg width="20" height="8" viewBox="0 0 20 8" style="vertical-align:middle"><line x1="1" y1="4" x2="19" y2="4" stroke="#27ae60" stroke-width="1" stroke-dasharray="4,2"/></svg> 80% target</span>`:''}
-            ${_yMax>=70?`<span><svg width="20" height="8" viewBox="0 0 20 8" style="vertical-align:middle"><line x1="1" y1="4" x2="19" y2="4" stroke="#e67e22" stroke-width="1" stroke-dasharray="4,2"/></svg> 70% floor</span>`:''}
-          </div>
-        </div>
-        <div class="sec-hdr">${isWeekly?'Weekly':'Monthly'} Breakdown</div>
+        <div class="card">${chart}</div>
+        ${tblPen?`<div class="sec-hdr">${tblPen.name} · ${isWeekly?'Weekly':'Monthly'} Breakdown</div>
         <div class="card" style="padding:0;overflow:hidden">
-          <table class="ana-table">
-            <tr><th>${_lbl}</th><th>Eggs</th><th>Avg HDP</th><th>vs 80%</th></tr>
-            ${[..._tPoints].reverse().map(p=>{const diff=p.hdp-80;const dc=diff>=0?'var(--g2)':diff>-10?'var(--amber)':'var(--red)';
-              return`<tr><td><b>${p.label}</b>${p===_peakPt?'<span style="font-size:9px;color:var(--g2);margin-left:4px">▲Peak</span>':''}</td>
-                <td style="font-weight:800">${p.eggs}</td><td>${rateBadge(p.hdp)}</td>
+          <table class="ana-table"><tr><th>${isWeekly?'Age':'Month'}</th><th>Eggs</th><th>Rate</th><th>vs 80%</th></tr>
+            ${[...byPen[tblPen.id]].reverse().map(x=>{const diff=x.hdp-80;const dc=diff>=0?'var(--g2)':diff>-10?'var(--amber)':'var(--red)';
+              return`<tr><td><b>${x.label}</b></td>
+                <td style="font-weight:800">${x.eggs}</td><td>${rateBadge(x.hdp)}</td>
                 <td style="font-weight:700;color:${dc}">${diff>0?'+':''}${diff.toFixed(1)}%</td></tr>`;}).join('')}
-          </table>
-        </div>`;
+          </table></div>`:''}`;
     }
     tabContent=`<div class="inner-tabs" style="background:var(--light)">
       <button class="inner-tab ${ANA_TAB==='cells'?'active':''}" onclick="ANA_TAB='cells';renderReports()">Cells</button>
@@ -523,7 +507,7 @@ function renderReports(){
     </div>${tabContent}`;
 
   } else if(REP_TAB==='flock'){
-    const bRecs=DB.getBirds().sort((a,b)=>a.date.localeCompare(b.date));
+    const bRecs=scopedBirds.slice().sort((a,b)=>a.date.localeCompare(b.date));
     const last30=bRecs.filter(r=>{const d=new Date(DB.today());d.setDate(d.getDate()-30);return r.date>=d.toISOString().slice(0,10);});
     const totalDeaths=last30.reduce((s,r)=>s+(r.deaths||0),0);
     const totalCulls=last30.reduce((s,r)=>s+(r.culls||0),0);
@@ -554,7 +538,7 @@ function renderReports(){
       </div>`;
 
   } else if(REP_TAB==='feed'){
-    const fRecs=DB.getFeed().sort((a,b)=>a.date.localeCompare(b.date));
+    const fRecs=scopedFeed.slice().sort((a,b)=>a.date.localeCompare(b.date));
     // KPI window — always most recent 30 days
     const _cutoff30=(()=>{const d=new Date(DB.today());d.setDate(d.getDate()-30);return d.toISOString().slice(0,10);})();
     const last30f=fRecs.filter(r=>r.date>=_cutoff30);
@@ -565,7 +549,7 @@ function renderReports(){
     const fcr=eggKg>0?(totalFeed/eggKg):null;
     const gPerEgg=totalEggsForFCR>0?((totalFeed*1000)/totalEggsForFCR):null;
     // Shared daily series — feeds the per-bird chart and the monthly table
-    const fDaily=feedDailySeries(validPenIds);
+    const fDaily=feedDailySeries(validPenIds,_activePenId);
     // Chart window — navigable via FEED_CHART_OFFSET
     const _chartEnd=(()=>{const d=new Date(DB.today());d.setDate(d.getDate()-FEED_CHART_OFFSET*30);return d.toISOString().slice(0,10);})();
     const _chartStart=(()=>{const d=new Date(DB.today());d.setDate(d.getDate()-FEED_CHART_OFFSET*30-30);return d.toISOString().slice(0,10);})();
@@ -833,6 +817,7 @@ function renderReports(){
         <span>${modeLabel}</span><span style="color:var(--g3);font-size:12px">📅 ▾</span></button>
       ${ANA_DATE?`<button class="btn btn-secondary btn-sm" onclick="ANA_DATE=null;renderReports()">Clear</button>`:''}
     </div>`:''}
+    ${REP_TAB==='eggs'||REP_TAB==='flock'||REP_TAB==='feed'?reportPenBar(farm):''}
     <div class="inner-tabs">
       <button class="inner-tab ${REP_TAB==='eggs'?'active':''}" onclick="REP_TAB='eggs';renderReports()">Eggs</button>
       <button class="inner-tab ${REP_TAB==='pens'?'active':''}" onclick="REP_TAB='pens';renderReports()">Pens</button>
@@ -843,7 +828,8 @@ function renderReports(){
     </div>
     ${tabContent}
     <div style="height:12px"></div>`;
-  if(REP_TAB==='feed')wireFeedCharts();
+  // The trend overlay uses the same chart helper, so it needs the same wiring.
+  if(REP_TAB==='feed'||(REP_TAB==='eggs'&&ANA_TAB==='trend'))wireFeedCharts();
 }
 function confirmReset(){
   openModal(`<div class="modal-ttl">Reset Data? <button class="modal-x" onclick="closeModal()">×</button></div>

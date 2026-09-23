@@ -114,6 +114,69 @@ function penBirdsOnDateFn(penId,fallback){
   };
 }
 
+// ── Production trend ─────────────────────────────────────────
+// Age comes from the pen's own placement date, not from a farm-wide bird log.
+// That is what lets two flocks of different ages be drawn on one axis: plotted
+// against their own age, the curves line up and you can read whether the newer
+// intake is out-laying the older one did at the same week.
+function penAgeWeekOn(pen,date){
+  if(!pen||!pen.flockStartDate)return null;
+  const d=Math.floor((new Date(date+'T00:00:00')-new Date(pen.flockStartDate+'T00:00:00'))/864e5);
+  if(d<0)return null;
+  return Math.floor(d/7)+(pen.flockAgeAtArrival||0);
+}
+const TREND_MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+// One pen's lay curve, bucketed by its own age in weeks or by calendar month.
+// Each day's rate is worked out first and then averaged, so a day with a short
+// collection cannot drag the bucket down by weight of eggs alone.
+function penTrendPoints(pen,weekly){
+  const eggsByDate={};
+  DB.getCols().filter(c=>c.penId===pen.id).forEach(c=>{
+    const n=(c.entries||[]).reduce((s,e)=>s+(e.eggs||0),0);
+    if(n>0)eggsByDate[c.date]=(eggsByDate[c.date]||0)+n;
+  });
+  const birdsOn=penBirdsOnDateFn(pen.id,getPenTotalBirds(pen));
+  const buckets={};
+  Object.entries(eggsByDate).forEach(([date,eggs])=>{
+    const birds=birdsOn(date); if(!birds)return;
+    let key,label,sortKey;
+    if(weekly){
+      const w=penAgeWeekOn(pen,date); if(w==null)return;
+      key='w'+w; label='Wk '+w; sortKey=w;
+    } else {
+      key=date.slice(0,7); sortKey=key;
+      label=`${TREND_MONTHS[+date.slice(5,7)-1]} '${date.slice(2,4)}`;
+    }
+    const b=buckets[key]||(buckets[key]={hdpSum:0,days:0,eggs:0,label,sortKey});
+    b.hdpSum+=eggs/birds*100; b.days++; b.eggs+=eggs;
+  });
+  return Object.values(buckets)
+    .sort((a,b)=>weekly?a.sortKey-b.sortKey:String(a.sortKey).localeCompare(String(b.sortKey)))
+    .map(b=>({...b,hdp:b.hdpSum/b.days}))
+    .filter(b=>isFinite(b.hdp));
+}
+// Aligns every pen's curve onto one shared x-axis so lineChartSvg can overlay
+// them. Weekly keys are flock age, so the pens genuinely line up; monthly keys
+// are calendar, so they run side by side in real time instead.
+function penTrendChartData(pens,weekly){
+  const byPen={}, keys=new Map();
+  pens.forEach(pen=>{
+    const pts=penTrendPoints(pen,weekly);
+    byPen[pen.id]=pts;
+    pts.forEach(pt=>keys.set(pt.label,pt.sortKey));
+  });
+  const rows=[...keys.entries()]
+    .sort((a,b)=>weekly?a[1]-b[1]:String(a[1]).localeCompare(String(b[1])))
+    .map(([label])=>({label}));
+  rows.forEach(r=>pens.forEach(pen=>{
+    const hit=byPen[pen.id].find(p=>p.label===r.label);
+    r['hdp_'+pen.id]=hit?hit.hdp:null;
+    r['eggs_'+pen.id]=hit?hit.eggs:null;
+  }));
+  return{rows,byPen};
+}
+const PEN_LINE_COLOURS=['#12946a','#c77dff','#e67e22','#4895ef','#c0392b'];
+
 // ── The main roll-up ────────────────────────────────────────────────────
 function penEconomics(range){
   const farm=DB.getFarm()||{pens:[]};
