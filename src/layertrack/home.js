@@ -144,6 +144,7 @@ function renderHome(){
           <div>
             <div style="font-weight:800;font-size:15px;color:var(--g1)">${pen.name}</div>
             <div style="font-size:11px;color:var(--gray);margin-top:2px">${st?`Wk ${st.weeks} · ${st.label}`:'Not configured'} · ${penBirds.toLocaleString()} birds · ${(pen.lines||[]).length} line${(pen.lines||[]).length!==1?'s':''}</div>
+            ${(pen.breed||pen.source)?`<div style="font-size:11px;color:var(--gray);margin-top:1px">${[pen.breed,pen.source].filter(Boolean).join(' · ')}</div>`:''}
           </div>
         </div>
         <div style="display:flex;gap:8px">

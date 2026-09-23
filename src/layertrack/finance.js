@@ -210,12 +210,21 @@ function migrateLegacyGroup(normalized,overrides){
 // Receivables tab = sales.filter(credit) with positive balance. No separate store needed.
 let FIN_TAB='expenses';
 let _activePenId=null;
+// Expenses are the only ledger that can belong to a single pen, so the pen
+// scope bar is shown on that tab alone. Sales pool across pens by nature.
+let _finAllPens=false;
+// Set by the bulk tagger so the assignment can be taken back without hunting
+// through the list. Session-only — a reload clears it.
+let _bulkTagUndo=null;
 function renderFinance(){
   const el=document.getElementById('v-finance');
-  const expenses=DB.getExpenses().sort((a,b)=>b.date.localeCompare(a.date));
+  const allExpenses=DB.getExpenses().sort((a,b)=>b.date.localeCompare(a.date));
+  const penScoped=!!_activePenId&&!_finAllPens;
+  const expenses=penScoped?allExpenses.filter(e=>e.pen_id===_activePenId):allExpenses;
+  const activePen=_activePenId?((DB.getFarm()||{}).pens||[]).find(p=>p.id===_activePenId):null;
   const sales=DB.getSales().sort((a,b)=>b.date.localeCompare(a.date));
   const today=DB.today(), thisMonth=today.slice(0,7);
-  const monthExp=expenses.filter(e=>e.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.amount_ngn||0),0);
+  const monthExp=allExpenses.filter(e=>e.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.amount_ngn||0),0);
   const monthSales=sales.filter(s=>s.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.total_amount_ngn||0),0);
   const creditSales=sales.filter(s=>s.payment_type==='credit');
   const unpaidCredit=creditSales.filter(s=>getSaleBalance(s)>0);
@@ -229,12 +238,27 @@ function renderFinance(){
 
   let tabContent='';
   if(FIN_TAB==='expenses'){
+    const untagged=allExpenses.filter(e=>!e.pen_id&&!e.feed_stock_id).length;
     tabContent=`
+      ${activePen?`<div class="fin-scope-bar">${penScoped?'Pen: <b style="margin-left:4px">'+activePen.name+'</b>':'All pens'}
+        <button class="scope-toggle" onclick="_finAllPens=!_finAllPens;renderFinance()">${penScoped?'Show All':'Filter to Pen'}</button>
+      </div>`:''}
       <div style="margin:12px 16px"><button class="btn btn-primary" onclick="openExpenseForm()">+ Add Expense</button></div>
+      ${_bulkTagUndo?`<div style="margin:0 16px 8px;background:var(--amberBg);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:10px">
+        <span style="flex:1;font-size:12px;color:#7d4e00">✓ ${_bulkTagUndo.ids.length} expense${_bulkTagUndo.ids.length>1?'s':''} charged to <b>${penName(_bulkTagUndo.penId)||'a pen'}</b>.</span>
+        <button class="btn btn-secondary btn-sm" style="flex-shrink:0" onclick="undoBulkTagExpenses()">Undo</button>
+      </div>`:''}
+      ${!penScoped&&untagged>0?`<div style="margin:0 16px 8px;background:var(--g5);border-radius:8px;padding:10px 12px">
+        <div style="font-size:12px;color:var(--g1);margin-bottom:8px">💡 <b>${untagged}</b> expense${untagged>1?'s are':' is'} not charged to a pen, so ${untagged>1?'they do':'it does'} not appear in any pen's cost.</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-primary btn-sm" style="flex:1" onclick="openBulkTagExpenses()">Assign to a Pen</button>
+          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="REP_TAB='pens';go('reports')">See Pen Costs</button>
+        </div>
+      </div>`:''}
       <div class="card" style="padding:0;overflow:hidden">
-        ${expenses.length===0?'<div class="empty" style="padding:24px"><p>No expenses logged yet.</p></div>':
+        ${expenses.length===0?`<div class="empty" style="padding:24px"><p>${penScoped?'No expenses charged to this pen yet.':'No expenses logged yet.'}</p></div>`:
           expenses.slice(0,50).map(e=>`<div class="list-item">
-            <div><div style="font-weight:700;font-size:14px">${e.category}${e.feed_stock_id?' <span class="badge badge-blue" style="vertical-align:middle">🌾 Feed store</span>':''}</div>
+            <div><div style="font-weight:700;font-size:14px">${e.category}${e.feed_stock_id?' <span class="badge badge-blue" style="vertical-align:middle">🌾 Feed store</span>':''}${e.pen_id&&penName(e.pen_id)?` <span class="badge badge-green" style="vertical-align:middle">${penName(e.pen_id)}</span>`:''}</div>
               <div style="font-size:12px;color:var(--gray)">${fmtDate(e.date)} · ${e.notes||'—'}</div></div>
             <div style="text-align:right">
               <div style="font-weight:800;color:var(--red)">${fmtMoney(e.amount_ngn)}</div>
@@ -443,11 +467,92 @@ function renderFinance(){
     <div style="height:12px"></div>`;
 }
 
+// ── Bulk pen tagging ──────────────────────────────────────────
+// A farm that ran on one pen has a whole history of expenses with no pen on
+// them. Tagging those one by one is not realistic — and the 7-day edit lock
+// means most of them cannot be opened individually at all.
+//
+// This assigns them in one go. It is deliberately not a permanent fixture:
+// the button that opens it only appears while untagged expenses exist, so once
+// the backlog is cleared the tool disappears on its own.
+//
+// It bypasses the date lock on purpose. The lock protects figures; this changes
+// only which pen a cost belongs to. No amount, date or note is touched.
+function bulkTagTargets(before){
+  return DB.getExpenses()
+    // A feed-store purchase is stock, not a pen cost — it reaches a pen through
+    // the kg that pen eats, so tagging it would achieve nothing.
+    .filter(e=>!e.pen_id&&!e.feed_stock_id&&(!before||e.date<=before))
+    .sort((a,b)=>a.date.localeCompare(b.date));
+}
+function openBulkTagExpenses(){
+  const pens=((DB.getFarm()||{}).pens)||[];
+  if(!pens.length){toast('Add a pen in Settings first');return;}
+  const today=DB.today(), def=legacyPenId();
+  openModal(`<div class="modal-ttl">Assign Expenses to a Pen <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:13px;color:var(--gray);margin:0 0 14px">Charges every expense that is not yet on a pen to the pen you pick. Only the pen changes — amounts, dates and notes stay exactly as they are, and locked records are included.</p>
+    <div class="field"><label>Charge them to</label>
+      <select id="bt_pen">${pens.map(p=>`<option value="${p.id}" ${p.id===def?'selected':''}>${p.name}</option>`).join('')}</select></div>
+    <div class="field"><label>Only expenses dated on or before</label>
+      <input type="date" id="bt_before" value="${today}" onchange="previewBulkTag()" oninput="previewBulkTag()">
+      <div style="font-size:11px;color:var(--gray);margin-top:5px">Leave as today to take the whole backlog. Set it earlier if a newer pen has already started picking up its own costs.</div></div>
+    <div id="bt_preview"></div>
+    <button class="btn btn-primary" id="bt_go" onclick="doBulkTagExpenses()">Assign</button>`);
+  previewBulkTag();
+}
+function previewBulkTag(){
+  const box=document.getElementById('bt_preview'); if(!box)return;
+  const rows=bulkTagTargets(document.getElementById('bt_before')?.value||null);
+  const total=rows.reduce((s,e)=>s+Number(e.amount_ngn||0),0);
+  const go=document.getElementById('bt_go');
+  if(go){go.disabled=rows.length===0;go.style.opacity=rows.length===0?'.5':'';}
+  // Feed purchases are skipped, and that must be said out loud — their cost is
+  // the single biggest number on the screen and its absence would look wrong.
+  const skipped=DB.getExpenses().filter(e=>!e.pen_id&&e.feed_stock_id);
+  const skippedNgn=skipped.reduce((s,e)=>s+Number(e.amount_ngn||0),0);
+  const feedNote=skipped.length?`<div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:14px">
+    🌾 ${skipped.length} feed purchase${skipped.length>1?'s':''} (${fmtMoney(Math.round(skippedNgn))}) ${skipped.length>1?'are':'is'} left out on purpose. Feed reaches a pen through the kg it eats, so this money is already being charged to your pen as the birds eat through the store. Tagging it here would charge it twice.
+  </div>`:'';
+  if(rows.length===0){
+    box.innerHTML=feedNote+`<div style="background:#f5f5f5;border-radius:8px;padding:12px;font-size:13px;color:var(--gray);margin-bottom:14px">Nothing else to assign in that date range.</div>`;
+    return;
+  }
+  const cats={};
+  rows.forEach(e=>{cats[e.category]=(cats[e.category]||0)+Number(e.amount_ngn||0);});
+  box.innerHTML=feedNote+`<div style="background:var(--g5);border-radius:8px;padding:12px;margin-bottom:14px">
+    <div style="font-size:13px;font-weight:800;color:var(--g1);margin-bottom:8px">${rows.length} expense${rows.length>1?'s':''} · ${fmtMoney(Math.round(total))}</div>
+    <div style="font-size:11px;color:var(--gray);margin-bottom:8px">${fmtDate(rows[0].date)} – ${fmtDate(rows[rows.length-1].date)}</div>
+    ${Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:var(--gray)">
+      <span>${c}</span><span style="font-weight:700;color:var(--g1)">${fmtMoney(Math.round(v))}</span></div>`).join('')}
+  </div>`;
+}
+function doBulkTagExpenses(){
+  const penId=document.getElementById('bt_pen').value;
+  const rows=bulkTagTargets(document.getElementById('bt_before')?.value||null);
+  if(!rows.length){toast('Nothing to assign');return;}
+  rows.forEach(e=>DB.updExpense(e.id,{pen_id:penId}));
+  _bulkTagUndo={ids:rows.map(e=>e.id),penId};
+  closeModal();
+  confirmSave(`${rows.length} expense${rows.length>1?'s':''} charged to ${penName(penId)||'pen'}`);
+  renderFinance();
+}
+function undoBulkTagExpenses(){
+  if(!_bulkTagUndo)return;
+  const {ids}=_bulkTagUndo;
+  ids.forEach(id=>DB.updExpense(id,{pen_id:null}));
+  _bulkTagUndo=null;
+  confirmSave(`${ids.length} expense${ids.length>1?'s':''} back to farm-wide`);
+  renderFinance();
+}
+function penName(id){
+  return ((((DB.getFarm()||{}).pens)||[]).find(p=>p.id===id)||{}).name||'';
+}
 function openExpenseForm(editId){
   const rec=editId?DB.getExpenses().find(e=>e.id===editId):null, today=DB.today();
   // A feed-store purchase owns its expense. Say so, and point at the record that
   // actually drives the figure, rather than letting an edit here be overwritten.
   const linked=rec?.feed_stock_id?DB.getFeedStock().find(r=>r.id===rec.feed_stock_id):null;
+  const pens=((DB.getFarm()||{}).pens)||[];
   openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Expense <button class="modal-x" onclick="closeModal()">×</button></div>
     ${linked?`<div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
       🌾 Created by a feed store purchase (${linked.bags||0} bag${linked.bags===1?'':'s'} ${linked.feed_type}). Edit the purchase instead — changes made here are replaced next time it is saved.
@@ -456,6 +561,12 @@ function openExpenseForm(editId){
     <div class="field"><label>Date</label><input type="date" id="ef_date" value="${rec?rec.date:today}" max="${today}"></div>
     <div class="field"><label>Category</label>
       <select id="ef_cat">${EXPENSE_CATS.map(c=>`<option value="${c}" ${rec?.category===c?'selected':''} >${c}</option>`).join('')}</select></div>
+    <div class="field"><label>Charge to Pen <span style="color:var(--gray);font-weight:400">— optional</span></label>
+      <select id="ef_pen">
+        <option value="">Farm-wide — not one pen</option>
+        ${pens.map(p=>`<option value="${p.id}" ${rec?.pen_id===p.id?'selected':''}>${p.name}</option>`).join('')}
+      </select>
+      <div style="font-size:11px;color:var(--gray);margin-top:5px">Pick a pen and this cost counts towards that flock in Reports → Pens. Leave it farm-wide for labour, power and anything shared — shared costs are never split across pens.</div></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Amount (₦ NGN)</label><input type="number" id="ef_ngn" value="${rec?.amount_ngn||''}" min="0" step="100" placeholder="0"></div>
       <div class="field"><label>Amount ($ USD) <span style="color:var(--gray);font-weight:400">opt</span></label><input type="number" id="ef_usd" value="${rec?.amount_usd||''}" min="0" step="0.01" placeholder="0.00"></div>
@@ -468,6 +579,7 @@ function saveExpense(editId){
     category:document.getElementById('ef_cat').value,
     amount_ngn:parseFloat(document.getElementById('ef_ngn').value)||0,
     amount_usd:parseFloat(document.getElementById('ef_usd').value)||0,
+    pen_id:document.getElementById('ef_pen')?.value||null,
     notes:document.getElementById('ef_notes').value.trim()};
   if(editId)DB.updExpense(editId,rec);else DB.addExpense(rec);
   closeModal();confirmSave('Expense saved');renderFinance();

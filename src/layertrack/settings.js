@@ -286,13 +286,19 @@ function addPen(){
     <div class="field"><label>Age of Birds at Arrival (weeks) <span style="color:var(--gray);font-weight:400">— optional</span></label>
       <input type="number" id="m_farr" placeholder="e.g. 0 for DOC, 16 for POL" min="0" max="100">
       <div style="font-size:11px;color:var(--gray);margin-top:5px">0 = day-old chicks · 12-14 = started pullets · 16-18 = point-of-lay</div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Breed <span style="color:var(--gray);font-weight:400">— optional</span></label>
+        <input type="text" id="m_pbreed" value="" placeholder="e.g. Isa Brown"></div>
+      <div class="field"><label>Source / Supplier <span style="color:var(--gray);font-weight:400">— optional</span></label>
+        <input type="text" id="m_psrc" value="" placeholder="e.g. CHI Farms"></div>
+    </div>
     <button class="btn btn-primary" onclick="doAddPen()">Add Pen</button>`);
 }
 function doAddPen(){
   const name=document.getElementById('m_pname').value.trim();
   if(!name){toast('Enter pen name');return;}
   const farm=DB.getFarm()||{name:'My Farm',expectedRate:85,warnRate:70,feedRateG:110,marketPricePerCrate:3500,pens:[]};
-  (farm.pens=farm.pens||[]).push({id:uid(),name,flockStartDate:document.getElementById('m_fdate').value||null,flockAgeAtArrival:parseInt(document.getElementById('m_farr').value)||0,lines:[]});
+  (farm.pens=farm.pens||[]).push({id:uid(),name,flockStartDate:document.getElementById('m_fdate').value||null,flockAgeAtArrival:parseInt(document.getElementById('m_farr').value)||0,breed:document.getElementById('m_pbreed').value.trim(),source:document.getElementById('m_psrc').value.trim(),lines:[]});
   DB.saveFarm(farm);closeModal();confirmSave(`${name} added`);renderSettings();
 }
 function editPen(penId){
@@ -306,6 +312,12 @@ function editPen(penId){
     <div class="field"><label>Date Birds Arrived</label><input type="date" id="m_fdate" value="${pen.flockStartDate||''}" max="${today}"></div>
     <div class="field"><label>Age at Arrival (weeks)</label>
       <input type="number" id="m_farr" value="${pen.flockAgeAtArrival||0}" min="0" max="100"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Breed <span style="color:var(--gray);font-weight:400">— optional</span></label>
+        <input type="text" id="m_pbreed" value="${pen.breed||''}" placeholder="e.g. Isa Brown"></div>
+      <div class="field"><label>Source / Supplier <span style="color:var(--gray);font-weight:400">— optional</span></label>
+        <input type="text" id="m_psrc" value="${pen.source||''}" placeholder="e.g. CHI Farms"></div>
+    </div>
     <button class="btn btn-primary" onclick="doEditPen('${penId}')">Save</button>`);
 }
 function doEditPen(penId){
@@ -313,6 +325,8 @@ function doEditPen(penId){
   pen.name=document.getElementById('m_pname').value.trim()||pen.name;
   pen.flockStartDate=document.getElementById('m_fdate').value||null;
   pen.flockAgeAtArrival=parseInt(document.getElementById('m_farr').value)||0;
+  pen.breed=document.getElementById('m_pbreed').value.trim();
+  pen.source=document.getElementById('m_psrc').value.trim();
   DB.saveFarm(farm);closeModal();confirmSave('Pen updated');renderSettings();
 }
 function deletePen(penId){
@@ -563,7 +577,9 @@ function exportData(){
     health_log:health.map(h=>({date:h.date,water_consumed_liters:h.water_consumed_liters,
       droppings_observation:h.droppings_observation,vaccination_or_medication:h.vaccination_or_medication,
       admin_method:h.admin_method,notes:h.notes})),
-    expenses:expenses.map(e=>({date:e.date,category:e.category,amount_usd:e.amount_usd,amount_ngn:e.amount_ngn,notes:e.notes})),
+    expenses:expenses.map(e=>({date:e.date,category:e.category,amount_usd:e.amount_usd,amount_ngn:e.amount_ngn,
+      pen_id:e.pen_id||null,pen_name:e.pen_id?(((DB.getFarm()||{}).pens||[]).find(p=>p.id===e.pen_id)||{}).name||null:null,
+      notes:e.notes})),
     sales:sales.map(s=>({id:s.id,date:s.date,product:s.product,quantity:s.quantity,unit_price:s.unit_price_ngn,
       total_amount:s.total_amount_ngn,payment_type:s.payment_type||'cash',paid:s.paid!==false,
       amount_paid:getSalePaid(s),balance_due:getSaleBalance(s),

@@ -765,6 +765,9 @@ function renderReports(){
             </div>`;}).join('')}
         </div>`;
 
+  } else if(REP_TAB==='pens'){
+    tabContent=renderPensReport();
+
   } else if(REP_TAB==='finance'){
     const expenses=DB.getExpenses(), sales=DB.getSales();
     const today=DB.today(), thisMonth=today.slice(0,7);
@@ -824,7 +827,7 @@ function renderReports(){
   }
 
   el.innerHTML=`<div class="topbar"><div><h1>Reports</h1><small>${topbarLabel}</small></div></div>
-    ${REP_TAB==='eggs'?`<div style="background:var(--white);padding:10px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px">
+    ${REP_TAB==='eggs'||REP_TAB==='pens'?`<div style="background:var(--white);padding:10px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px">
       <span style="font-size:12px;font-weight:700;color:var(--gray);white-space:nowrap">View:</span>
       <button onclick="openDatePicker()" style="flex:1;padding:8px 12px;border:1.5px solid #ddd;border-radius:10px;font-size:14px;font-weight:600;background:var(--white);color:#1a1a1a;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer">
         <span>${modeLabel}</span><span style="color:var(--g3);font-size:12px">📅 ▾</span></button>
@@ -832,6 +835,7 @@ function renderReports(){
     </div>`:''}
     <div class="inner-tabs">
       <button class="inner-tab ${REP_TAB==='eggs'?'active':''}" onclick="REP_TAB='eggs';renderReports()">Eggs</button>
+      <button class="inner-tab ${REP_TAB==='pens'?'active':''}" onclick="REP_TAB='pens';renderReports()">Pens</button>
       <button class="inner-tab ${REP_TAB==='flock'?'active':''}" onclick="REP_TAB='flock';renderReports()">Flock</button>
       <button class="inner-tab ${REP_TAB==='feed'?'active':''}" onclick="REP_TAB='feed';renderReports()">Feed</button>
       <button class="inner-tab ${REP_TAB==='finance'?'active':''}" onclick="REP_TAB='finance';renderReports()">Finance</button>

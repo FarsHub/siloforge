@@ -6,8 +6,13 @@ function renderFlock(){
   if(!_activePenId){el.innerHTML=`<div class="topbar"><div><h1>Flock Status</h1><small>Bird mortality & daily count</small></div></div>${getPenSelectPrompt()}`;return;}
   const recs=DB.getBirds().filter(r=>!r.pen_id||r.pen_id===_activePenId).sort((a,b)=>b.date.localeCompare(a.date));
   const todayRec=recs.find(r=>r.date===today);
-  const farmBirds=farm?getFarmTotalBirds(farm):0;
-  const ageWeeks=farm?getFarmAgeWeeks(farm):null;
+  // Scoped to the pen on screen, not the farm. With two flocks of different
+  // ages in different pens, a farm total under a pen heading is a wrong answer
+  // to the question the heading asks.
+  const pen=((farm||{}).pens||[]).find(p=>p.id===_activePenId);
+  const penBirds=pen?getPenTotalBirds(pen):0;
+  const penStage=pen?getPenStage(pen):null;
+  const ageWeeks=penStage?penStage.weeks:null;
   const logFormHtml=`
     <div class="card">
       <div class="card-title">${todayRec?'Today\'s Flock Log ✓':'Log Bird Status'}</div>
@@ -45,8 +50,8 @@ function renderFlock(){
   el.innerHTML=`<div class="topbar"><div><h1>Flock Status</h1><small>Bird mortality & daily count</small></div></div>
     ${getPenCtxBar()}
     <div class="kpi-row-3">
-      <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${farmBirds}</div><div class="kpi-lbl">Farm Birds</div></div>
-      <div class="kpi"><div class="kpi-val">${ageWeeks!==null?'Wk '+ageWeeks:'—'}</div><div class="kpi-lbl">Flock Age</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${penBirds}</div><div class="kpi-lbl">Pen Birds</div></div>
+      <div class="kpi"><div class="kpi-val">${ageWeeks!==null?'Wk '+ageWeeks:'—'}</div><div class="kpi-lbl">Pen Age</div></div>
       <div class="kpi"><div class="kpi-val" style="color:var(--red)">${recs.slice(0,7).reduce((s,r)=>s+(r.deaths||0),0)}</div><div class="kpi-lbl">Deaths (7d)</div></div>
     </div>
     ${logFormHtml}
@@ -57,9 +62,11 @@ function renderFlock(){
 function openBirdForm(editId){
   const farm=DB.getFarm(), today=DB.today();
   const rec=editId?DB.getBirds().find(r=>r.id===editId):null;
-  const lastRec=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date)).find(r=>!editId||r.id!==editId);
-  const defOpen=rec?rec.opening_birds:(getFarmTotalBirds(farm)||lastRec?.closing_birds||0);
-  const ageWeeks=getFarmAgeWeeks(farm)||0;
+  const lastRec=DB.getBirds().filter(r=>!r.pen_id||r.pen_id===_activePenId)
+    .sort((a,b)=>b.date.localeCompare(a.date)).find(r=>!editId||r.id!==editId);
+  const pen=((farm||{}).pens||[]).find(p=>p.id===_activePenId);
+  const defOpen=rec?rec.opening_birds:((pen?getPenTotalBirds(pen):0)||lastRec?.closing_birds||0);
+  const ageWeeks=(pen?(getPenStage(pen)||{}).weeks:null)||0;
   openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Bird Status <button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
       📅 Change the date to log records for <b>yesterday or any past day</b>. Feed and water are often measured the next morning — just set the date to when the consumption actually happened.

@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.09.18-b16';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.09.23-b17';  // bump on each deploy; shown on login screen + console
 const ROUNDS = [
   {id:1,label:'1st Pick',sub:'Morning',  cls:'round-1'},
   {id:2,label:'2nd Pick',sub:'Afternoon',cls:'round-2'},
@@ -71,6 +71,9 @@ const DEFAULT_FEED_PROGRAMME = [
 ];
 const EXPENSE_CATS = ['Feed Purchase','Medication','Transport','Generator Fuel','Labour','Litter/Bedding','Chick Purchase','Equipment','Water Purchase','Other'];
 const PRODUCT_TYPES = ['Eggs — Crates','Culled Birds','Cockerels','Manure','Other'];
+// The one product every pen contributes to, so the one whose revenue can be
+// split back across pens by the eggs each of them laid.
+const EGG_PRODUCT = PRODUCT_TYPES[0];
 const EGGS_PER_CRATE = 30;
 // ── Receipt / invoice document ──────────────────────────────────────────
 // Terms printed on the document, per product. Kept to two short sentences —

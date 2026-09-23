@@ -45,6 +45,7 @@ MODULES = {
         "layertrack/state.js",
         "layertrack/nav.js",
         "layertrack/utils.js",
+        "layertrack/pens.js",
         "layertrack/home.js",
         "layertrack/eggs.js",
         "layertrack/flock.js",
