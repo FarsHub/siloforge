@@ -31,6 +31,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .card-title{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--gray);margin-bottom:12px}
 .kpi-row-5{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin:10px 10px}
 .kpi-row-6{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin:10px 10px}
+.kpi-row-4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 12px}
 .kpi-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 16px}
 .kpi-row-2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 16px 10px}
 .kpi{background:var(--white);border-radius:var(--radius);padding:14px 10px;box-shadow:var(--shadow);text-align:center}
@@ -709,19 +710,25 @@ function initApp(){
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.09.23-b22';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.09.24-b26';  // bump on each deploy; shown on login screen + console
 const ROUNDS = [
   {id:1,label:'1st Pick',sub:'Morning',  cls:'round-1'},
   {id:2,label:'2nd Pick',sub:'Afternoon',cls:'round-2'},
   {id:3,label:'3rd Pick',sub:'Evening',  cls:'round-3'},
 ];
+// Flock stages, kept in step with DEFAULT_FEED_PROGRAMME below so the stage a
+// pen shows never contradicts the feed it is on: Grower to week 16, Pre-Layer
+// Mash 17–18, Layer Mash from 19. A stage with expected 0 is not laying yet,
+// so its rate is reported without judgement rather than marked down.
+//   maxWeek is exclusive — the stage covers every week below it.
 const FLOCK_STAGES = [
-  {maxWeek:18, label:'Pre-Lay',    emoji:'🥚',expected:5, warn:0, bg:'#f0f0f0',color:'#888'},
-  {maxWeek:22, label:'Early Lay',  emoji:'🌱',expected:30,warn:10,bg:'#e8f4fd',color:'#1a5fa8'},
-  {maxWeek:27, label:'Building Up',emoji:'📈',expected:65,warn:35,bg:'#fef3cd',color:'#7d4e00'},
-  {maxWeek:55, label:'Peak',       emoji:'⭐',expected:87,warn:72,bg:'#d8f3dc',color:'#1b4332'},
-  {maxWeek:65, label:'Post-Peak',  emoji:'📉',expected:78,warn:60,bg:'#e8f4fd',color:'#1a5fa8'},
-  {maxWeek:75, label:'Declining',  emoji:'🔻',expected:65,warn:48,bg:'#fef3cd',color:'#7d4e00'},
+  {maxWeek:17, label:'Grower',     emoji:'🌾',expected:0, warn:0, bg:'#f0f0f0',color:'#888'},
+  {maxWeek:19, label:'Pre-Lay',    emoji:'🥚',expected:5, warn:0, bg:'#fef3cd',color:'#7d4e00'},
+  {maxWeek:23, label:'Early Lay',  emoji:'🌱',expected:30,warn:10,bg:'#e8f4fd',color:'#1a5fa8'},
+  {maxWeek:28, label:'Building Up',emoji:'📈',expected:65,warn:35,bg:'#fef3cd',color:'#7d4e00'},
+  {maxWeek:56, label:'Peak',       emoji:'⭐',expected:87,warn:72,bg:'#d8f3dc',color:'#1b4332'},
+  {maxWeek:66, label:'Post-Peak',  emoji:'📉',expected:78,warn:60,bg:'#e8f4fd',color:'#1a5fa8'},
+  {maxWeek:76, label:'Declining',  emoji:'🔻',expected:65,warn:48,bg:'#fef3cd',color:'#7d4e00'},
   {maxWeek:999,label:'Late Lay',   emoji:'⏳',expected:50,warn:35,bg:'#fde8ea',color:'#d62839'},
 ];
 // Pullet feed requirement table: index 0 = week 1, index 21 = week 22; week 23+ = full laying (120g)
@@ -1479,12 +1486,45 @@ const LOCK_BADGE=`<span style="font-size:11px;color:var(--gray);padding:2px 6px;
 function toast(msg,dur=2200){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),dur) }
 function openModal(html){ document.getElementById('modal-body').innerHTML=html; document.getElementById('overlay').classList.add('open') }
 function closeModal(){ document.getElementById('overlay').classList.remove('open') }
-function rateBadge(rate){
-  if(rate===null||rate===undefined)return '<span class="badge badge-gray">—</span>';
-  const cls=rate>=85?'badge-green':rate>=70?'badge-amber':'badge-red';
+// A lay rate only means something next to the flock's age. 62% is poor at week
+// 30 and good at week 72, so where the age is known the stage's own expected
+// and warn figures are used — the same pair the egg-collection screen judges
+// each cell against. Without an age it falls back to the flat farm thresholds.
+function stageForWeek(weeks){
+  if(weeks===null||weeks===undefined)return null;
+  return FLOCK_STAGES.find(s=>weeks<s.maxWeek)||FLOCK_STAGES[FLOCK_STAGES.length-1];
+}
+// One phrase for the target, so a grower never reads as a 0% expectation.
+function stageTargetText(stage){
+  if(!stage)return '';
+  if(stage.expected<=0)return 'Not laying yet';
+  // No floor means lay has not been demanded yet, so there is no warn to show.
+  return stage.warn>0
+    ? `Expect ≥${stage.expected}% · Warn <${stage.warn}%`
+    : `Lay may start — expect ~${stage.expected}%`;
+}
+function rateBand(rate,stage){
+  if(rate===null||rate===undefined)return null;
+  const exp=stage?stage.expected:85, warn=stage?stage.warn:70;
+  // A grower is not expected to lay at all, so its rate carries no verdict.
+  if(exp<=0)return null;
+  if(rate>=exp)return 'good';
+  // A warn floor of zero means laying has not been demanded yet, so there is
+  // nothing to fall short of — stay neutral rather than colouring a pre-lay
+  // house amber for doing exactly what it should.
+  if(warn<=0)return null;
+  return rate>=warn?'ok':'poor';
+}
+function rateBadge(rate,stage){
+  const b=rateBand(rate,stage);
+  if(!b)return '<span class="badge badge-gray">—</span>';
+  const cls=b==='good'?'badge-green':b==='ok'?'badge-amber':'badge-red';
   return `<span class="badge ${cls}">${rate.toFixed(1)}%</span>`;
 }
-function rateColor(r){ return r===null?'#aaa':r>=85?'var(--g2)':r>=70?'var(--amber)':'var(--red)' }
+function rateColor(r,stage){
+  const b=rateBand(r,stage);
+  return !b?'#aaa':b==='good'?'var(--g2)':b==='ok'?'var(--amber)':'var(--red)';
+}
 function getCellBirds(stand,tier,cell,side){
   // Side-specific key takes priority; fall back to legacy side-agnostic key, then default
   if(side){const k=`${tier}_${cell}_${side}`;if(stand.cellBirds&&stand.cellBirds[k]!==undefined)return stand.cellBirds[k];}
@@ -1518,8 +1558,7 @@ function getPenStage(pen){
   const weeksSince=Math.floor((Date.now()-placed.getTime())/(7*24*60*60*1000));
   const ageAtArrival=pen.flockAgeAtArrival||0;
   const weeks=weeksSince+ageAtArrival;
-  const stage=FLOCK_STAGES.find(s=>weeks<s.maxWeek)||FLOCK_STAGES[FLOCK_STAGES.length-1];
-  return{weeks,weeksSince,ageAtArrival,...stage};
+  return{weeks,weeksSince,ageAtArrival,...stageForWeek(weeks)};
 }
 function getFarmAgeWeeks(farm){
   const pen=(farm.pens||[])[0];
@@ -1569,6 +1608,33 @@ function legacyPenId(){
   if(pens.length===1)return pens[0].id;
   const dated=pens.filter(p=>p.flockStartDate).sort((a,b)=>a.flockStartDate.localeCompare(b.flockStartDate));
   return (dated[0]||pens[0]).id;
+}
+
+// ── The pen you are inside ───────────────────────────────────
+// One definition of ownership, used by every screen. The old rule — "no pen on
+// the record, or this pen" — was harmless with a single pen and wrong the
+// moment a second appeared, because it showed every untagged record inside
+// every pen. An untagged record belongs to the oldest flock and nowhere else.
+function ownedByPen(rec,penId){
+  return (rec.pen_id||legacyPenId())===penId;
+}
+function ownedByActivePen(rec){ return ownedByPen(rec,_activePenId); }
+function activePen(){
+  return _activePenId?(((DB.getFarm()||{}).pens)||[]).find(p=>p.id===_activePenId)||null:null;
+}
+// Birds and age must come from the pen on screen. A farm total under a pen
+// heading, or the first pen's age applied to the second, is how a Wk 12
+// pre-lay flock ends up being fed a laying ration.
+function activePenBirds(){
+  const pen=activePen();
+  if(!pen)return 0;
+  const last=DB.getBirds().filter(r=>ownedByPen(r,pen.id)&&(r.closing_birds||0)>0)
+    .sort((a,b)=>b.date.localeCompare(a.date))[0];
+  return last?last.closing_birds:getPenTotalBirds(pen);
+}
+function activePenAgeWeeks(){
+  const st=activePen()?getPenStage(activePen()):null;
+  return st?st.weeks:0;
 }
 
 // ── Feed valuation ──────────────────────────────────────────────────────
@@ -1890,6 +1956,42 @@ function penCatRows(cats){
     .map(([c,v])=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--gray)">
       <span>${c}</span><span style="font-weight:700;color:var(--g1)">${fmtMoney(Math.round(v))}</span></div>`).join('');
 }
+// The money page for the pen you are inside. Same figures as the comparison
+// card in Reports, laid out as a P&L because that is what you came here for.
+function renderPenPL(penId){
+  const ec=penEconomics({from:null,to:null});
+  const p=ec.rows.find(r=>r.pen.id===penId);
+  if(!p)return `<div class="empty" style="padding:24px"><p>No figures for this pen yet.</p></div>`;
+  const open=!!PEN_TBL['pl_'+penId];
+  return `
+    <div style="margin:0 16px 8px;background:var(--g5);border-radius:10px;padding:12px;display:flex;justify-content:space-between;gap:12px">
+      <div><div style="font-size:11px;color:var(--g1);font-weight:700;text-transform:uppercase">All-Time Margin</div>
+        <div style="font-size:20px;font-weight:800;color:${p.margin>=0?'var(--g2)':'var(--red)'}">${p.margin>=0?'+':''}${fmtMoney(Math.round(p.margin))}</div></div>
+      <div style="text-align:right"><div style="font-size:11px;color:var(--g1);font-weight:700;text-transform:uppercase">Cost / Crate</div>
+        <div style="font-size:20px;font-weight:800;color:var(--g1)">${p.costPerCrate?'₦'+p.costPerCrate.toFixed(0):'—'}</div></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+        <div style="font-size:10px;font-weight:800;color:var(--gray);text-transform:uppercase;letter-spacing:.4px">Profit &amp; Loss</div>
+        ${Object.keys(p.cats).length?`<button class="tbtn" onclick="togglePenTbl('pl_${penId}')">${open?'Hide breakdown':'Breakdown'}</button>`:''}
+      </div>
+      ${penMoneyRow('Direct cost',fmtMoney(Math.round(p.cost)),'var(--red)')}
+      ${open?`<div style="padding:4px 0 8px 10px;border-bottom:1px solid #f5f5f5">${penCatRows(p.cats)}</div>`:''}
+      ${penMoneyRow('Revenue',fmtMoney(Math.round(p.revenue)),'var(--g2)')}
+      ${p.otherRev>0?`<div style="padding:2px 0 8px 10px;border-bottom:1px solid #f5f5f5">
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--gray)"><span>Egg share (${p.sharePct!==null?p.sharePct.toFixed(0):'0'}% of eggs laid)</span><span style="font-weight:700;color:var(--g1)">${fmtMoney(Math.round(p.eggRev))}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--gray)"><span>Birds, manure and other</span><span style="font-weight:700;color:var(--g1)">${fmtMoney(Math.round(p.otherRev))}</span></div>
+      </div>`:''}
+      <div style="display:flex;justify-content:space-between;padding:9px 0;font-size:15px">
+        <span style="font-weight:800">Margin</span>
+        <span style="font-weight:800;color:${p.margin>=0?'var(--g2)':'var(--red)'}">${p.margin>=0?'+':''}${fmtMoney(Math.round(p.margin))}</span></div>
+    </div>
+    <div class="kpi-row-3">
+      <div class="kpi"><div class="kpi-val">${p.costPerEgg?'₦'+p.costPerEgg.toFixed(1):'—'}</div><div class="kpi-lbl">Cost / Egg</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:${fcrColour(p.fcr)}">${p.fcr!==null?p.fcr.toFixed(2):'—'}</div><div class="kpi-lbl">FCR</div></div>
+      <div class="kpi"><div class="kpi-val">${p.eggs.toLocaleString()}</div><div class="kpi-lbl">Eggs</div></div>
+    </div>`;
+}
 function renderPensReport(){
   const ec=penEconomics();
   const farm=DB.getFarm()||{pens:[]};
@@ -1913,7 +2015,7 @@ function renderPensReport(){
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:10px">
         <div class="kpi-sm"><div class="kpi-val-sm">${p.birdsNow.toLocaleString()}</div><div class="kpi-lbl">Birds</div></div>
         <div class="kpi-sm"><div class="kpi-val-sm">${p.eggs.toLocaleString()}</div><div class="kpi-lbl">Eggs</div></div>
-        <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(p.hdp)}">${p.hdp!==null?p.hdp.toFixed(0)+'%':'—'}</div><div class="kpi-lbl">Lay Rate</div></div>
+        <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(p.hdp,p.stage)}">${p.hdp!==null?p.hdp.toFixed(0)+'%':'—'}</div><div class="kpi-lbl">Lay Rate</div></div>
         <div class="kpi-sm"><div class="kpi-val-sm" style="color:${p.mortalityPct===null?'var(--gray)':p.mortalityPct>3?'var(--red)':p.mortalityPct>1?'var(--amber)':'var(--g2)'}">${p.mortalityPct!==null?p.mortalityPct.toFixed(1)+'%':'—'}</div><div class="kpi-lbl">Mortality</div></div>
       </div>
 
@@ -1958,6 +2060,10 @@ function renderPensReport(){
 // ═══════════════════════════════════════════════
 // HOME
 // ═══════════════════════════════════════════════
+// Home has two levels. Outside, you pick a pen; inside, everything on screen
+// belongs to that flock, the way walking into a house shows you that house.
+// With a single pen there is nothing to pick, so the app goes straight in and
+// behaves as it always did.
 function renderHome(){
   const farm=DB.getFarm(), el=document.getElementById('v-home');
   if(!farm){
@@ -1970,154 +2076,209 @@ function renderHome(){
       </div>`;
     return;
   }
-  const today=DB.today(), todayCols=DB.todayCols();
-  const farmBirds=getFarmTotalBirds(farm);
+  const pens=farm.pens||[];
+  if(pens.length===0){
+    el.innerHTML=`<div class="topbar"><div><h1>🐔 LayerTrack</h1><small>${farm.name||'My Farm'}</small></div></div>
+      <div class="empty"><h3>No pens yet</h3><p>Add your first pen in <b>Settings</b> to start logging.</p>
+        <button class="btn btn-primary" style="max-width:200px;margin:0 auto" onclick="go('settings')">Go to Settings</button></div>`;
+    return;
+  }
+  if(pens.length===1)_activePenId=pens[0].id;
+  const pen=_activePenId?pens.find(p=>p.id===_activePenId):null;
+  el.innerHTML=pen?penHomeHtml(farm,pen,pens):farmHomeHtml(farm,pens);
+}
+function exitPen(){ _activePenId=null; renderHome(); renderFeedTicker(); }
+
+// ── Outside: choose a pen ───────────────────────────────────────────────
+// Only what is genuinely shared sits at this level: the feed store, the egg
+// stock and the money owed to the farm. Everything else is behind a pen.
+function farmHomeHtml(farm,pens){
+  const today=DB.today(), todayCols=DB.todayCols(), allPass=getAllPassStatus(farm,todayCols);
+  const todayBirds=DB.todayBirds();
+  const rows=pens.map(pen=>{
+    const eggs=todayCols.filter(c=>c.penId===pen.id)
+      .reduce((s,c)=>(c.entries||[]).reduce((ss,e)=>ss+(e.eggs||0),s),0);
+    const birds=getPenTotalBirds(pen);
+    const deaths=todayBirds.filter(r=>ownedByPen(r,pen.id)).reduce((s,r)=>s+(r.deaths||0),0);
+    const pending=allPass.filter(p=>p.penId===pen.id&&!p.complete).length;
+    return{pen,eggs,birds,deaths,pending,stage:getPenStage(pen),
+      rate:birds>0?eggs/birds*100:null};
+  });
+  const st=getEggStock();
+  return`
+    <div class="topbar"><div><h1>🐔 LayerTrack</h1><small>${farm.name||'My Farm'} · ${fmtDate(today)}</small></div></div>
+    <div class="kpi-row-3">
+      <div class="kpi"><div class="kpi-val">${rows.reduce((s,r)=>s+r.eggs,0).toLocaleString()}</div><div class="kpi-lbl">Eggs Today</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:var(--g1)">${rows.reduce((s,r)=>s+r.birds,0).toLocaleString()}</div><div class="kpi-lbl">Birds on Farm</div></div>
+      <div class="kpi" style="cursor:pointer" onclick="FIN_TAB='stock';go('finance')">
+        <div class="kpi-val" style="color:${st.available===0?'var(--red)':st.available<EGGS_PER_CRATE?'var(--amber)':'var(--g2)'}">${st.crates}${st.loose>0?`<span style="font-size:11px;font-weight:500;color:var(--gray)"> +${st.loose}</span>`:''}</div>
+        <div class="kpi-lbl">Crates in Store</div></div>
+    </div>
+    ${feedHomeStrip()}
+    <div class="sec-hdr">Pens <span style="font-size:11px;color:var(--gray);text-transform:none;font-weight:500">Tap one to work in it</span></div>
+    ${rows.map(r=>`<div class="card" style="margin:0 16px 10px;padding:14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="width:10px;height:10px;border-radius:50%;background:var(--g3);flex-shrink:0"></div>
+        <div style="flex:1">
+          <div style="font-weight:800;font-size:15px;color:var(--g1)">${r.pen.name}</div>
+          <div style="font-size:11px;color:var(--gray);margin-top:2px">${r.stage?`Wk ${r.stage.weeks} · ${r.stage.label}`:'Age not set'} · ${r.birds.toLocaleString()} birds</div>
+          ${(r.pen.breed||r.pen.source)?`<div style="font-size:11px;color:var(--gray);margin-top:1px">${[r.pen.breed,r.pen.source].filter(Boolean).join(' · ')}</div>`:''}
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
+        <div class="kpi-sm"><div class="kpi-val-sm">${r.eggs.toLocaleString()}</div><div class="kpi-lbl-sm">Eggs Today</div></div>
+        <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(r.rate,r.stage)}">${r.rate!==null?r.rate.toFixed(0)+'%':'—'}</div><div class="kpi-lbl-sm">Lay Rate</div></div>
+        <div class="kpi-sm"><div class="kpi-val-sm" style="color:${r.deaths>0?'var(--red)':'var(--g1)'}">${r.deaths}</div><div class="kpi-lbl-sm">Deaths</div></div>
+      </div>
+      ${r.pending>0?`<div style="font-size:12px;color:var(--amber);font-weight:700;margin-bottom:8px">${r.pending} collection pass${r.pending>1?'es':''} still to do</div>`:''}
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" style="flex:2" onclick="selectPen('${r.pen.id}','home')">Open ${r.pen.name}</button>
+        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="selectPen('${r.pen.id}','eggs')">Collect Eggs</button>
+      </div>
+    </div>`).join('')}
+    <div class="sec-hdr">Farm</div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="log-status-row" onclick="FEED_TAB='store';go('feed')" style="cursor:pointer">
+        <div class="log-status-icon" style="background:#f5f5f5">🌾</div>
+        <div style="flex:1"><div style="font-weight:700;font-size:14px">Feed Store</div>
+          <div style="font-size:12px;color:var(--gray)">Shared across every pen</div></div>
+        <span style="color:var(--gray);font-size:18px">›</span></div>
+      <div class="log-status-row" onclick="FIN_TAB='sales';go('finance')" style="cursor:pointer">
+        <div class="log-status-icon" style="background:#f5f5f5">💰</div>
+        <div style="flex:1"><div style="font-weight:700;font-size:14px">Sales &amp; Receivables</div>
+          <div style="font-size:12px;color:var(--gray)">Crates pool before sale, so these stay farm-level</div></div>
+        <span style="color:var(--gray);font-size:18px">›</span></div>
+      <div class="log-status-row" onclick="REP_TAB='pens';go('reports')" style="cursor:pointer;border-bottom:none">
+        <div class="log-status-icon" style="background:#f5f5f5">📊</div>
+        <div style="flex:1"><div style="font-weight:700;font-size:14px">Compare Pens</div>
+          <div style="font-size:12px;color:var(--gray)">Cost, revenue and FCR side by side</div></div>
+        <span style="color:var(--gray);font-size:18px">›</span></div>
+    </div>
+    <div style="height:12px"></div>`;
+}
+
+// ── Inside a pen ────────────────────────────────────────────────────────
+function penDailySummary(penId,days){
+  const map={}, touch=d=>(map[d]=map[d]||{eggs:0,broken:0,deaths:0});
+  DB.getCols().filter(c=>c.penId===penId).forEach(c=>{
+    const m=touch(c.date);
+    (c.entries||[]).forEach(e=>{m.eggs+=(e.eggs||0);m.broken+=(e.broken||0);});
+  });
+  DB.getBirds().filter(r=>ownedByPen(r,penId)).forEach(b=>{ touch(b.date).deaths+=(b.deaths||0); });
+  const birdsOn=penBirdsOnDateFn(penId,0);
+  return Object.entries(map).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,days)
+    .map(([date,v])=>{ const n=birdsOn(date);
+      return{date,eggs:v.eggs,broken:v.broken,deaths:v.deaths,rate:n>0?v.eggs/n*100:null}; });
+}
+function penHomeHtml(farm,pen,pens){
+  const today=DB.today();
+  const todayCols=DB.todayCols().filter(c=>c.penId===pen.id);
+  const birds=getPenTotalBirds(pen), stage=getPenStage(pen);
   let totalEggs=0,totalBroken=0;
   todayCols.forEach(c=>(c.entries||[]).forEach(e=>{ totalEggs+=(e.eggs||0); totalBroken+=(e.broken||0); }));
-  const todayRate=farmBirds>0?totalEggs/farmBirds*100:null;
+  const todayRate=birds>0?totalEggs/birds*100:null;
   const todayCrack=totalEggs>0?totalBroken/totalEggs*100:null;
   const crackColor=todayCrack===null?'var(--gray)':todayCrack>3?'var(--red)':todayCrack>=2?'var(--amber)':'var(--g3)';
   const crackAlert=todayCrack!==null&&todayCrack>3?' 🚨':todayCrack!==null&&todayCrack>=2?' ⚠️':'';
-  const todayFeed=DB.todayFeed(); const totalFeedKg=todayFeed.reduce((s,f)=>s+(f.feed_kg_used||0),0);
-  const todayBird=DB.todayBirds(); const hasBirdLog=todayBird.length>0;
-  const todayHealth=DB.todayHealth(); const hasHealthLog=todayHealth.length>0;
-  const hasFeedLog=todayFeed.length>0;
-  const recent=getDailySummary(7);
-  // Mortality today
+  const todayFeed=DB.todayFeed().filter(r=>ownedByPen(r,pen.id));
+  const totalFeedKg=todayFeed.reduce((s,f)=>s+(f.feed_kg_used||0),0);
+  const todayBird=DB.todayBirds().filter(r=>ownedByPen(r,pen.id));
+  const todayHealth=DB.todayHealth().filter(r=>ownedByPen(r,pen.id));
+  const hasBirdLog=todayBird.length>0, hasFeedLog=todayFeed.length>0, hasHealthLog=todayHealth.length>0;
   const todayDeaths=todayBird.reduce((s,b)=>s+(b.deaths||0),0);
   const todayCulls=todayBird.reduce((s,b)=>s+(b.culls||0),0);
-  const mortalityRate=farmBirds>0?(todayDeaths/farmBirds*100):0;
+  const mortalityRate=birds>0?(todayDeaths/birds*100):0;
+  const recent=penDailySummary(pen.id,7);
+  const expRate=stage?stage.expected:(farm.expectedRate||85);
+  const warnRate=stage?stage.warn:(farm.warnRate||70);
 
-  // Alerts
   const alerts=[];
-  if(todayDeaths>0){
-    const cls=mortalityRate>0.5?'alert-red':'alert-amber';
-    alerts.push(`<div class="alert-item ${cls}">⚠ ${todayDeaths} death${todayDeaths>1?'s':''} recorded today (${mortalityRate.toFixed(2)}% mortality rate)</div>`);
-  }
-  if(todayRate!==null&&todayRate<(farm.warnRate||70))
-    alerts.push(`<div class="alert-item alert-amber">📉 Production rate ${todayRate.toFixed(0)}% is below warn threshold of ${farm.warnRate||70}%</div>`);
+  if(todayDeaths>0)
+    alerts.push(`<div class="alert-item ${mortalityRate>0.5?'alert-red':'alert-amber'}">⚠ ${todayDeaths} death${todayDeaths>1?'s':''} today (${mortalityRate.toFixed(2)}% mortality)</div>`);
+  // Judged against this flock's stage, not a flat farm figure. A pre-lay house
+  // has a warn floor of 0, so it is never flagged for not laying.
+  if(todayRate!==null&&todayRate<warnRate&&totalEggs>0)
+    alerts.push(`<div class="alert-item alert-amber">📉 Lay rate ${todayRate.toFixed(0)}% is under the ${warnRate}% floor for ${stage?stage.label:'this flock'}${stage?` (expect ~${expRate}%)`:''}</div>`);
   if(todayCrack!==null&&todayCrack>3)
-    alerts.push(`<div class="alert-item alert-red">💔 Crack rate ${todayCrack.toFixed(1)}% is above 3% danger threshold</div>`);
+    alerts.push(`<div class="alert-item alert-red">💔 Crack rate ${todayCrack.toFixed(1)}% is above the 3% danger threshold</div>`);
   if(todayFeed.length>0){
     const req=todayFeed.reduce((s,f)=>s+(f.feed_req_kg||0),0);
-    if(req>0){
-      const variance=Math.abs(totalFeedKg-req)/req*100;
-      if(variance>15) alerts.push(`<div class="alert-item alert-amber">🌾 Feed usage variance ${variance.toFixed(0)}% from daily requirement</div>`);
-    }
+    if(req>0){ const v=Math.abs(totalFeedKg-req)/req*100;
+      if(v>15)alerts.push(`<div class="alert-item alert-amber">🌾 Feed usage ${v.toFixed(0)}% off the daily requirement</div>`); }
   }
-  if(todayHealth.length>0&&todayHealth.some(h=>h.droppings_observation&&h.droppings_observation!=='Normal'))
-    alerts.push(`<div class="alert-item alert-amber">💊 Abnormal droppings observed today — check health log</div>`);
-  // Feed alerts are deliberately not in this list. The ticker at the top of the
-  // screen prints the same sentence from the same string, and feedHomeStrip()
-  // below carries the numbers and somewhere to tap, so a third copy here only
-  // pushed the rest of the screen down.
-  // Stock the app has never had confirmed on the floor drifts, so nudge for a
-  // count rather than quietly presenting book figures as fact.
-  (()=>{
-    const stale=getFeedStoreStatus().filter(c=>c.kg>0&&(!c.lastCountDate||
-      daysBetween(c.lastCountDate,DB.today())>30));
-    if(stale.length)alerts.push(`<div class="alert-item alert-amber" onclick="FEED_TAB='store';openFeedCount(null,'${stale[0].feed_type}')" style="cursor:pointer">🧮 ${stale[0].feed_type} not counted ${stale[0].lastCountDate?'in over a month':'yet'} — tap to count the store</div>`);
-  })();
-  const allPass=getAllPassStatus(farm,todayCols);
-  const roundCards=ROUNDS.map(rnd=>{
+  if(todayHealth.some(h=>h.droppings_observation&&h.droppings_observation!=='Normal'))
+    alerts.push(`<div class="alert-item alert-amber">💊 Abnormal droppings today — check the health log</div>`);
+
+  const allPass=getAllPassStatus(farm,DB.todayCols()).filter(p=>p.penId===pen.id);
+  const roundsHtml=ROUNDS.map(rnd=>{
     const passes=allPass.filter(p=>p.round===rnd.id);
     const pending=passes.filter(p=>!p.complete);
-    const doneAll=passes.length>0&&pending.length===0;
-    const eggs=todayCols.filter(c=>c.round===rnd.id).reduce((s,c)=>(c.entries||[]).reduce((ss,e)=>ss+(e.eggs||0),s),0);
-    return{rnd,passes,pending,doneAll,eggs};
-  });
-  const roundsHtml=roundCards.map(({rnd,pending,doneAll,eggs})=>{
-    if(doneAll)return`<div class="stand-row" style="margin-bottom:8px;background:#f7fff9;border:1.5px solid var(--g4)">
-      <div><span class="${rnd.cls} round-chip">${rnd.label} · ${rnd.sub}</span>
-      <div style="font-size:12px;color:var(--g3);font-weight:700;margin-top:5px">✓ All passes done · ${eggs} eggs</div></div>
-      <button class="btn btn-secondary btn-sm" onclick="COLLECT_ROUND=${rnd.id};go('eggs')">View</button></div>`;
+    const eggs=todayCols.filter(c=>c.round===rnd.id)
+      .reduce((s,c)=>(c.entries||[]).reduce((ss,e)=>ss+(e.eggs||0),s),0);
+    if(passes.length>0&&pending.length===0)
+      return`<div class="stand-row" style="margin-bottom:8px;background:#f7fff9;border:1.5px solid var(--g4)">
+        <div><span class="${rnd.cls} round-chip">${rnd.label} · ${rnd.sub}</span>
+        <div style="font-size:12px;color:var(--g3);font-weight:700;margin-top:5px">✓ Done · ${eggs} eggs</div></div>
+        <button class="btn btn-secondary btn-sm" onclick="COLLECT_ROUND=${rnd.id};go('eggs')">View</button></div>`;
     if(pending.length===0)return'';
     const inP=pending.filter(p=>p.started);
     return`<div class="stand-row" style="margin-bottom:8px">
       <div><span class="${rnd.cls} round-chip">${rnd.label} · ${rnd.sub}</span>
-      <div style="font-size:12px;color:var(--gray);margin-top:5px">${inP.length>0?inP.length+' in progress · ':''} ${pending.length} not done${eggs>0?' · '+eggs+' eggs':''}</div></div>
+      <div style="font-size:12px;color:var(--gray);margin-top:5px">${inP.length>0?inP.length+' in progress · ':''}${pending.length} not done${eggs>0?' · '+eggs+' eggs':''}</div></div>
       <button class="btn btn-primary btn-sm" onclick="COLLECT_ROUND=${rnd.id};go('eggs')">${inP.length>0?'Resume':'Start →'}</button></div>`;
   }).join('');
 
-  el.innerHTML=`
-    <div class="topbar"><div><h1>🐔 LayerTrack</h1><small>${farm.name||'My Farm'} · ${fmtDate(today)}</small></div></div>
-    <div class="kpi-row-6">
-      <div class="kpi-sm"><div class="kpi-val-sm">${totalEggs}</div><div class="kpi-lbl-sm">Eggs Today</div></div>
-      <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(todayRate)}">${todayRate!==null?todayRate.toFixed(0)+'%':'—'}</div><div class="kpi-lbl-sm">Prod Rate</div></div>
-      <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g1)">${farmBirds}</div><div class="kpi-lbl-sm">Total Birds</div></div>
-      <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--red)">${totalBroken}</div><div class="kpi-lbl-sm">Broken</div></div>
+  return`
+    <div class="topbar"><div><h1>${pen.name}</h1><small>${stage?`Wk ${stage.weeks} · ${stage.label}`:'Age not set'} · ${fmtDate(today)}</small></div></div>
+    ${pens.length>1?`<div class="pen-ctx-bar">
+      <div class="pen-ctx-left">
+        <div class="pen-ctx-dot"></div>
+        <div><div class="pen-ctx-name">${pen.name}</div>
+          <div class="pen-ctx-sub">${birds.toLocaleString()} birds · ${(pen.lines||[]).length} line${(pen.lines||[]).length!==1?'s':''}${pen.breed?' · '+pen.breed:''}</div></div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="exitPen()" style="flex-shrink:0">All Pens</button>
+    </div>`:''}
+    <div class="kpi-row-4">
+      <div class="kpi-sm"><div class="kpi-val-sm">${totalEggs.toLocaleString()}</div><div class="kpi-lbl-sm">Eggs Today</div></div>
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(todayRate,stage)}">${todayRate!==null?todayRate.toFixed(0)+'%':'—'}</div><div class="kpi-lbl-sm">Lay Rate</div></div>
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g1)">${birds.toLocaleString()}</div><div class="kpi-lbl-sm">Birds</div></div>
       <div class="kpi-sm" style="${todayCrack>3?'border:2px solid var(--red)':todayCrack>=2?'border:2px solid var(--amber)':''}">
         <div class="kpi-val-sm" style="color:${crackColor}">${todayCrack!==null?todayCrack.toFixed(1)+'%'+crackAlert:'—'}</div>
-        <div class="kpi-lbl-sm">Crack Rate</div>
-      </div>
-      ${(()=>{const st=getEggStock();const stockColor=st.available===0?'var(--red)':st.available<EGGS_PER_CRATE?'var(--amber)':'var(--g2)';
-      let mainVal;
-      if(st.available===0){mainVal=`<div class="kpi-val-sm" style="color:var(--red)">0</div>`;}
-      else if(st.crates===0){mainVal=`<div class="kpi-val-sm" style="color:var(--amber);font-weight:600;font-size:15px">${st.loose} pcs</div>`;}
-      else{mainVal=`<div class="kpi-val-sm" style="color:${stockColor}">${st.crates} crate${st.crates>1?'s':''}${st.loose>0?`<span style="font-size:10px;font-weight:500;color:var(--gray);margin-left:3px">${st.loose} pcs</span>`:''}</div>`;}
-      return`<div class="kpi-sm" style="cursor:pointer" onclick="FIN_TAB='stock';go('finance')">${mainVal}<div class="kpi-lbl-sm">Egg Stock</div></div>`;})()}
+        <div class="kpi-lbl-sm">Crack Rate</div></div>
     </div>
     ${alerts.length?`<div style="margin:0 16px 8px">${alerts.join('')}</div>`:''}
     ${feedHomeStrip()}
 
     <div class="sec-hdr">Today's Daily Logs
-      <span style="font-size:11px;color:var(--gray);text-transform:none;font-weight:500">Tap to log</span>
-    </div>
+      <span style="font-size:11px;color:var(--gray);text-transform:none;font-weight:500">Tap to log</span></div>
     <div class="card" style="padding:0;overflow:hidden;margin-top:2px">
       <div class="log-status-row" onclick="go('flock')" style="cursor:pointer">
         <div class="log-status-icon" style="background:${hasBirdLog?'var(--g5)':'#f5f5f5'}">${hasBirdLog?'✓':'🐔'}</div>
         <div style="flex:1"><div style="font-weight:700;font-size:14px">Flock Status</div>
           <div style="font-size:12px;color:var(--gray)">${hasBirdLog?`${todayDeaths} deaths · ${todayCulls} culls logged today`:'Not logged today — tap to add or backfill'}</div></div>
-        <span style="color:var(--gray);font-size:18px">›</span>
-      </div>
+        <span style="color:var(--gray);font-size:18px">›</span></div>
       <div class="log-status-row" onclick="go('feed')" style="cursor:pointer">
         <div class="log-status-icon" style="background:${hasFeedLog?'var(--g5)':'#f5f5f5'}">${hasFeedLog?'✓':'🌾'}</div>
         <div style="flex:1"><div style="font-weight:700;font-size:14px">Feed Usage</div>
-          <div style="font-size:12px;color:var(--gray)">${hasFeedLog?`${totalFeedKg} kg used today`:'Not logged — tap to add (can log yesterday\'s consumption now)'}</div></div>
-        <span style="color:var(--gray);font-size:18px">›</span>
-      </div>
+          <div style="font-size:12px;color:var(--gray)">${hasFeedLog?`${totalFeedKg} kg used today`:'Not logged — tap to add'}</div></div>
+        <span style="color:var(--gray);font-size:18px">›</span></div>
       <div class="log-status-row" onclick="go('health')" style="cursor:pointer;border-bottom:none">
         <div class="log-status-icon" style="background:${hasHealthLog?'var(--g5)':'#f5f5f5'}">${hasHealthLog?'✓':'💊'}</div>
         <div style="flex:1"><div style="font-weight:700;font-size:14px">Health Log</div>
-          <div style="font-size:12px;color:var(--gray)">${hasHealthLog?`Water: ${todayHealth[0]?.water_consumed_liters||'—'}L · ${todayHealth[0]?.droppings_observation||'—'} droppings`:'Not logged — tap to add or backfill past dates'}</div></div>
-        <span style="color:var(--gray);font-size:18px">›</span>
-      </div>
+          <div style="font-size:12px;color:var(--gray)">${hasHealthLog?`Water: ${todayHealth[0]?.water_consumed_liters||'—'}L · ${todayHealth[0]?.droppings_observation||'—'} droppings`:'Not logged — tap to add or backfill'}</div></div>
+        <span style="color:var(--gray);font-size:18px">›</span></div>
     </div>
 
     <div class="sec-hdr">Today's Collections</div>
-    <div style="margin:0 16px 10px">${roundsHtml||'<div style="color:var(--gray);font-size:13px;padding:8px 0">No farm passes configured.</div>'}</div>
-
-    <div class="sec-hdr">Pens
-      <span style="font-size:11px;color:var(--gray);text-transform:none;font-weight:500">Select pen to view records</span>
-    </div>
-    ${(farm.pens||[]).length===0?`<div class="card" style="margin:0 16px 10px;text-align:center;color:var(--gray);padding:20px">No pens configured — go to Settings to add pens.</div>`:(farm.pens||[]).map(pen=>{
-      const st=getPenStage(pen);
-      const penBirds=(()=>{let t=0;for(const l of pen.lines||[])for(const s of l.stands||[])for(let ti=1;ti<=s.tiers;ti++)for(let c=1;c<=s.cellsPerTier;c++)t+=getCellBirds(s,ti,c,'A')+getCellBirds(s,ti,c,'B');return t;})();
-      const isSelected=_activePenId===pen.id;
-      return`<div class="card" style="margin:0 16px 10px;padding:14px;${isSelected?'box-shadow:0 0 0 2.5px var(--g3),0 2px 10px rgba(0,0,0,.1)':''}position:relative;overflow:hidden">
-        ${isSelected?`<div style="position:absolute;top:10px;right:10px;background:var(--g5);color:var(--g1);font-size:10px;font-weight:800;padding:3px 8px;border-radius:12px">Viewing</div>`:''}
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-          <div style="width:10px;height:10px;border-radius:50%;background:var(--g3);flex-shrink:0"></div>
-          <div>
-            <div style="font-weight:800;font-size:15px;color:var(--g1)">${pen.name}</div>
-            <div style="font-size:11px;color:var(--gray);margin-top:2px">${st?`Wk ${st.weeks} · ${st.label}`:'Not configured'} · ${penBirds.toLocaleString()} birds · ${(pen.lines||[]).length} line${(pen.lines||[]).length!==1?'s':''}</div>
-            ${(pen.breed||pen.source)?`<div style="font-size:11px;color:var(--gray);margin-top:1px">${[pen.breed,pen.source].filter(Boolean).join(' · ')}</div>`:''}
-          </div>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-primary btn-sm" style="flex:2" onclick="selectPen('${pen.id}','flock')">${isSelected?'✓ Currently Viewing':'Open Records'}</button>
-          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="selectPen('${pen.id}','eggs')">Collect Eggs</button>
-        </div>
-      </div>`;
-    }).join('')}
+    <div style="margin:0 16px 10px">${roundsHtml||'<div style="color:var(--gray);font-size:13px;padding:8px 0">No collection passes configured for this pen.</div>'}</div>
 
     <div class="sec-hdr">Last 7 Days</div>
     <div class="card" style="padding:0;overflow:hidden">
-      ${recent.length===0?'<div class="empty" style="padding:20px"><p>No data yet.</p></div>':
+      ${recent.length===0?'<div class="empty" style="padding:20px"><p>No data yet for this pen.</p></div>':
         recent.map(r=>`<div class="list-item">
           <div><div style="font-weight:700;font-size:14px">${fmtDate(r.date)}</div>
             <div style="font-size:12px;color:var(--gray);margin-top:2px">${r.eggs} eggs · ${r.broken} broken · ${r.deaths} deaths</div></div>
-          ${rateBadge(r.rate)}</div>`).join('')}
+          ${rateBadge(r.rate,stage)}</div>`).join('')}
     </div>
     <div style="height:12px"></div>`;
 }
@@ -2132,6 +2293,7 @@ function getAllPassStatus(farm,todayCols){
   }))));
   return res;
 }
+// Still farm-wide: the reports' 14-day mortality strip reads it across pens.
 function getDailySummary(days){
   const farm=DB.getFarm(), birds=farm?getFarmTotalBirds(farm):0;
   const validIds=new Set((farm?.pens||[]).map(p=>p.id));
@@ -2304,7 +2466,7 @@ function renderSession(){
       <div class="cell-grid">${cellsHtml}</div></div>`;
   }
   const stageBanner=stage?`<div style="background:${stage.bg};padding:8px 14px;display:flex;align-items:center;gap:8px;font-size:12px;color:${stage.color};font-weight:800;border-bottom:1px solid rgba(0,0,0,.06)">
-    ${stage.emoji} Week ${stage.weeks} · ${stage.label} · Expect ≥${stage.expected}% · Warn &lt;${stage.warn}%</div>`:'';
+    ${stage.emoji} Week ${stage.weeks} · ${stage.label} · ${stageTargetText(stage)}</div>`:'';
   el.innerHTML=`<div class="collect-hdr">
     <div style="display:flex;align-items:flex-start;justify-content:space-between">
       <div><h2>${penName} · ${lineName} · Side ${side} · ${stand.name}</h2>
@@ -2396,7 +2558,7 @@ function exitSession(){
 function renderFlock(){
   const el=document.getElementById('v-flock'), today=DB.today(), farm=DB.getFarm();
   if(!_activePenId){el.innerHTML=`<div class="topbar"><div><h1>Flock Status</h1><small>Bird mortality & daily count</small></div></div>${getPenSelectPrompt()}`;return;}
-  const recs=DB.getBirds().filter(r=>!r.pen_id||r.pen_id===_activePenId).sort((a,b)=>b.date.localeCompare(a.date));
+  const recs=DB.getBirds().filter(ownedByActivePen).sort((a,b)=>b.date.localeCompare(a.date));
   const todayRec=recs.find(r=>r.date===today);
   // Scoped to the pen on screen, not the farm. With two flocks of different
   // ages in different pens, a farm total under a pen heading is a wrong answer
@@ -2454,7 +2616,7 @@ function renderFlock(){
 function openBirdForm(editId){
   const farm=DB.getFarm(), today=DB.today();
   const rec=editId?DB.getBirds().find(r=>r.id===editId):null;
-  const lastRec=DB.getBirds().filter(r=>!r.pen_id||r.pen_id===_activePenId)
+  const lastRec=DB.getBirds().filter(ownedByActivePen)
     .sort((a,b)=>b.date.localeCompare(a.date)).find(r=>!editId||r.id!==editId);
   const pen=((farm||{}).pens||[]).find(p=>p.id===_activePenId);
   const defOpen=rec?rec.opening_birds:((pen?getPenTotalBirds(pen):0)||lastRec?.closing_birds||0);
@@ -2524,10 +2686,10 @@ function renderFeed(){
 function feedUsageBody(){
   const today=DB.today(), farm=DB.getFarm();
   if(!_activePenId)return getPenSelectPrompt();
-  const recs=DB.getFeed().filter(r=>!r.pen_id||r.pen_id===_activePenId).sort((a,b)=>b.date.localeCompare(a.date));
+  const recs=DB.getFeed().filter(ownedByActivePen).sort((a,b)=>b.date.localeCompare(a.date));
   const todayRec=recs.find(r=>r.date===today);
   const totalUsed7=recs.filter(r=>{const d=new Date(today);d.setDate(d.getDate()-7);return r.date>d.toISOString().slice(0,10);}).reduce((s,r)=>s+(r.feed_kg_used||0),0);
-  const farmBirds=farm?getFarmTotalBirds(farm):0;
+  const farmBirds=activePenBirds();
   const lastBird=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date))[0];
   const closingBirds=lastBird?.closing_birds||farmBirds;
   const logHtml=`<div class="card">
@@ -2558,7 +2720,7 @@ function feedUsageBody(){
         <button class="btn btn-danger btn-sm" onclick="delFeed('${r.id}')">✕</button>`}
       </div></div>`;
   }).join('');
-  const _ageW=getFarmAgeWeeks(farm)||0;
+  const _ageW=activePenAgeWeeks();
   const _dynRate=getLayerFeedRate(_ageW);
   const _phaseHint=_ageW>=21?'Laying':'Wk '+_ageW;
   return `${getPenCtxBar()}
@@ -2982,9 +3144,8 @@ function doDelFeedStock(id){
 function openFeedForm(editId){
   const farm=DB.getFarm(), today=DB.today();
   const rec=editId?DB.getFeed().find(r=>r.id===editId):null;
-  const lastBird=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date))[0];
-  const closingBirds=lastBird?.closing_birds||getFarmTotalBirds(farm)||0;
-  const _fw=getFarmAgeWeeks(farm)||0;
+  const closingBirds=activePenBirds();
+  const _fw=activePenAgeWeeks();
   const feedRateG=getLayerFeedRate(_fw);
   const feedRate=feedRateG/1000;
   const defReq=(closingBirds*feedRate).toFixed(1);
@@ -3009,7 +3170,7 @@ function saveFeedLog(editId){
   const feed_type=document.getElementById('ff_type').value;
   const feed_kg_used=parseFloat(document.getElementById('ff_used').value)||0;
   const feed_req_kg=parseFloat(document.getElementById('ff_req').value)||0;
-  const ageWeeks=getFarmAgeWeeks(DB.getFarm())||0;
+  const ageWeeks=activePenAgeWeeks();
   const farm=DB.getFarm();
   const existing=editId?DB.getFeed().find(r=>r.id===editId):null;
   if(!lockGuard(date,existing?.date))return;
@@ -3040,7 +3201,7 @@ function delFeed(id){
 function renderHealth(){
   const el=document.getElementById('v-health'), today=DB.today();
   if(!_activePenId){el.innerHTML=`<div class="topbar"><div><h1>Health Log</h1><small>Water, droppings, medication</small></div></div>${getPenSelectPrompt()}`;return;}
-  const recs=DB.getHealth().filter(r=>!r.pen_id||r.pen_id===_activePenId).sort((a,b)=>b.date.localeCompare(a.date));
+  const recs=DB.getHealth().filter(ownedByActivePen).sort((a,b)=>b.date.localeCompare(a.date));
   const todayRec=recs.find(r=>r.date===today);
   const abnormal=recs.slice(0,7).filter(r=>r.droppings_observation&&r.droppings_observation!=='Normal').length;
   const logHtml=`<div class="card">
@@ -3087,9 +3248,8 @@ function renderHealth(){
 function openHealthForm(editId){
   const rec=editId?DB.getHealth().find(r=>r.id===editId):null, today=DB.today();
   const farm=DB.getFarm();
-  const lastBird=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date))[0];
-  const closingBirds=lastBird?.closing_birds||getFarmTotalBirds(farm)||0;
-  const _hw=getFarmAgeWeeks(farm)||0;
+  const closingBirds=activePenBirds();
+  const _hw=activePenAgeWeeks();
   const waterRateMl=getLayerWaterRate(_hw);
   const defWaterReq=(closingBirds*waterRateMl/1000).toFixed(1);
   const _wPhLabel=_hw>=23?'Laying phase':`Week ${_hw} pullet`;
@@ -3117,7 +3277,7 @@ function saveHealthLog(editId){
   const farm=DB.getFarm();
   const existing=editId?DB.getHealth().find(r=>r.id===editId):null;
   // Snapshot the age-based water rate at time of save; preserve existing snapshot on edit
-  const _saveAgeW=getFarmAgeWeeks(farm)||0;
+  const _saveAgeW=activePenAgeWeeks();
   const water_rate_ml=existing?.water_rate_ml||getLayerWaterRate(_saveAgeW);
   const rec={id:editId||uid(),date:document.getElementById('hf_date').value,
     pen_id:_activePenId||undefined,
@@ -3362,7 +3522,7 @@ function renderFinance(){
   const allExpenses=DB.getExpenses().sort((a,b)=>b.date.localeCompare(a.date));
   const penScoped=!!_activePenId&&!_finAllPens;
   const expenses=penScoped?allExpenses.filter(e=>e.pen_id===_activePenId):allExpenses;
-  const activePen=_activePenId?((DB.getFarm()||{}).pens||[]).find(p=>p.id===_activePenId):null;
+  const scopePen=activePen();
   const sales=DB.getSales().sort((a,b)=>b.date.localeCompare(a.date));
   const today=DB.today(), thisMonth=today.slice(0,7);
   const monthExp=allExpenses.filter(e=>e.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.amount_ngn||0),0);
@@ -3381,7 +3541,7 @@ function renderFinance(){
   if(FIN_TAB==='expenses'){
     const untagged=allExpenses.filter(e=>!e.pen_id&&!e.feed_stock_id).length;
     tabContent=`
-      ${activePen?`<div class="fin-scope-bar">${penScoped?'Pen: <b style="margin-left:4px">'+activePen.name+'</b>':'All pens'}
+      ${scopePen?`<div class="fin-scope-bar">${penScoped?'Pen: <b style="margin-left:4px">'+scopePen.name+'</b>':'All pens'}
         <button class="scope-toggle" onclick="_finAllPens=!_finAllPens;renderFinance()">${penScoped?'Show All':'Filter to Pen'}</button>
       </div>`:''}
       <div style="margin:12px 16px"><button class="btn btn-primary" onclick="openExpenseForm()">+ Add Expense</button></div>
@@ -3409,6 +3569,10 @@ function renderFinance(){
                 <button class="btn btn-danger btn-sm" onclick="delExpense('${e.id}')">✕</button>`}
               </div></div></div>`).join('')}
       </div>`;
+
+  } else if(FIN_TAB==='pl'){
+    tabContent=scopePen?renderPenPL(_activePenId)
+      :`<div class="empty" style="padding:24px"><p>Open a pen from Home to see its profit and loss.</p></div>`;
 
   } else if(FIN_TAB==='sales'){
     tabContent=`
@@ -3582,8 +3746,17 @@ function renderFinance(){
     tabContent=renderCustomersTab();
   }
 
-  el.innerHTML=`<div class="topbar"><div><h1>Finance</h1><small>Expenses · Sales · Receivables · Egg Stock</small></div></div>
-    <div class="kpi-row-3">
+  // Inside a pen the top of the screen is that pen's money. Sales, receivables
+  // and customers stay farm-level — crates pool before they are sold, so a
+  // sale cannot honestly be pinned to one flock.
+  const penMode=!!scopePen;
+  el.innerHTML=`<div class="topbar"><div><h1>${penMode?scopePen.name+' · Money':'Finance'}</h1><small>${penMode?'Costs · P&amp;L · farm sales below':'Expenses · Sales · Receivables · Egg Stock'}</small></div></div>
+    ${penMode?`<div class="pen-ctx-bar">
+      <div class="pen-ctx-left"><div class="pen-ctx-dot"></div>
+        <div><div class="pen-ctx-name">${scopePen.name}</div>
+          <div class="pen-ctx-sub">Expenses and P&amp;L are this pen's</div></div></div>
+      <button class="btn btn-secondary btn-sm" onclick="exitPen();go('home')" style="flex-shrink:0">All Pens</button>
+    </div>`:`<div class="kpi-row-3">
       <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${fmtMoney(monthSales)}</div><div class="kpi-lbl">Sales (Month)</div></div>
       <div class="kpi"><div class="kpi-val" style="color:var(--red)">${fmtMoney(monthExp)}</div><div class="kpi-lbl">Expenses (Month)</div></div>
       <div class="kpi" style="${overdueCount>0?'border:2px solid var(--red)':totalOwed>0?'border:2px solid var(--amber)':''}">
@@ -3596,10 +3769,11 @@ function renderFinance(){
         <div style="font-size:20px;font-weight:800;color:${monthSales-monthExp>=0?'var(--g2)':'var(--red)'}">${monthSales-monthExp>=0?'+':''}${fmtMoney(monthSales-monthExp)}</div></div>
       <div style="text-align:right"><div style="font-size:11px;color:var(--g1);font-weight:700;text-transform:uppercase">Cash Collected</div>
         <div style="font-size:20px;font-weight:800;color:var(--g2)">${fmtMoney(cashCollectedMonth)}</div></div>
-    </div>
+    </div>`}
     <div class="inner-tabs">
+      ${penMode?`<button class="inner-tab ${FIN_TAB==='pl'?'active':''}" onclick="FIN_TAB='pl';renderFinance()">P&amp;L</button>`:''}
       <button class="inner-tab ${FIN_TAB==='expenses'?'active':''}" onclick="FIN_TAB='expenses';renderFinance()">Expenses</button>
-      <button class="inner-tab ${FIN_TAB==='sales'?'active':''}" onclick="FIN_TAB='sales';renderFinance()">Sales</button>
+      <button class="inner-tab ${FIN_TAB==='sales'?'active':''}" onclick="FIN_TAB='sales';renderFinance()">Sales${penMode?' · farm':''}</button>
       <button class="inner-tab ${FIN_TAB==='recv'?'active':''}" onclick="FIN_TAB='recv';renderFinance()">Receivables${overdueCount>0?' 🔴':unpaidCredit.length>0?' ('+unpaidCredit.length+')':''}</button>
       <button class="inner-tab ${FIN_TAB==='customers'?'active':''}" onclick="FIN_TAB='customers';renderFinance()">Customers</button>
       <button class="inner-tab ${FIN_TAB==='stock'?'active':''}" onclick="FIN_TAB='stock';renderFinance()">Egg Stock</button>
@@ -4969,6 +5143,7 @@ function renderReports(){
 
     const cellRow=(c)=>{
       const stand=findStandInFarm(farm,c.standId), pen=(farm.pens||[]).find(p=>p.id===c.penId);
+      const cStage=pen?getPenStage(pen):null;
       const cRate=c.totalEggs>0?c.totalBroken/c.totalEggs*100:null;
       const cColor=cRate===null?'var(--gray)':cRate>3?'var(--red)':cRate>=2?'var(--amber)':'var(--g3)';
       return`<tr>
@@ -4976,7 +5151,7 @@ function renderReports(){
         <td><span class="badge badge-gray">Side ${c.side}</span></td>
         <td style="color:var(--gray)">${c.days}</td>
         <td style="color:var(--red);font-weight:700">${c.totalBroken}</td>
-        <td><div class="rate-bar-wrap"><div class="rate-bar" style="width:${Math.min(c.rate||0,100)}px;background:${rateColor(c.rate)}"></div>${rateBadge(c.rate)}</div></td>
+        <td><div class="rate-bar-wrap"><div class="rate-bar" style="width:${Math.min(c.rate||0,100)}px;background:${rateColor(c.rate,cStage)}"></div>${rateBadge(c.rate,cStage)}</div></td>
         <td style="font-weight:700;color:${cColor}">${cRate!==null?cRate.toFixed(1)+'%':'—'}</td></tr>`;
     };
 
@@ -5033,11 +5208,12 @@ function renderReports(){
           ${daily.map(d=>`<div class="list-item" style="cursor:pointer" onclick="ANA_DATE='${d.date}';ANA_TAB='cells';renderReports()">
             <div><div style="font-weight:700;font-size:14px">${fmtDate(d.date)}</div>
               <div style="font-size:12px;color:var(--gray)">${d.eggs} eggs · ${d.broken} broken · tap to drill in</div></div>
-            ${rateBadge(d.rate)}</div>`).join('')}
+            ${rateBadge(d.rate,scopePen?getPenStage(scopePen):null)}</div>`).join('')}
         </div>`;
     } else if(ANA_TAB==='pens'){
       const penMap={}, penDB={};
-      cols.forEach(col=>{if(!penMap[col.penId])penMap[col.penId]={name:col.penName||col.penId,eggs:0,birds:0,broken:0};
+      cols.forEach(col=>{if(!penMap[col.penId])penMap[col.penId]={name:col.penName||col.penId,eggs:0,birds:0,broken:0,
+        stage:getPenStage((farm.pens||[]).find(p=>p.id===col.penId))};
         (col.entries||[]).forEach(e=>{
           penMap[col.penId].eggs+=(e.eggs||0);penMap[col.penId].broken+=(e.broken||0);
           const pdk=`${col.penId}|${col.side}|${e.standId}|${e.tier}|${e.cellNum}|${col.date}`;
@@ -5051,7 +5227,7 @@ function renderReports(){
             <td><b>${p.name}</b></td>
             <td style="font-weight:800;color:var(--g2)">${p.eggs}</td>
             <td style="color:var(--red)">${p.broken}</td>
-            <td>${rateBadge(p.birds>0?p.eggs/p.birds*100:null)}</td></tr>`).join('')}
+            <td>${rateBadge(p.birds>0?p.eggs/p.birds*100:null,p.stage)}</td></tr>`).join('')}
           </table></div>`;
     }
     if(ANA_TAB==='trend'){
@@ -5098,10 +5274,15 @@ function renderReports(){
         <div class="card">${chart}</div>
         ${tblPen?`<div class="sec-hdr">${tblPen.name} · ${isWeekly?'Weekly':'Monthly'} Breakdown</div>
         <div class="card" style="padding:0;overflow:hidden">
-          <table class="ana-table"><tr><th>${isWeekly?'Age':'Month'}</th><th>Eggs</th><th>Rate</th><th>vs 80%</th></tr>
-            ${[...byPen[tblPen.id]].reverse().map(x=>{const diff=x.hdp-80;const dc=diff>=0?'var(--g2)':diff>-10?'var(--amber)':'var(--red)';
-              return`<tr><td><b>${x.label}</b></td>
-                <td style="font-weight:800">${x.eggs}</td><td>${rateBadge(x.hdp)}</td>
+          <table class="ana-table"><tr><th>${isWeekly?'Age':'Month'}</th><th>Eggs</th><th>Rate</th><th>vs Target</th></tr>
+            ${[...byPen[tblPen.id]].reverse().map(x=>{
+              // Weekly buckets know the flock's age, so each row is measured
+              // against the standard for that week rather than one flat figure.
+              const stg=isWeekly?stageForWeek(x.sortKey):getPenStage(tblPen);
+              const target=stg?stg.expected:80, diff=x.hdp-target;
+              const dc=diff>=0?'var(--g2)':diff>-10?'var(--amber)':'var(--red)';
+              return`<tr><td><b>${x.label}</b>${isWeekly&&stg?`<br><small style="color:var(--gray)">${stg.label} · ${target}%</small>`:''}</td>
+                <td style="font-weight:800">${x.eggs}</td><td>${rateBadge(x.hdp,stg)}</td>
                 <td style="font-weight:700;color:${dc}">${diff>0?'+':''}${diff.toFixed(1)}%</td></tr>`;}).join('')}
           </table></div>`:''}`;
     }
@@ -5457,7 +5638,7 @@ function renderSettings(){
         <span class="acc-arr">▾</span>
       </div>
       <div class="acc-body">
-        ${(()=>{const st=getPenStage(pen);return st?`<div style="background:${st.bg};border-radius:8px;padding:9px 12px;margin-bottom:10px;font-size:12px;color:${st.color};font-weight:800">${st.emoji} Week ${st.weeks} · ${st.label} — Expected ~${st.expected}% · Warn &lt;${st.warn}%</div>`:''})()}
+        ${(()=>{const st=getPenStage(pen);return st?`<div style="background:${st.bg};border-radius:8px;padding:9px 12px;margin-bottom:10px;font-size:12px;color:${st.color};font-weight:800">${st.emoji} Week ${st.weeks} · ${st.label} — ${stageTargetText(st)}</div>`:''})()}
         ${(pen.lines||[]).map(line=>`
           <div style="margin-bottom:10px">
             <div style="font-size:13px;font-weight:800;color:var(--g1);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
@@ -5753,7 +5934,7 @@ function editPen(penId){
     ${stage?`<div style="background:${stage.bg};border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px;color:${stage.color};font-weight:700;line-height:1.6">
       ${stage.emoji} <b>Current Age: Week ${stage.weeks}</b> · ${stage.label}<br>
       <span style="font-weight:500">${stage.ageAtArrival}w arrival + ${stage.weeksSince}w on farm</span><br>
-      Expected ≥${stage.expected}% · Warn &lt;${stage.warn}%</div>`:''}
+      ${stageTargetText(stage)}</div>`:''}
     <div class="field"><label>Pen Name</label><input type="text" id="m_pname" value="${pen.name}"></div>
     <div class="field"><label>Date Birds Arrived</label><input type="date" id="m_fdate" value="${pen.flockStartDate||''}" max="${today}"></div>
     <div class="field"><label>Age at Arrival (weeks)</label>

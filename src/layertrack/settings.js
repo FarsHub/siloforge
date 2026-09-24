@@ -11,7 +11,7 @@ function renderSettings(){
         <span class="acc-arr">▾</span>
       </div>
       <div class="acc-body">
-        ${(()=>{const st=getPenStage(pen);return st?`<div style="background:${st.bg};border-radius:8px;padding:9px 12px;margin-bottom:10px;font-size:12px;color:${st.color};font-weight:800">${st.emoji} Week ${st.weeks} · ${st.label} — Expected ~${st.expected}% · Warn &lt;${st.warn}%</div>`:''})()}
+        ${(()=>{const st=getPenStage(pen);return st?`<div style="background:${st.bg};border-radius:8px;padding:9px 12px;margin-bottom:10px;font-size:12px;color:${st.color};font-weight:800">${st.emoji} Week ${st.weeks} · ${st.label} — ${stageTargetText(st)}</div>`:''})()}
         ${(pen.lines||[]).map(line=>`
           <div style="margin-bottom:10px">
             <div style="font-size:13px;font-weight:800;color:var(--g1);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between">
@@ -307,7 +307,7 @@ function editPen(penId){
     ${stage?`<div style="background:${stage.bg};border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px;color:${stage.color};font-weight:700;line-height:1.6">
       ${stage.emoji} <b>Current Age: Week ${stage.weeks}</b> · ${stage.label}<br>
       <span style="font-weight:500">${stage.ageAtArrival}w arrival + ${stage.weeksSince}w on farm</span><br>
-      Expected ≥${stage.expected}% · Warn &lt;${stage.warn}%</div>`:''}
+      ${stageTargetText(stage)}</div>`:''}
     <div class="field"><label>Pen Name</label><input type="text" id="m_pname" value="${pen.name}"></div>
     <div class="field"><label>Date Birds Arrived</label><input type="date" id="m_fdate" value="${pen.flockStartDate||''}" max="${today}"></div>
     <div class="field"><label>Age at Arrival (weeks)</label>

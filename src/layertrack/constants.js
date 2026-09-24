@@ -1,19 +1,25 @@
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.09.23-b22';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.09.24-b26';  // bump on each deploy; shown on login screen + console
 const ROUNDS = [
   {id:1,label:'1st Pick',sub:'Morning',  cls:'round-1'},
   {id:2,label:'2nd Pick',sub:'Afternoon',cls:'round-2'},
   {id:3,label:'3rd Pick',sub:'Evening',  cls:'round-3'},
 ];
+// Flock stages, kept in step with DEFAULT_FEED_PROGRAMME below so the stage a
+// pen shows never contradicts the feed it is on: Grower to week 16, Pre-Layer
+// Mash 17–18, Layer Mash from 19. A stage with expected 0 is not laying yet,
+// so its rate is reported without judgement rather than marked down.
+//   maxWeek is exclusive — the stage covers every week below it.
 const FLOCK_STAGES = [
-  {maxWeek:18, label:'Pre-Lay',    emoji:'🥚',expected:5, warn:0, bg:'#f0f0f0',color:'#888'},
-  {maxWeek:22, label:'Early Lay',  emoji:'🌱',expected:30,warn:10,bg:'#e8f4fd',color:'#1a5fa8'},
-  {maxWeek:27, label:'Building Up',emoji:'📈',expected:65,warn:35,bg:'#fef3cd',color:'#7d4e00'},
-  {maxWeek:55, label:'Peak',       emoji:'⭐',expected:87,warn:72,bg:'#d8f3dc',color:'#1b4332'},
-  {maxWeek:65, label:'Post-Peak',  emoji:'📉',expected:78,warn:60,bg:'#e8f4fd',color:'#1a5fa8'},
-  {maxWeek:75, label:'Declining',  emoji:'🔻',expected:65,warn:48,bg:'#fef3cd',color:'#7d4e00'},
+  {maxWeek:17, label:'Grower',     emoji:'🌾',expected:0, warn:0, bg:'#f0f0f0',color:'#888'},
+  {maxWeek:19, label:'Pre-Lay',    emoji:'🥚',expected:5, warn:0, bg:'#fef3cd',color:'#7d4e00'},
+  {maxWeek:23, label:'Early Lay',  emoji:'🌱',expected:30,warn:10,bg:'#e8f4fd',color:'#1a5fa8'},
+  {maxWeek:28, label:'Building Up',emoji:'📈',expected:65,warn:35,bg:'#fef3cd',color:'#7d4e00'},
+  {maxWeek:56, label:'Peak',       emoji:'⭐',expected:87,warn:72,bg:'#d8f3dc',color:'#1b4332'},
+  {maxWeek:66, label:'Post-Peak',  emoji:'📉',expected:78,warn:60,bg:'#e8f4fd',color:'#1a5fa8'},
+  {maxWeek:76, label:'Declining',  emoji:'🔻',expected:65,warn:48,bg:'#fef3cd',color:'#7d4e00'},
   {maxWeek:999,label:'Late Lay',   emoji:'⏳',expected:50,warn:35,bg:'#fde8ea',color:'#d62839'},
 ];
 // Pullet feed requirement table: index 0 = week 1, index 21 = week 22; week 23+ = full laying (120g)

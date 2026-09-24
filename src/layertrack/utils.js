@@ -29,12 +29,45 @@ const LOCK_BADGE=`<span style="font-size:11px;color:var(--gray);padding:2px 6px;
 function toast(msg,dur=2200){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),dur) }
 function openModal(html){ document.getElementById('modal-body').innerHTML=html; document.getElementById('overlay').classList.add('open') }
 function closeModal(){ document.getElementById('overlay').classList.remove('open') }
-function rateBadge(rate){
-  if(rate===null||rate===undefined)return '<span class="badge badge-gray">—</span>';
-  const cls=rate>=85?'badge-green':rate>=70?'badge-amber':'badge-red';
+// A lay rate only means something next to the flock's age. 62% is poor at week
+// 30 and good at week 72, so where the age is known the stage's own expected
+// and warn figures are used — the same pair the egg-collection screen judges
+// each cell against. Without an age it falls back to the flat farm thresholds.
+function stageForWeek(weeks){
+  if(weeks===null||weeks===undefined)return null;
+  return FLOCK_STAGES.find(s=>weeks<s.maxWeek)||FLOCK_STAGES[FLOCK_STAGES.length-1];
+}
+// One phrase for the target, so a grower never reads as a 0% expectation.
+function stageTargetText(stage){
+  if(!stage)return '';
+  if(stage.expected<=0)return 'Not laying yet';
+  // No floor means lay has not been demanded yet, so there is no warn to show.
+  return stage.warn>0
+    ? `Expect ≥${stage.expected}% · Warn <${stage.warn}%`
+    : `Lay may start — expect ~${stage.expected}%`;
+}
+function rateBand(rate,stage){
+  if(rate===null||rate===undefined)return null;
+  const exp=stage?stage.expected:85, warn=stage?stage.warn:70;
+  // A grower is not expected to lay at all, so its rate carries no verdict.
+  if(exp<=0)return null;
+  if(rate>=exp)return 'good';
+  // A warn floor of zero means laying has not been demanded yet, so there is
+  // nothing to fall short of — stay neutral rather than colouring a pre-lay
+  // house amber for doing exactly what it should.
+  if(warn<=0)return null;
+  return rate>=warn?'ok':'poor';
+}
+function rateBadge(rate,stage){
+  const b=rateBand(rate,stage);
+  if(!b)return '<span class="badge badge-gray">—</span>';
+  const cls=b==='good'?'badge-green':b==='ok'?'badge-amber':'badge-red';
   return `<span class="badge ${cls}">${rate.toFixed(1)}%</span>`;
 }
-function rateColor(r){ return r===null?'#aaa':r>=85?'var(--g2)':r>=70?'var(--amber)':'var(--red)' }
+function rateColor(r,stage){
+  const b=rateBand(r,stage);
+  return !b?'#aaa':b==='good'?'var(--g2)':b==='ok'?'var(--amber)':'var(--red)';
+}
 function getCellBirds(stand,tier,cell,side){
   // Side-specific key takes priority; fall back to legacy side-agnostic key, then default
   if(side){const k=`${tier}_${cell}_${side}`;if(stand.cellBirds&&stand.cellBirds[k]!==undefined)return stand.cellBirds[k];}
@@ -68,8 +101,7 @@ function getPenStage(pen){
   const weeksSince=Math.floor((Date.now()-placed.getTime())/(7*24*60*60*1000));
   const ageAtArrival=pen.flockAgeAtArrival||0;
   const weeks=weeksSince+ageAtArrival;
-  const stage=FLOCK_STAGES.find(s=>weeks<s.maxWeek)||FLOCK_STAGES[FLOCK_STAGES.length-1];
-  return{weeks,weeksSince,ageAtArrival,...stage};
+  return{weeks,weeksSince,ageAtArrival,...stageForWeek(weeks)};
 }
 function getFarmAgeWeeks(farm){
   const pen=(farm.pens||[])[0];

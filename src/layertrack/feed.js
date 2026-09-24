@@ -16,10 +16,10 @@ function renderFeed(){
 function feedUsageBody(){
   const today=DB.today(), farm=DB.getFarm();
   if(!_activePenId)return getPenSelectPrompt();
-  const recs=DB.getFeed().filter(r=>!r.pen_id||r.pen_id===_activePenId).sort((a,b)=>b.date.localeCompare(a.date));
+  const recs=DB.getFeed().filter(ownedByActivePen).sort((a,b)=>b.date.localeCompare(a.date));
   const todayRec=recs.find(r=>r.date===today);
   const totalUsed7=recs.filter(r=>{const d=new Date(today);d.setDate(d.getDate()-7);return r.date>d.toISOString().slice(0,10);}).reduce((s,r)=>s+(r.feed_kg_used||0),0);
-  const farmBirds=farm?getFarmTotalBirds(farm):0;
+  const farmBirds=activePenBirds();
   const lastBird=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date))[0];
   const closingBirds=lastBird?.closing_birds||farmBirds;
   const logHtml=`<div class="card">
@@ -50,7 +50,7 @@ function feedUsageBody(){
         <button class="btn btn-danger btn-sm" onclick="delFeed('${r.id}')">✕</button>`}
       </div></div>`;
   }).join('');
-  const _ageW=getFarmAgeWeeks(farm)||0;
+  const _ageW=activePenAgeWeeks();
   const _dynRate=getLayerFeedRate(_ageW);
   const _phaseHint=_ageW>=21?'Laying':'Wk '+_ageW;
   return `${getPenCtxBar()}
@@ -474,9 +474,8 @@ function doDelFeedStock(id){
 function openFeedForm(editId){
   const farm=DB.getFarm(), today=DB.today();
   const rec=editId?DB.getFeed().find(r=>r.id===editId):null;
-  const lastBird=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date))[0];
-  const closingBirds=lastBird?.closing_birds||getFarmTotalBirds(farm)||0;
-  const _fw=getFarmAgeWeeks(farm)||0;
+  const closingBirds=activePenBirds();
+  const _fw=activePenAgeWeeks();
   const feedRateG=getLayerFeedRate(_fw);
   const feedRate=feedRateG/1000;
   const defReq=(closingBirds*feedRate).toFixed(1);
@@ -501,7 +500,7 @@ function saveFeedLog(editId){
   const feed_type=document.getElementById('ff_type').value;
   const feed_kg_used=parseFloat(document.getElementById('ff_used').value)||0;
   const feed_req_kg=parseFloat(document.getElementById('ff_req').value)||0;
-  const ageWeeks=getFarmAgeWeeks(DB.getFarm())||0;
+  const ageWeeks=activePenAgeWeeks();
   const farm=DB.getFarm();
   const existing=editId?DB.getFeed().find(r=>r.id===editId):null;
   if(!lockGuard(date,existing?.date))return;

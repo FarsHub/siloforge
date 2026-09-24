@@ -151,7 +151,7 @@ function renderSession(){
       <div class="cell-grid">${cellsHtml}</div></div>`;
   }
   const stageBanner=stage?`<div style="background:${stage.bg};padding:8px 14px;display:flex;align-items:center;gap:8px;font-size:12px;color:${stage.color};font-weight:800;border-bottom:1px solid rgba(0,0,0,.06)">
-    ${stage.emoji} Week ${stage.weeks} · ${stage.label} · Expect ≥${stage.expected}% · Warn &lt;${stage.warn}%</div>`:'';
+    ${stage.emoji} Week ${stage.weeks} · ${stage.label} · ${stageTargetText(stage)}</div>`:'';
   el.innerHTML=`<div class="collect-hdr">
     <div style="display:flex;align-items:flex-start;justify-content:space-between">
       <div><h2>${penName} · ${lineName} · Side ${side} · ${stand.name}</h2>

@@ -4,7 +4,7 @@
 function renderHealth(){
   const el=document.getElementById('v-health'), today=DB.today();
   if(!_activePenId){el.innerHTML=`<div class="topbar"><div><h1>Health Log</h1><small>Water, droppings, medication</small></div></div>${getPenSelectPrompt()}`;return;}
-  const recs=DB.getHealth().filter(r=>!r.pen_id||r.pen_id===_activePenId).sort((a,b)=>b.date.localeCompare(a.date));
+  const recs=DB.getHealth().filter(ownedByActivePen).sort((a,b)=>b.date.localeCompare(a.date));
   const todayRec=recs.find(r=>r.date===today);
   const abnormal=recs.slice(0,7).filter(r=>r.droppings_observation&&r.droppings_observation!=='Normal').length;
   const logHtml=`<div class="card">
@@ -51,9 +51,8 @@ function renderHealth(){
 function openHealthForm(editId){
   const rec=editId?DB.getHealth().find(r=>r.id===editId):null, today=DB.today();
   const farm=DB.getFarm();
-  const lastBird=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date))[0];
-  const closingBirds=lastBird?.closing_birds||getFarmTotalBirds(farm)||0;
-  const _hw=getFarmAgeWeeks(farm)||0;
+  const closingBirds=activePenBirds();
+  const _hw=activePenAgeWeeks();
   const waterRateMl=getLayerWaterRate(_hw);
   const defWaterReq=(closingBirds*waterRateMl/1000).toFixed(1);
   const _wPhLabel=_hw>=23?'Laying phase':`Week ${_hw} pullet`;
@@ -81,7 +80,7 @@ function saveHealthLog(editId){
   const farm=DB.getFarm();
   const existing=editId?DB.getHealth().find(r=>r.id===editId):null;
   // Snapshot the age-based water rate at time of save; preserve existing snapshot on edit
-  const _saveAgeW=getFarmAgeWeeks(farm)||0;
+  const _saveAgeW=activePenAgeWeeks();
   const water_rate_ml=existing?.water_rate_ml||getLayerWaterRate(_saveAgeW);
   const rec={id:editId||uid(),date:document.getElementById('hf_date').value,
     pen_id:_activePenId||undefined,

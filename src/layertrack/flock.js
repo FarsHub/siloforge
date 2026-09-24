@@ -4,7 +4,7 @@
 function renderFlock(){
   const el=document.getElementById('v-flock'), today=DB.today(), farm=DB.getFarm();
   if(!_activePenId){el.innerHTML=`<div class="topbar"><div><h1>Flock Status</h1><small>Bird mortality & daily count</small></div></div>${getPenSelectPrompt()}`;return;}
-  const recs=DB.getBirds().filter(r=>!r.pen_id||r.pen_id===_activePenId).sort((a,b)=>b.date.localeCompare(a.date));
+  const recs=DB.getBirds().filter(ownedByActivePen).sort((a,b)=>b.date.localeCompare(a.date));
   const todayRec=recs.find(r=>r.date===today);
   // Scoped to the pen on screen, not the farm. With two flocks of different
   // ages in different pens, a farm total under a pen heading is a wrong answer
@@ -62,7 +62,7 @@ function renderFlock(){
 function openBirdForm(editId){
   const farm=DB.getFarm(), today=DB.today();
   const rec=editId?DB.getBirds().find(r=>r.id===editId):null;
-  const lastRec=DB.getBirds().filter(r=>!r.pen_id||r.pen_id===_activePenId)
+  const lastRec=DB.getBirds().filter(ownedByActivePen)
     .sort((a,b)=>b.date.localeCompare(a.date)).find(r=>!editId||r.id!==editId);
   const pen=((farm||{}).pens||[]).find(p=>p.id===_activePenId);
   const defOpen=rec?rec.opening_birds:((pen?getPenTotalBirds(pen):0)||lastRec?.closing_birds||0);

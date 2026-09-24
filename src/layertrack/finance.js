@@ -221,7 +221,7 @@ function renderFinance(){
   const allExpenses=DB.getExpenses().sort((a,b)=>b.date.localeCompare(a.date));
   const penScoped=!!_activePenId&&!_finAllPens;
   const expenses=penScoped?allExpenses.filter(e=>e.pen_id===_activePenId):allExpenses;
-  const activePen=_activePenId?((DB.getFarm()||{}).pens||[]).find(p=>p.id===_activePenId):null;
+  const scopePen=activePen();
   const sales=DB.getSales().sort((a,b)=>b.date.localeCompare(a.date));
   const today=DB.today(), thisMonth=today.slice(0,7);
   const monthExp=allExpenses.filter(e=>e.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.amount_ngn||0),0);
@@ -240,7 +240,7 @@ function renderFinance(){
   if(FIN_TAB==='expenses'){
     const untagged=allExpenses.filter(e=>!e.pen_id&&!e.feed_stock_id).length;
     tabContent=`
-      ${activePen?`<div class="fin-scope-bar">${penScoped?'Pen: <b style="margin-left:4px">'+activePen.name+'</b>':'All pens'}
+      ${scopePen?`<div class="fin-scope-bar">${penScoped?'Pen: <b style="margin-left:4px">'+scopePen.name+'</b>':'All pens'}
         <button class="scope-toggle" onclick="_finAllPens=!_finAllPens;renderFinance()">${penScoped?'Show All':'Filter to Pen'}</button>
       </div>`:''}
       <div style="margin:12px 16px"><button class="btn btn-primary" onclick="openExpenseForm()">+ Add Expense</button></div>
@@ -268,6 +268,10 @@ function renderFinance(){
                 <button class="btn btn-danger btn-sm" onclick="delExpense('${e.id}')">✕</button>`}
               </div></div></div>`).join('')}
       </div>`;
+
+  } else if(FIN_TAB==='pl'){
+    tabContent=scopePen?renderPenPL(_activePenId)
+      :`<div class="empty" style="padding:24px"><p>Open a pen from Home to see its profit and loss.</p></div>`;
 
   } else if(FIN_TAB==='sales'){
     tabContent=`
@@ -441,8 +445,17 @@ function renderFinance(){
     tabContent=renderCustomersTab();
   }
 
-  el.innerHTML=`<div class="topbar"><div><h1>Finance</h1><small>Expenses · Sales · Receivables · Egg Stock</small></div></div>
-    <div class="kpi-row-3">
+  // Inside a pen the top of the screen is that pen's money. Sales, receivables
+  // and customers stay farm-level — crates pool before they are sold, so a
+  // sale cannot honestly be pinned to one flock.
+  const penMode=!!scopePen;
+  el.innerHTML=`<div class="topbar"><div><h1>${penMode?scopePen.name+' · Money':'Finance'}</h1><small>${penMode?'Costs · P&amp;L · farm sales below':'Expenses · Sales · Receivables · Egg Stock'}</small></div></div>
+    ${penMode?`<div class="pen-ctx-bar">
+      <div class="pen-ctx-left"><div class="pen-ctx-dot"></div>
+        <div><div class="pen-ctx-name">${scopePen.name}</div>
+          <div class="pen-ctx-sub">Expenses and P&amp;L are this pen's</div></div></div>
+      <button class="btn btn-secondary btn-sm" onclick="exitPen();go('home')" style="flex-shrink:0">All Pens</button>
+    </div>`:`<div class="kpi-row-3">
       <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${fmtMoney(monthSales)}</div><div class="kpi-lbl">Sales (Month)</div></div>
       <div class="kpi"><div class="kpi-val" style="color:var(--red)">${fmtMoney(monthExp)}</div><div class="kpi-lbl">Expenses (Month)</div></div>
       <div class="kpi" style="${overdueCount>0?'border:2px solid var(--red)':totalOwed>0?'border:2px solid var(--amber)':''}">
@@ -455,10 +468,11 @@ function renderFinance(){
         <div style="font-size:20px;font-weight:800;color:${monthSales-monthExp>=0?'var(--g2)':'var(--red)'}">${monthSales-monthExp>=0?'+':''}${fmtMoney(monthSales-monthExp)}</div></div>
       <div style="text-align:right"><div style="font-size:11px;color:var(--g1);font-weight:700;text-transform:uppercase">Cash Collected</div>
         <div style="font-size:20px;font-weight:800;color:var(--g2)">${fmtMoney(cashCollectedMonth)}</div></div>
-    </div>
+    </div>`}
     <div class="inner-tabs">
+      ${penMode?`<button class="inner-tab ${FIN_TAB==='pl'?'active':''}" onclick="FIN_TAB='pl';renderFinance()">P&amp;L</button>`:''}
       <button class="inner-tab ${FIN_TAB==='expenses'?'active':''}" onclick="FIN_TAB='expenses';renderFinance()">Expenses</button>
-      <button class="inner-tab ${FIN_TAB==='sales'?'active':''}" onclick="FIN_TAB='sales';renderFinance()">Sales</button>
+      <button class="inner-tab ${FIN_TAB==='sales'?'active':''}" onclick="FIN_TAB='sales';renderFinance()">Sales${penMode?' · farm':''}</button>
       <button class="inner-tab ${FIN_TAB==='recv'?'active':''}" onclick="FIN_TAB='recv';renderFinance()">Receivables${overdueCount>0?' 🔴':unpaidCredit.length>0?' ('+unpaidCredit.length+')':''}</button>
       <button class="inner-tab ${FIN_TAB==='customers'?'active':''}" onclick="FIN_TAB='customers';renderFinance()">Customers</button>
       <button class="inner-tab ${FIN_TAB==='stock'?'active':''}" onclick="FIN_TAB='stock';renderFinance()">Egg Stock</button>

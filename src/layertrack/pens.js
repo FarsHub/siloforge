@@ -42,6 +42,33 @@ function legacyPenId(){
   return (dated[0]||pens[0]).id;
 }
 
+// ── The pen you are inside ───────────────────────────────────
+// One definition of ownership, used by every screen. The old rule — "no pen on
+// the record, or this pen" — was harmless with a single pen and wrong the
+// moment a second appeared, because it showed every untagged record inside
+// every pen. An untagged record belongs to the oldest flock and nowhere else.
+function ownedByPen(rec,penId){
+  return (rec.pen_id||legacyPenId())===penId;
+}
+function ownedByActivePen(rec){ return ownedByPen(rec,_activePenId); }
+function activePen(){
+  return _activePenId?(((DB.getFarm()||{}).pens)||[]).find(p=>p.id===_activePenId)||null:null;
+}
+// Birds and age must come from the pen on screen. A farm total under a pen
+// heading, or the first pen's age applied to the second, is how a Wk 12
+// pre-lay flock ends up being fed a laying ration.
+function activePenBirds(){
+  const pen=activePen();
+  if(!pen)return 0;
+  const last=DB.getBirds().filter(r=>ownedByPen(r,pen.id)&&(r.closing_birds||0)>0)
+    .sort((a,b)=>b.date.localeCompare(a.date))[0];
+  return last?last.closing_birds:getPenTotalBirds(pen);
+}
+function activePenAgeWeeks(){
+  const st=activePen()?getPenStage(activePen()):null;
+  return st?st.weeks:0;
+}
+
 // ── Feed valuation ──────────────────────────────────────────────────────
 // Walks each feed type's store ledger keeping a running kg and a running naira
 // value, so every usage record can be priced at what the store was actually
@@ -361,6 +388,42 @@ function penCatRows(cats){
     .map(([c,v])=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--gray)">
       <span>${c}</span><span style="font-weight:700;color:var(--g1)">${fmtMoney(Math.round(v))}</span></div>`).join('');
 }
+// The money page for the pen you are inside. Same figures as the comparison
+// card in Reports, laid out as a P&L because that is what you came here for.
+function renderPenPL(penId){
+  const ec=penEconomics({from:null,to:null});
+  const p=ec.rows.find(r=>r.pen.id===penId);
+  if(!p)return `<div class="empty" style="padding:24px"><p>No figures for this pen yet.</p></div>`;
+  const open=!!PEN_TBL['pl_'+penId];
+  return `
+    <div style="margin:0 16px 8px;background:var(--g5);border-radius:10px;padding:12px;display:flex;justify-content:space-between;gap:12px">
+      <div><div style="font-size:11px;color:var(--g1);font-weight:700;text-transform:uppercase">All-Time Margin</div>
+        <div style="font-size:20px;font-weight:800;color:${p.margin>=0?'var(--g2)':'var(--red)'}">${p.margin>=0?'+':''}${fmtMoney(Math.round(p.margin))}</div></div>
+      <div style="text-align:right"><div style="font-size:11px;color:var(--g1);font-weight:700;text-transform:uppercase">Cost / Crate</div>
+        <div style="font-size:20px;font-weight:800;color:var(--g1)">${p.costPerCrate?'₦'+p.costPerCrate.toFixed(0):'—'}</div></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+        <div style="font-size:10px;font-weight:800;color:var(--gray);text-transform:uppercase;letter-spacing:.4px">Profit &amp; Loss</div>
+        ${Object.keys(p.cats).length?`<button class="tbtn" onclick="togglePenTbl('pl_${penId}')">${open?'Hide breakdown':'Breakdown'}</button>`:''}
+      </div>
+      ${penMoneyRow('Direct cost',fmtMoney(Math.round(p.cost)),'var(--red)')}
+      ${open?`<div style="padding:4px 0 8px 10px;border-bottom:1px solid #f5f5f5">${penCatRows(p.cats)}</div>`:''}
+      ${penMoneyRow('Revenue',fmtMoney(Math.round(p.revenue)),'var(--g2)')}
+      ${p.otherRev>0?`<div style="padding:2px 0 8px 10px;border-bottom:1px solid #f5f5f5">
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--gray)"><span>Egg share (${p.sharePct!==null?p.sharePct.toFixed(0):'0'}% of eggs laid)</span><span style="font-weight:700;color:var(--g1)">${fmtMoney(Math.round(p.eggRev))}</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--gray)"><span>Birds, manure and other</span><span style="font-weight:700;color:var(--g1)">${fmtMoney(Math.round(p.otherRev))}</span></div>
+      </div>`:''}
+      <div style="display:flex;justify-content:space-between;padding:9px 0;font-size:15px">
+        <span style="font-weight:800">Margin</span>
+        <span style="font-weight:800;color:${p.margin>=0?'var(--g2)':'var(--red)'}">${p.margin>=0?'+':''}${fmtMoney(Math.round(p.margin))}</span></div>
+    </div>
+    <div class="kpi-row-3">
+      <div class="kpi"><div class="kpi-val">${p.costPerEgg?'₦'+p.costPerEgg.toFixed(1):'—'}</div><div class="kpi-lbl">Cost / Egg</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:${fcrColour(p.fcr)}">${p.fcr!==null?p.fcr.toFixed(2):'—'}</div><div class="kpi-lbl">FCR</div></div>
+      <div class="kpi"><div class="kpi-val">${p.eggs.toLocaleString()}</div><div class="kpi-lbl">Eggs</div></div>
+    </div>`;
+}
 function renderPensReport(){
   const ec=penEconomics();
   const farm=DB.getFarm()||{pens:[]};
@@ -384,7 +447,7 @@ function renderPensReport(){
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:10px">
         <div class="kpi-sm"><div class="kpi-val-sm">${p.birdsNow.toLocaleString()}</div><div class="kpi-lbl">Birds</div></div>
         <div class="kpi-sm"><div class="kpi-val-sm">${p.eggs.toLocaleString()}</div><div class="kpi-lbl">Eggs</div></div>
-        <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(p.hdp)}">${p.hdp!==null?p.hdp.toFixed(0)+'%':'—'}</div><div class="kpi-lbl">Lay Rate</div></div>
+        <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(p.hdp,p.stage)}">${p.hdp!==null?p.hdp.toFixed(0)+'%':'—'}</div><div class="kpi-lbl">Lay Rate</div></div>
         <div class="kpi-sm"><div class="kpi-val-sm" style="color:${p.mortalityPct===null?'var(--gray)':p.mortalityPct>3?'var(--red)':p.mortalityPct>1?'var(--amber)':'var(--g2)'}">${p.mortalityPct!==null?p.mortalityPct.toFixed(1)+'%':'—'}</div><div class="kpi-lbl">Mortality</div></div>
       </div>
 

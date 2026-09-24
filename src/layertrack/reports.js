@@ -353,6 +353,7 @@ function renderReports(){
 
     const cellRow=(c)=>{
       const stand=findStandInFarm(farm,c.standId), pen=(farm.pens||[]).find(p=>p.id===c.penId);
+      const cStage=pen?getPenStage(pen):null;
       const cRate=c.totalEggs>0?c.totalBroken/c.totalEggs*100:null;
       const cColor=cRate===null?'var(--gray)':cRate>3?'var(--red)':cRate>=2?'var(--amber)':'var(--g3)';
       return`<tr>
@@ -360,7 +361,7 @@ function renderReports(){
         <td><span class="badge badge-gray">Side ${c.side}</span></td>
         <td style="color:var(--gray)">${c.days}</td>
         <td style="color:var(--red);font-weight:700">${c.totalBroken}</td>
-        <td><div class="rate-bar-wrap"><div class="rate-bar" style="width:${Math.min(c.rate||0,100)}px;background:${rateColor(c.rate)}"></div>${rateBadge(c.rate)}</div></td>
+        <td><div class="rate-bar-wrap"><div class="rate-bar" style="width:${Math.min(c.rate||0,100)}px;background:${rateColor(c.rate,cStage)}"></div>${rateBadge(c.rate,cStage)}</div></td>
         <td style="font-weight:700;color:${cColor}">${cRate!==null?cRate.toFixed(1)+'%':'—'}</td></tr>`;
     };
 
@@ -417,11 +418,12 @@ function renderReports(){
           ${daily.map(d=>`<div class="list-item" style="cursor:pointer" onclick="ANA_DATE='${d.date}';ANA_TAB='cells';renderReports()">
             <div><div style="font-weight:700;font-size:14px">${fmtDate(d.date)}</div>
               <div style="font-size:12px;color:var(--gray)">${d.eggs} eggs · ${d.broken} broken · tap to drill in</div></div>
-            ${rateBadge(d.rate)}</div>`).join('')}
+            ${rateBadge(d.rate,scopePen?getPenStage(scopePen):null)}</div>`).join('')}
         </div>`;
     } else if(ANA_TAB==='pens'){
       const penMap={}, penDB={};
-      cols.forEach(col=>{if(!penMap[col.penId])penMap[col.penId]={name:col.penName||col.penId,eggs:0,birds:0,broken:0};
+      cols.forEach(col=>{if(!penMap[col.penId])penMap[col.penId]={name:col.penName||col.penId,eggs:0,birds:0,broken:0,
+        stage:getPenStage((farm.pens||[]).find(p=>p.id===col.penId))};
         (col.entries||[]).forEach(e=>{
           penMap[col.penId].eggs+=(e.eggs||0);penMap[col.penId].broken+=(e.broken||0);
           const pdk=`${col.penId}|${col.side}|${e.standId}|${e.tier}|${e.cellNum}|${col.date}`;
@@ -435,7 +437,7 @@ function renderReports(){
             <td><b>${p.name}</b></td>
             <td style="font-weight:800;color:var(--g2)">${p.eggs}</td>
             <td style="color:var(--red)">${p.broken}</td>
-            <td>${rateBadge(p.birds>0?p.eggs/p.birds*100:null)}</td></tr>`).join('')}
+            <td>${rateBadge(p.birds>0?p.eggs/p.birds*100:null,p.stage)}</td></tr>`).join('')}
           </table></div>`;
     }
     if(ANA_TAB==='trend'){
@@ -482,10 +484,15 @@ function renderReports(){
         <div class="card">${chart}</div>
         ${tblPen?`<div class="sec-hdr">${tblPen.name} · ${isWeekly?'Weekly':'Monthly'} Breakdown</div>
         <div class="card" style="padding:0;overflow:hidden">
-          <table class="ana-table"><tr><th>${isWeekly?'Age':'Month'}</th><th>Eggs</th><th>Rate</th><th>vs 80%</th></tr>
-            ${[...byPen[tblPen.id]].reverse().map(x=>{const diff=x.hdp-80;const dc=diff>=0?'var(--g2)':diff>-10?'var(--amber)':'var(--red)';
-              return`<tr><td><b>${x.label}</b></td>
-                <td style="font-weight:800">${x.eggs}</td><td>${rateBadge(x.hdp)}</td>
+          <table class="ana-table"><tr><th>${isWeekly?'Age':'Month'}</th><th>Eggs</th><th>Rate</th><th>vs Target</th></tr>
+            ${[...byPen[tblPen.id]].reverse().map(x=>{
+              // Weekly buckets know the flock's age, so each row is measured
+              // against the standard for that week rather than one flat figure.
+              const stg=isWeekly?stageForWeek(x.sortKey):getPenStage(tblPen);
+              const target=stg?stg.expected:80, diff=x.hdp-target;
+              const dc=diff>=0?'var(--g2)':diff>-10?'var(--amber)':'var(--red)';
+              return`<tr><td><b>${x.label}</b>${isWeekly&&stg?`<br><small style="color:var(--gray)">${stg.label} · ${target}%</small>`:''}</td>
+                <td style="font-weight:800">${x.eggs}</td><td>${rateBadge(x.hdp,stg)}</td>
                 <td style="font-weight:700;color:${dc}">${diff>0?'+':''}${diff.toFixed(1)}%</td></tr>`;}).join('')}
           </table></div>`:''}`;
     }
