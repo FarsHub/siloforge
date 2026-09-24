@@ -373,6 +373,82 @@ function penEconomics(range){
     untaggedCount:untagged.length};
 }
 
+// ── Month by month ──────────────────────────────────────────
+// Anyone drawing profit monthly needs a month's figure, not a running total.
+// Built in one pass rather than by calling penEconomics twelve times, because
+// each of those calls re-walks the whole feed ledger.
+//
+// The egg share is worked out inside each month: a pen earns the portion of
+// that month's egg revenue matching the eggs it laid that month. Sharing on
+// all-time eggs would credit a new pen for crates sold before it existed.
+function penMonthlyPL(){
+  const farm=DB.getFarm()||{pens:[]}, pens=farm.pens||[];
+  const legacy=legacyPenId(), usage=feedValuation();
+  const M={};
+  const month=m=>M[m]||(M[m]={eggRev:0,byPen:{}});
+  const cell=(m,id)=>{ const o=month(m);
+    return o.byPen[id]||(o.byPen[id]={tagged:0,feedCost:0,eggs:0,otherRev:0}); };
+
+  DB.getCols().forEach(c=>{
+    if(!c.penId||!c.date)return;
+    const n=(c.entries||[]).reduce((s,e)=>s+(e.eggs||0),0);
+    if(n>0)cell(c.date.slice(0,7),c.penId).eggs+=n;
+  });
+  DB.getFeed().forEach(r=>{
+    if(!(Number(r.feed_kg_used)>0)||!r.date)return;
+    cell(r.date.slice(0,7),r.pen_id||legacy).feedCost+=((usage[r.id]||{}).ngn||0);
+  });
+  DB.getExpenses().forEach(e=>{
+    // Feed-store purchases are stock; they reach a pen as the birds eat them.
+    if(e.feed_stock_id||!e.pen_id||!e.date)return;
+    cell(e.date.slice(0,7),e.pen_id).tagged+=Number(e.amount_ngn||0);
+  });
+  DB.getSales().forEach(sl=>{
+    if(!sl.date)return;
+    const m=sl.date.slice(0,7);
+    if(sl.product===EGG_PRODUCT)month(m).eggRev+=Number(sl.total_amount_ngn||0);
+    else cell(m,sl.pen_id||legacy).otherRev+=Number(sl.total_amount_ngn||0);
+  });
+
+  const months=Object.keys(M).sort().reverse();
+  const byPen={};
+  pens.forEach(pen=>{
+    byPen[pen.id]=months.map(m=>{
+      const o=M[m], c=o.byPen[pen.id]||{tagged:0,feedCost:0,eggs:0,otherRev:0};
+      const totalEggs=Object.values(o.byPen).reduce((s,x)=>s+x.eggs,0);
+      const eggRev=totalEggs>0?o.eggRev*c.eggs/totalEggs:0;
+      const cost=c.tagged+c.feedCost, revenue=eggRev+c.otherRev;
+      return{month:m,eggs:c.eggs,cost,tagged:c.tagged,feedCost:c.feedCost,
+        eggRev,otherRev:c.otherRev,revenue,margin:revenue-cost,
+        sharePct:totalEggs>0?c.eggs/totalEggs*100:null};
+    }).filter(r=>r.cost>0||r.revenue>0||r.eggs>0);
+  });
+  return{months,byPen};
+}
+// The share only says anything when there is another pen to share with.
+function multiPen(){ return (((DB.getFarm()||{}).pens)||[]).length>1; }
+function fmtMonthLabel(m){
+  return new Date(m+'-01T00:00:00').toLocaleDateString('en-GB',{month:'short',year:'numeric'});
+}
+function penMonthlyTable(penId){
+  const rows=(penMonthlyPL().byPen[penId])||[];
+  if(!rows.length)return'<div class="empty" style="padding:20px"><p>No monthly figures yet.</p></div>';
+  const tot=rows.reduce((a,r)=>({cost:a.cost+r.cost,revenue:a.revenue+r.revenue,margin:a.margin+r.margin}),{cost:0,revenue:0,margin:0});
+  return`<table class="ana-table">
+    <tr><th>Month</th><th>Revenue</th><th>Cost</th><th>Margin</th></tr>
+    ${rows.map(r=>`<tr>
+      <td><b>${fmtMonthLabel(r.month)}</b>${r.eggs>0?`<br><small style="color:var(--gray)">${r.eggs.toLocaleString()} eggs</small>`:''}</td>
+      <td style="color:var(--g2);font-weight:700">${fmtMoney(Math.round(r.revenue))}${multiPen()&&r.sharePct!==null&&r.eggRev>0?`<br><small style="color:var(--gray);font-weight:500">${r.sharePct.toFixed(0)}% egg share</small>`:''}</td>
+      <td style="color:var(--red)">${fmtMoney(Math.round(r.cost))}</td>
+      <td style="font-weight:800;color:${r.margin>=0?'var(--g2)':'var(--red)'}">${r.margin>=0?'+':''}${fmtMoney(Math.round(r.margin))}</td></tr>`).join('')}
+    <tr style="background:var(--g5)">
+      <td><b>All time</b></td>
+      <td style="color:var(--g2);font-weight:800">${fmtMoney(Math.round(tot.revenue))}</td>
+      <td style="color:var(--red);font-weight:800">${fmtMoney(Math.round(tot.cost))}</td>
+      <td style="font-weight:800;color:${tot.margin>=0?'var(--g2)':'var(--red)'}">${tot.margin>=0?'+':''}${fmtMoney(Math.round(tot.margin))}</td></tr>
+  </table>`;
+}
+
 // ── Report tab ────────────────────────────────────────────────
 // Cost breakdowns are collapsed by default, same as the feed report's tables —
 // the headline figures are what get read daily.
@@ -390,14 +466,29 @@ function penCatRows(cats){
 }
 // The money page for the pen you are inside. Same figures as the comparison
 // card in Reports, laid out as a P&L because that is what you came here for.
+let PL_MONTH=null;   // null = all time
+function setPLMonth(v){ PL_MONTH=v||null; renderFinance(); }
 function renderPenPL(penId){
-  const ec=penEconomics({from:null,to:null});
+  const monthly=penMonthlyPL();
+  const mRows=monthly.byPen[penId]||[];
+  // The month picker drives the headline block; the table below always shows
+  // every month, because comparing them is the point.
+  const sel=PL_MONTH&&mRows.some(r=>r.month===PL_MONTH)?PL_MONTH:null;
+  const ec=penEconomics(sel?{from:sel+'-01',to:sel+'-31'}:{from:null,to:null});
   const p=ec.rows.find(r=>r.pen.id===penId);
   if(!p)return `<div class="empty" style="padding:24px"><p>No figures for this pen yet.</p></div>`;
   const open=!!PEN_TBL['pl_'+penId];
+  const scopeLbl=sel?fmtMonthLabel(sel):'All time';
   return `
+    <div style="background:var(--white);padding:10px 16px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:10px;margin:0 16px 10px;border-radius:var(--radius);box-shadow:var(--shadow)">
+      <span style="font-size:12px;font-weight:700;color:var(--gray);white-space:nowrap">Period:</span>
+      <select style="flex:1;padding:8px 12px;border:1.5px solid #ddd;border-radius:10px;font-size:14px;font-weight:600;background:var(--white)"
+        onchange="setPLMonth(this.value)">
+        <option value="" ${!sel?'selected':''}>All time</option>
+        ${mRows.map(r=>`<option value="${r.month}" ${sel===r.month?'selected':''}>${fmtMonthLabel(r.month)}</option>`).join('')}
+      </select></div>
     <div style="margin:0 16px 8px;background:var(--g5);border-radius:10px;padding:12px;display:flex;justify-content:space-between;gap:12px">
-      <div><div style="font-size:11px;color:var(--g1);font-weight:700;text-transform:uppercase">All-Time Margin</div>
+      <div><div style="font-size:11px;color:var(--g1);font-weight:700;text-transform:uppercase">${scopeLbl} Margin</div>
         <div style="font-size:20px;font-weight:800;color:${p.margin>=0?'var(--g2)':'var(--red)'}">${p.margin>=0?'+':''}${fmtMoney(Math.round(p.margin))}</div></div>
       <div style="text-align:right"><div style="font-size:11px;color:var(--g1);font-weight:700;text-transform:uppercase">Cost / Crate</div>
         <div style="font-size:20px;font-weight:800;color:var(--g1)">${p.costPerCrate?'₦'+p.costPerCrate.toFixed(0):'—'}</div></div>
@@ -410,9 +501,13 @@ function renderPenPL(penId){
       ${penMoneyRow('Direct cost',fmtMoney(Math.round(p.cost)),'var(--red)')}
       ${open?`<div style="padding:4px 0 8px 10px;border-bottom:1px solid #f5f5f5">${penCatRows(p.cats)}</div>`:''}
       ${penMoneyRow('Revenue',fmtMoney(Math.round(p.revenue)),'var(--g2)')}
-      ${p.otherRev>0?`<div style="padding:2px 0 8px 10px;border-bottom:1px solid #f5f5f5">
-        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--gray)"><span>Egg share (${p.sharePct!==null?p.sharePct.toFixed(0):'0'}% of eggs laid)</span><span style="font-weight:700;color:var(--g1)">${fmtMoney(Math.round(p.eggRev))}</span></div>
-        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--gray)"><span>Birds, manure and other</span><span style="font-weight:700;color:var(--g1)">${fmtMoney(Math.round(p.otherRev))}</span></div>
+      ${p.revenue>0?`<div style="padding:2px 0 8px 10px;border-bottom:1px solid #f5f5f5">
+        ${p.eggRev>0?`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--gray)">
+          <span>Eggs${multiPen()&&p.sharePct!==null?` — ${p.sharePct.toFixed(0)}% share`:''}</span>
+          <span style="font-weight:700;color:var(--g1)">${fmtMoney(Math.round(p.eggRev))}</span></div>`:''}
+        ${p.otherRev>0?`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--gray)">
+          <span>Birds, manure and other</span>
+          <span style="font-weight:700;color:var(--g1)">${fmtMoney(Math.round(p.otherRev))}</span></div>`:''}
       </div>`:''}
       <div style="display:flex;justify-content:space-between;padding:9px 0;font-size:15px">
         <span style="font-weight:800">Margin</span>
@@ -422,7 +517,9 @@ function renderPenPL(penId){
       <div class="kpi"><div class="kpi-val">${p.costPerEgg?'₦'+p.costPerEgg.toFixed(1):'—'}</div><div class="kpi-lbl">Cost / Egg</div></div>
       <div class="kpi"><div class="kpi-val" style="color:${fcrColour(p.fcr)}">${p.fcr!==null?p.fcr.toFixed(2):'—'}</div><div class="kpi-lbl">FCR</div></div>
       <div class="kpi"><div class="kpi-val">${p.eggs.toLocaleString()}</div><div class="kpi-lbl">Eggs</div></div>
-    </div>`;
+    </div>
+    <div class="sec-hdr">Month by Month</div>
+    <div class="card" style="padding:0;overflow:hidden">${penMonthlyTable(penId)}</div>`;
 }
 function renderPensReport(){
   const ec=penEconomics();
@@ -464,7 +561,7 @@ function renderPensReport(){
       </div>
       ${penMoneyRow('Direct cost',fmtMoney(Math.round(p.cost)),'var(--red)')}
       ${open?`<div style="padding:4px 0 8px 10px;border-bottom:1px solid #f5f5f5">${penCatRows(p.cats)}</div>`:''}
-      ${penMoneyRow('Revenue',fmtMoney(Math.round(p.revenue)),'var(--g2)')}
+      ${penMoneyRow(multiPen()&&p.sharePct!==null?`Revenue · ${p.sharePct.toFixed(0)}% of eggs`:'Revenue',fmtMoney(Math.round(p.revenue)),'var(--g2)')}
       <div style="display:flex;justify-content:space-between;padding:9px 0;font-size:15px">
         <span style="font-weight:800">Margin</span>
         <span style="font-weight:800;color:${p.margin>=0?'var(--g2)':'var(--red)'}">${p.margin>=0?'+':''}${fmtMoney(Math.round(p.margin))}</span></div>
