@@ -26,7 +26,11 @@ function renderEggs(){
     el.innerHTML=`<div class="topbar"><div><h1>Egg Collection</h1></div></div><div class="empty"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg><h3>No farm set up</h3><p>Go to Settings to add pens and lines.</p></div>`;
     return;
   }
-  const today=collectDate(), todayCols=colsForDate(today), allPass=getAllPassStatus(farm,todayCols).filter(p=>!_activePenId||p.penId===_activePenId);
+  const today=collectDate(), allCols=colsForDate(today);
+  // Every figure on this screen belongs to the pen being collected. Summing
+  // across pens once put another pen's morning total on this pen's badge.
+  const todayCols=allCols.filter(c=>!_activePenId||c.penId===_activePenId);
+  const allPass=getAllPassStatus(farm,allCols).filter(p=>!_activePenId||p.penId===_activePenId);
   let openRound=COLLECT_ROUND;
   if(openRound===null){const fp=ROUNDS.find(r=>allPass.some(p=>p.round===r.id&&!p.complete));openRound=fp?fp.id:ROUNDS[0].id;}
   const roundSections=ROUNDS.map(rnd=>{

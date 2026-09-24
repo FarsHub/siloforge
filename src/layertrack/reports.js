@@ -399,7 +399,7 @@ function renderReports(){
           </div>`;
         })()}`;
     } else if(ANA_TAB==='rounds'){
-      const daily=getDailySummary(14);
+      const daily=_activePenId?penDailySummary(_activePenId,14):getDailySummary(14);
       tabContent=`
         <div class="sec-hdr" style="margin-top:8px">Round Distribution — ${modeLabel}</div>
         <div class="card" style="padding:0;overflow:hidden">
