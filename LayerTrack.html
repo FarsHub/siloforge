@@ -710,7 +710,7 @@ function initApp(){
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.09.24-b29';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.09.25-b30';  // bump on each deploy; shown on login screen + console
 const ROUNDS = [
   {id:1,label:'1st Pick',sub:'Morning',  cls:'round-1'},
   {id:2,label:'2nd Pick',sub:'Afternoon',cls:'round-2'},
@@ -731,17 +731,28 @@ const FLOCK_STAGES = [
   {maxWeek:76, label:'Declining',  emoji:'🔻',expected:65,warn:48,bg:'#fef3cd',color:'#7d4e00'},
   {maxWeek:999,label:'Late Lay',   emoji:'⏳',expected:50,warn:35,bg:'#fde8ea',color:'#d62839'},
 ];
-// Pullet feed requirement table: index 0 = week 1, index 21 = week 22; week 23+ = full laying (120g)
+// Pullet feed requirement table, same programme book as BroodTrack's
+// PULLET_FEED_BY_WEEK: index 0 = book week 1, index 21 = book week 22; week 23+ = full laying (120g)
 const LAYER_FEED_TABLE = [15,25,30,35,37,40,45,50,55,58,60,65,68,70,80,90,100,110,115,115,115,115];
+// Pen age (getPenStage) is completed weeks: a bird 12 weeks and 3 days old is
+// "Wk 12". The book counts the week the bird is in — that same bird is in week
+// 13. BroodTrack reads it as floor(days/7)+1; do the same here, or every rate
+// runs a week behind the brooder that raised the flock.
+function layerBookWeek(ageWeeks){ return Math.max(0,Math.floor(ageWeeks||0))+1; }
 function getLayerFeedRate(ageWeeks){
-  if(!ageWeeks||ageWeeks<1||ageWeeks>=23) return 120;
-  return LAYER_FEED_TABLE[ageWeeks-1];
+  const wk=layerBookWeek(ageWeeks);
+  return wk>LAYER_FEED_TABLE.length?120:LAYER_FEED_TABLE[wk-1];
 }
-// Pullet water requirement table: index 0 = week 1, index 21 = week 22; week 23+ = full laying (250ml)
-const LAYER_WATER_TABLE = [30,50,60,70,75,80,90,100,110,115,120,130,135,140,160,180,200,220,230,230,230,230];
+// Water follows feed rather than a table of its own, so the two can never
+// drift apart: ml/bird/day = feed g × ratio. 2.5 while growing (BroodTrack's
+// DEFAULT_WATER_RATIO), 3 once the pen is on Layer Mash — laying birds drink
+// more, and more again in the heat. Keyed to the feed programme so water steps
+// up the same week the feed changes.
+const WATER_RATIO_GROWING = 2.5;
+const WATER_RATIO_LAYING  = 3;
 function getLayerWaterRate(ageWeeks){
-  if(!ageWeeks||ageWeeks<1||ageWeeks>=23) return 250;
-  return LAYER_WATER_TABLE[ageWeeks-1];
+  const laying=feedTypeForWeek(ageWeeks)==='Layer Mash';
+  return Math.round(getLayerFeedRate(ageWeeks)*(laying?WATER_RATIO_LAYING:WATER_RATIO_GROWING));
 }
 const FEED_TYPES = ['Grower','Pre-Layer Mash','Layer Mash','Concentrate','Other'];
 // Feed names drift. 'Grower Pellets' was on this list first, 'grower' gets typed
@@ -1135,7 +1146,7 @@ const FEED_HORIZON_DAYS=365;
 // guesswork, and erring towards slightly more feed is the safe direction.
 function feedDemandSchedule(){
   const pens=((DB.getFarm()||{}).pens||[])
-    .map(p=>({pen:p,birds:getPenTotalBirds(p),week0:(getPenStage(p)||{weeks:0}).weeks||0}))
+    .map(p=>({pen:p,birds:penLiveBirds(p),week0:(getPenStage(p)||{weeks:0}).weeks||0}))
     .filter(p=>p.birds>0);
   const out={};
   for(let day=0;day<FEED_HORIZON_DAYS;day++){
@@ -1627,10 +1638,22 @@ function activePen(){
 // pre-lay flock ends up being fed a laying ration.
 function activePenBirds(){
   const pen=activePen();
+  return pen?penLiveBirds(pen):0;
+}
+// Birds alive in a pen now. getPenTotalBirds() only counts the cage layout —
+// what was placed — and never moves when a death is logged. The flock log is
+// the running count, so its latest closing figure wins; the layout is only the
+// starting point before the first log exists. Optional beforeDate/excludeId
+// give the opening count for a given day: the closing of the last day before it.
+function penLiveBirds(pen,beforeDate,excludeId){
   if(!pen)return 0;
-  const last=DB.getBirds().filter(r=>ownedByPen(r,pen.id)&&(r.closing_birds||0)>0)
+  const last=DB.getBirds().filter(r=>ownedByPen(r,pen.id)&&(r.closing_birds||0)>0
+      &&(!beforeDate||r.date<beforeDate)&&r.id!==excludeId)
     .sort((a,b)=>b.date.localeCompare(a.date))[0];
   return last?last.closing_birds:getPenTotalBirds(pen);
+}
+function farmLiveBirds(farm){
+  return (farm?.pens||[]).reduce((s,pen)=>s+penLiveBirds(pen),0);
 }
 function activePenAgeWeeks(){
   const st=activePen()?getPenStage(activePen()):null;
@@ -1876,7 +1899,7 @@ function penEconomics(range){
 
   const rows=pens.map(pen=>{
     const eggs=eggsBy[pen.id]||0, broken=brokenBy[pen.id]||0;
-    const birdsNow=getPenTotalBirds(pen);
+    const birdsNow=penLiveBirds(pen);
     const birdsOn=penBirdsOnDateFn(pen.id,birdsNow);
 
     // Feed — kg from the pen's own usage records, naira from the store price
@@ -2195,7 +2218,7 @@ function farmHomeHtml(farm,pens){
   const rows=pens.map(pen=>{
     const eggs=todayCols.filter(c=>c.penId===pen.id)
       .reduce((s,c)=>(c.entries||[]).reduce((ss,e)=>ss+(e.eggs||0),s),0);
-    const birds=getPenTotalBirds(pen);
+    const birds=penLiveBirds(pen);
     const deaths=todayBirds.filter(r=>ownedByPen(r,pen.id)).reduce((s,r)=>s+(r.deaths||0),0);
     const pending=allPass.filter(p=>p.penId===pen.id&&!p.complete).length;
     return{pen,eggs,birds,deaths,pending,stage:getPenStage(pen),
@@ -2270,7 +2293,7 @@ function penDailySummary(penId,days){
 function penHomeHtml(farm,pen,pens){
   const today=DB.today();
   const todayCols=DB.todayCols().filter(c=>c.penId===pen.id);
-  const birds=getPenTotalBirds(pen), stage=getPenStage(pen);
+  const birds=penLiveBirds(pen), stage=getPenStage(pen);
   let totalEggs=0,totalBroken=0;
   todayCols.forEach(c=>(c.entries||[]).forEach(e=>{ totalEggs+=(e.eggs||0); totalBroken+=(e.broken||0); }));
   const todayRate=birds>0?totalEggs/birds*100:null;
@@ -2392,7 +2415,7 @@ function getAllPassStatus(farm,todayCols){
 }
 // Still farm-wide: the reports' 14-day mortality strip reads it across pens.
 function getDailySummary(days){
-  const farm=DB.getFarm(), birds=farm?getFarmTotalBirds(farm):0;
+  const farm=DB.getFarm(), birds=farm?farmLiveBirds(farm):0;
   const validIds=new Set((farm?.pens||[]).map(p=>p.id));
   const cols=DB.getCols().filter(c=>validIds.has(c.penId));
   const birdRecs=DB.getBirds();
@@ -2665,7 +2688,7 @@ function renderFlock(){
   // ages in different pens, a farm total under a pen heading is a wrong answer
   // to the question the heading asks.
   const pen=((farm||{}).pens||[]).find(p=>p.id===_activePenId);
-  const penBirds=pen?getPenTotalBirds(pen):0;
+  const penBirds=pen?penLiveBirds(pen):0;
   const penStage=pen?getPenStage(pen):null;
   const ageWeeks=penStage?penStage.weeks:null;
   const logFormHtml=`
@@ -2717,16 +2740,15 @@ function renderFlock(){
 function openBirdForm(editId){
   const farm=DB.getFarm(), today=DB.today();
   const rec=editId?DB.getBirds().find(r=>r.id===editId):null;
-  const lastRec=DB.getBirds().filter(ownedByActivePen)
-    .sort((a,b)=>b.date.localeCompare(a.date)).find(r=>!editId||r.id!==editId);
   const pen=((farm||{}).pens||[]).find(p=>p.id===_activePenId);
-  const defOpen=rec?rec.opening_birds:((pen?getPenTotalBirds(pen):0)||lastRec?.closing_birds||0);
+  // Today's opening is yesterday's closing, not the cage layout.
+  const defOpen=rec?rec.opening_birds:penLiveBirds(pen,today);
   const ageWeeks=(pen?(getPenStage(pen)||{}).weeks:null)||0;
   openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Bird Status <button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
       📅 Change the date to log records for <b>yesterday or any past day</b>. Feed and water are often measured the next morning — just set the date to when the consumption actually happened.
     </div>
-    <div class="field"><label>Date</label><input type="date" id="bf_date" value="${rec?rec.date:today}" max="${today}"></div>
+    <div class="field"><label>Date</label><input type="date" id="bf_date" value="${rec?rec.date:today}" max="${today}"${rec?'':' onchange="birdFormDateChanged()"'}></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Opening Birds</label><input type="number" id="bf_open" value="${defOpen}" min="0" oninput="calcClosing()"></div>
       <div class="field"><label>Age (weeks)</label><input type="number" id="bf_age" value="${rec?.age_weeks??ageWeeks}" min="0"></div>
@@ -2740,6 +2762,13 @@ function openBirdForm(editId){
       <div id="bf_cull_note" style="font-size:11px;color:var(--amber);margin-top:4px;display:${(rec?.culls||0)>0?'block':'none'}">⚠ ${rec?.culls||0} culled bird${(rec?.culls||1)>1?'s':''} in isolation — not deducted from closing count. Log their fate (death or return) in a future daily entry.</div></div>
     <div class="field"><label>Notes</label><textarea id="bf_notes" placeholder="e.g. Birds are stable. Found dead bird in T2·C3.">${rec?.notes||''}</textarea></div>
     <button class="btn btn-primary" onclick="saveBirdLog('${editId||''}')">Save</button>`);
+}
+// Backdating a new record: the opening count is the closing of the day before
+// the chosen date, not the latest one.
+function birdFormDateChanged(){
+  const d=document.getElementById('bf_date')?.value, o=document.getElementById('bf_open');
+  if(!d||!o)return;
+  o.value=penLiveBirds(activePen(),d);calcClosing();
 }
 function calcClosing(){
   const o=parseInt(document.getElementById('bf_open')?.value)||0;
@@ -2790,9 +2819,7 @@ function feedUsageBody(){
   const recs=DB.getFeed().filter(ownedByActivePen).sort((a,b)=>b.date.localeCompare(a.date));
   const todayRec=recs.find(r=>r.date===today);
   const totalUsed7=recs.filter(r=>{const d=new Date(today);d.setDate(d.getDate()-7);return r.date>d.toISOString().slice(0,10);}).reduce((s,r)=>s+(r.feed_kg_used||0),0);
-  const farmBirds=activePenBirds();
-  const lastBird=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date))[0];
-  const closingBirds=lastBird?.closing_birds||farmBirds;
+  const closingBirds=activePenBirds();
   const logHtml=`<div class="card">
     <div class="card-title">${todayRec?'Today\'s Feed Log ✓':'Log Feed Usage'}</div>
     ${todayRec?`
@@ -5028,7 +5055,7 @@ function feedDailySeries(validPenIds,penId){
   const mine=r=>!penId||(r.pen_id||legacy)===penId;
   const pen=penId?(farm.pens||[]).find(p=>p.id===penId):null;
   const sortedBirds=DB.getBirds().filter(b=>(b.closing_birds||0)>0&&mine(b)).sort((a,b)=>a.date.localeCompare(b.date));
-  const totalNow=(pen?getPenTotalBirds(pen):getFarmTotalBirds(farm))||0;
+  const totalNow=(pen?penLiveBirds(pen):farmLiveBirds(farm))||0;
   const map={};
   const touch=d=>(map[d]=map[d]||{date:d,kg:0,req:0,eggs:0,rate:0,rateN:0,age:null,types:{}});
   DB.getFeed().filter(mine).forEach(r=>{
@@ -5191,7 +5218,7 @@ function renderReports(){
   const scopePen=_activePenId?(farm.pens||[]).find(p=>p.id===_activePenId):null;
   const legacyPen=legacyPenId();
   const inScope=id=>!_activePenId||id===_activePenId;
-  const farmBirds=scopePen?getPenTotalBirds(scopePen):getFarmTotalBirds(farm);
+  const farmBirds=scopePen?penLiveBirds(scopePen):farmLiveBirds(farm);
   const validPenIds=new Set((farm.pens||[]).filter(p=>inScope(p.id)).map(p=>p.id));
   const cols=filterColsByDate(allCols).filter(c=>validPenIds.has(c.penId));
   // Flock and feed records predate pen tagging, so an untagged one belongs to
@@ -5769,7 +5796,7 @@ function renderSettings(){
     <div class="card">
       <div class="card-title">Farm Details</div>
       <div class="field"><label>Farm Name</label><input type="text" id="s_name" value="${farm.name||''}" placeholder="e.g. Green Valley Farms"></div>
-      ${(()=>{const aw=getFarmAgeWeeks(farm)||0;const fr=getLayerFeedRate(aw);const wr=getLayerWaterRate(aw);const ph=aw>=23?'Laying phase':`Week ${aw} pullet`;return`
+      ${(()=>{const aw=getFarmAgeWeeks(farm)||0;const fr=getLayerFeedRate(aw);const wr=getLayerWaterRate(aw);const ph=layerBookWeek(aw)>LAYER_FEED_TABLE.length?'Laying phase':`Week ${aw} pullet`;return`
       <div style="background:var(--g5);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--g1);margin-bottom:8px">
         🌾 Feed: <b>${fr} g/bird/day</b> &nbsp;·&nbsp; 💧 Water: <b>${wr} ml/bird/day</b><br><span style="font-weight:500;opacity:.75">${ph} — auto-calculated by flock age</span>
       </div>`;})()}
