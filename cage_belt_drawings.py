@@ -5,7 +5,7 @@ Drawing set for the MOTORISED manure belt on the H-frame pullet grower cages
 
 Dimensions here are the single source of truth for the drawings and must match
 images/cages/reference/design.md  (sections 8, 15); the decision log that
-explains each number is images/cages/reference/decisions.md (D1-D113).
+explains each number is images/cages/reference/decisions.md (D1-D159).
 Change a number in D, re-run, and every drawing updates together:
 
     python cage_belt_drawings.py
@@ -14,7 +14,7 @@ Outputs into images/cages/ :
     manure-belt-REVC-2-row.svg        full 22 ft row, drive station + idler       [Rev C]
     manure-belt-REVC-3-house.svg      whole house, 4 double rows, 12 belts       [Rev C]
     manure-belt-REVC-4-details.svg    fabrication details for the welder         [Rev C]
-    manure-belt-REVC-5-frontend.svg   idler shelf, tensioner, pan packing, water [Rev C]
+    manure-belt-REVC-5-frontend.svg   idler shelf, push-bolt take-up, packing, water [Rev C]
     manure-belt-REVC-6-driveend.svg   drive station, gearmotor, limiter, chutes   [Rev C]
 
 The design, as drawn (design.md section 15, D25-D105):
@@ -39,9 +39,12 @@ The design, as drawn (design.md section 15, D25-D105):
     channels, 16 L/day for the house (R5 / D83, as governed by R7 / D105);
   * propshaft 602 mm at 1.43 deg (D81/D82); sprocket hub 16 mm off the angle toe
     and overhang <=35 mm at the drop-chain stations (R6 / D84);
-  * belt runs ON the pan, roller tops FLUSH with the pan surface, so drive
-    centres are ~10.8 / 33.8 / 56.8 in and idler centres ~11.8 / 34.8 / 57.8 in
-    because the pan is packed up 25 mm at the front (D93 / D94);
+  * belt runs ON the pan; the roller's RUBBER top (8-10 mm, both rollers) is
+    flush with the pan surface to 3 mm above, never below, so drive centres are
+    ~10.5 / 33.5 / 56.5 in and idler centres ~11.5 / 34.5 / 57.5 in because the
+    pan is packed up 25 mm at the front (D93 / D94 / D130);
+  * the empty return strand rests on ONE 1/2 in GI pipe across each stand, top
+    63 mm below the pan seat, at all 5 cage frames -- 60 in the house (R9 / D127);
   * the door is at the CENTRE of the front wall, on the column plane.
 
 All linear dimensions are INCHES unless a name ends in _mm.
@@ -91,6 +94,16 @@ D = dict(
     hub_boss=1.57,      # turned boss OD 40 mm
     hub_flange=3.94,    # integral flange OD ~100 mm
     spr_od=6.30,        # 38T 428 sprocket plate OD ~160 mm
+    # ---- the GEARBOX CHAIN (owner-approved 2026-09-30): 38T on the gearbox
+    #      output drives a 52T on the gearbox-row LINE-SHAFT hub.  2 in the
+    #      house.  Every other plate stays 38T.
+    spr52_od=8.58,      # 52T 428 plate, tip ~218 mm
+    gb_ctr=10.0,        # ASSUMED gearbox-output centres, rearward of the line shaft
+                        # at the same height -- NOT stated; the loop is cut to length
+    trip_nm=121.2,      # limiter trip at the gearbox output, with the 52T
+    trip_kgf=27.4,      # = trip_nm at the 450 mm arm
+    belt_mpm=0.88,      # belt speed, m/min
+    pass_min=8.3,       # one pass
     arm=17.72,          # 450 mm torque-reaction arm
 
     # ---- discharge (D74-D80, ruling R5 / D83, ruling R7 / D105) ----
@@ -110,7 +123,7 @@ D = dict(
     tray_pack=2.36,     # 60 mm of packing under ONE end -> 1:20 fall
     tray_cap=108,       # litres, AISLE tray: 3x the 35.2 L it takes from tiers 2 and 3
     trays=8,            # TWO per row: one in the aisle (tiers 2-3), one under the rear
-    t1_carry_mm=3,      # horizontal carry at 16 mm/s over that fall: it drops where it is
+    t1_carry_mm=3,      # horizontal carry at 15 mm/s over that fall: it drops where it is
     t1_x0=2.0,          # tier 1's own tray, x from the rear cage leg ...
     t1_x1=26.0,         # ... to 26", clear of the 23" access floor at 26-49"
     # ---- TIER 1's tray: 1.0 m ACROSS the row, TWO LENGTHS OFF ONE DRAWING
@@ -163,19 +176,19 @@ def mm(v):
 # ---- angle sections (Rev C -- D52: angle iron replaces round rod) ----------
 LEG50, TH50 = mm(50), mm(5)        # uprights and all posts
 LEG40, TH40 = mm(40), mm(3)        # pan cross-bars, horizontal leg ON TOP
-LEG20, TH20 = mm(20), mm(3)        # return-strand skids, horizontal leg UP
 
 # ----------------------------------------------------------------------------
 # WATER -- the confirmed route, and the numbers every sheet draws it from.
-#   A BUCKET on its OWN HOLDER, which stands on the floor and carries the water;
-#   it is tied to the frame for ELEVATION ONLY, so the cage angle carries none
-#   of it.  ONE T at the bucket splits into TWO pipes, one per side of the row.
-#   Each pipe drops INSIDE THE L of its angle upright -- the angle's inside
-#   corner IS the pipe chase, so the pipe never leaves the steel's own outline:
-#   nothing in the aisle, nothing in a keep-out band, nothing near belt or
-#   rollers.  THREE Ts per side, one per tier: SIX INLETS PER ROW.
-#   TWO nipple lines per tier, one per cage side, each 180 mm inboard of its
-#   belt edge, so every drip lands on the belt.
+#   A 40 L BUCKET on its OWN small frame, tied to the TOP BAR of the x = 0 cage
+#   frame -- 40 x 40 x 3, horizontal leg on top (D136).  Base 1 ft above the 77"
+#   stack top; the bucket about 400-430 mm tall, lid on (D137).
+#   ONE T under the bucket splits into TWO 1" pipes, one per side of the row.
+#   Each pipe drops INSIDE THE L of the cage-frame upright at x = 0 -- the
+#   angle's inside corner IS the pipe chase.  At each tier a T and a BALL VALVE
+#   (six per row); from each valve a FLEXIBLE HOSE loops in through the cage
+#   face to that cage half's drinker line.  TWO drinker lines per tier, one
+#   along the middle of each 16" cage half, HEIGHT-ADJUSTABLE from the roof
+#   position (28 / 51 / 74") down toward the cage floor.  2 nipples per cell.
 # ----------------------------------------------------------------------------
 BELT_Z0 = (D["depth"] - D["belt_w"]) / 2        # 0.85"  belt edge, far side
 BELT_Z1 = D["depth"] - BELT_Z0                  # 31.15" belt edge, aisle side
@@ -183,22 +196,101 @@ NIP_IN_MM = 180                                 # nipple line, inboard of its be
 NIP_Z = [BELT_Z0 + mm(NIP_IN_MM),               # 7.94"  far cage side
          BELT_Z1 - mm(NIP_IN_MM)]               # 24.06" aisle cage side
 W_INLETS = 6                                    # 3 tiers x 2 sides, per row
-W_CHASE = mm(15)                                # pipe centre in the nook, off both legs
-W_STEP = 3.0                                    # the inlet steps down-row past the span leg
-W_BKT_Y = (84.0, 96.0)                          # bucket body, clear above the 77" top tie
-W_BKT_Z = D["depth"] + 6.5                      # holder stands ~165 mm off the cage face
-W_XOVER = 80.0                                  # the one cross-over, above the whole stack
+# ---- owner inputs 2026-09-29: 1" pipe throughout, 40 L bucket, hose entry,
+#      height-adjustable drinker lines, 2 nipples per cell on each line.
+W_PIPE_OD_MM = 33.4                             # 1" PVC, drops AND drinker lines
+W_PIPE_R = mm(W_PIPE_OD_MM / 2)
+W_PAD_MM = 5                                    # stand-off pad, pipe to each leg face
+W_TEE_OD_MM = 42                                # 1" tee socket, about -- check the fitting
+W_CHASE = TH50 + mm(W_PAD_MM) + W_PIPE_R        # pipe centre 26.7 mm off both OUTER faces
+W_GAP_MM = W_PAD_MM                             # pipe to each leg's inside face
+W_TOE_MM = 50 - (5 + W_PAD_MM + W_PIPE_OD_MM)   # 6.6 mm of leg left beyond the pipe
+W_TEE_GAP_MM = 5 + W_PAD_MM + W_PIPE_OD_MM / 2 - 5 - W_TEE_OD_MM / 2   # 0.7 mm
+W_VALVE_U = mm(110)                             # ball valve centre, down-row of the frame
+W_HOSE_X = 1.5                                  # the drinker line's front end, down-row
+W_TAIL = W_VALVE_U + mm(75)                     # hose tail, just past the valve
+W_SAG = 6.0                                     # hose loop's drop at the TOP setting, drawn
+W_BKT_L = 40                                    # litres
+W_BKT_D_MM, W_BKT_H_MM = 400, 400               # 40 L bucket, ~400 dia x ~400 high
+W_BKT_D = mm(W_BKT_D_MM)
+W_BKT_H = mm(W_BKT_H_MM)
+W_BKT_UP = 12.0                                 # base 1 ft above the stack top (owner)
+W_BKT_Y = (TOP[2] + W_BKT_UP, TOP[2] + W_BKT_UP + W_BKT_H)   # 89" base, ~104.7" top
+W_BKT_Z = D["depth"] / 2                        # centred over the row, on the front stand
+W_XOVER = W_BKT_Y[0] - 4.0                      # the one T under the bucket
+CEILING = 108.0                                 # house height 9 ft (design.md s8)
+W_CLEAR = CEILING - W_BKT_Y[1]                  # bucket top to ceiling, ~3.3"
+W_CLEAR_MM = W_CLEAR * 25.4                     # ~83 mm
+W_HEAD = [W_BKT_Y[0] - n for n in NIPPLE]       # bucket base to drinker line, top setting
+W_HEAD_LO = [W_BKT_Y[0] - f for f in FLOOR]     # ... with the line lowered to the floor
+NIP_PER_CELL = 2
+NIP_PER_LINE = NIP_PER_CELL * (D["row_len"] // D["cell"])      # 22
+NIP_X = [c * D["cell"] + q for c in range(D["row_len"] // D["cell"])
+         for q in (D["cell"] / 4, D["cell"] * 3 / 4)]            # 6, 18, 30 ... 258
 
 # the THREE keep-out bands -- 12-17" is tier 1's and is drawn on every sheet
 KEEPOUT = [(PAN[0], FLOOR[0]), (TOP[0], FLOOR[1]), (TOP[1], FLOOR[2])]
 KEEPOUT_TAPE = '12–17"  ·  31–40"  ·  54–63"'
 
-# ---- D93: the CORRECTED drive-roller centres -------------------------------
-# The belt runs ON the pan and wraps over the TOP of the roller, so the roller
-# top is FLUSH with the pan surface and the centre sits ONE RADIUS below it.
+# ---- D93 as clarified by D130: the roller centres ------------------------------
+# The belt runs ON the pan and wraps over the TOP of the roller.  "Roller top flush
+# with the pan" means the RUBBER surface the belt rides on -- the 8-10 mm grooved
+# lagging on the drive roller, the same 8-10 mm offcut UNGROOVED on the idler --
+# flush with the pan surface to 3 mm above it, NEVER below (D130).
 PAN_T = mm(1)                                                 # 1 mm galvanised sheet
-ROLL_Y = [p + PAN_T - D["roller_d"] / 2 for p in PAN]         # ~10.8 / 33.8 / 56.8 in
-SKID_Y = [p - D["roller_d"] for p in PAN]                     # top face 63 mm below the pan seat
+LAG_MM = 9                                                    # 8-10 mm rubber, drawn at 9
+LAG = mm(LAG_MM)
+ROLL_Y = [p + PAN_T - LAG - D["roller_d"] / 2 for p in PAN]   # ~10.5 / 33.5 / 56.5 in
+
+
+def half(v):
+    """expected heights are quoted to the nearest half inch, as design.md writes them."""
+    return round(v * 2) / 2
+
+
+# ---- ruling R9 / D127-D141: the return strand rests on ONE PIPE ACROSS EACH STAND --
+# 1/2" galvanised (GI) pipe, OD 21.3 mm, 813 mm, welded to the belt-side faces of
+# the two span legs directly under the pan cross-bar, at all 5 cage frames, every
+# tier, every row.  All heights in mm from the PAN SEAT (the cross-bar's top face).
+# The datum is FLAT -- it ignores the 25 mm front packing.
+PIPE_OD = 21.3                                   # mm, 1/2" GI, medium wall preferred
+PIPE_TOP = -63                                   # mm: the strand rests on it, +-2 at each end
+PIPE_BOT = PIPE_TOP - PIPE_OD                    # -84.3
+PIPE_L_MM = 813                                  # cut each to its own measured span
+PIPE_PER_HOUSE = 5 * 3 * 4                       # 60
+PIPE_LENGTHS = 9                                 # 7 to a 6 m length -> 63 pieces, 3 spare
+PIPE_RAISE_MM = 5                                # runner-up: top no higher than -58
+XBAR_LOW_MM = -40                                # 40 x 40 cross-bar, lower edge of the down-leg
+ROOF_MM = (TOP[0] - PAN[1]) * 25.4               # -101.6: tier below's cage roof (tiers 2/3)
+THREAD_MM = XBAR_LOW_MM - PIPE_TOP               # 23 mm threading gap under each cross-bar
+ROOF_CLR_MM = PIPE_BOT - ROOF_MM                 # 17.3 mm pipe to roof, at the stands
+ROOF_GATE_MM = 8                                 # gate: >= 8 mm (D140)
+PIPE_Y = [p + mm(PIPE_TOP) for p in PAN]         # pipe TOP, inches above the floor
+SAG72_MM, SAG48_MM = 12.0, 5.3                   # strand sag between stands at 250 N (D128)
+IDLER_BOT_MM = 25 + 1 - LAG_MM - 63 - LAG_MM     # -55: idler rubber bottom, packed front
+REAR_BOT_MM = 1 - LAG_MM - 63 - LAG_MM           # -80: drive lagging bottom (76-82)
+FRONT_STRAND_MM = -61                            # strand passing x = 0 (D131)
+KEEPOUT_SENTENCE = ("Nothing may enter the dropping gap except the belt, the pan, the "
+                    "cross-bar that carries the pan, and the return-strand pipes (steel, "
+                    "welded across the stands — never a water pipe).")
+
+
+def strand_mm(x):
+    """return-strand height at x (inches along the row), mm from the pan seat (D128-D131).
+    Idler bottom -> free span past x = 0 -> onto the 72" pipe; 12 mm sag in the 72"
+    bays, 5.3 in the 48" bay; off the 264" pipe down to the lagging bottom."""
+    xi, xd = -D["front_off"], D["row_len"] + D["rear_off"]
+    knots = [(xi, IDLER_BOT_MM), (72, PIPE_TOP), (144, PIPE_TOP), (216, PIPE_TOP),
+             (264, PIPE_TOP), (xd, REAR_BOT_MM)]
+    for (x0, y0), (x1, y1) in zip(knots, knots[1:]):
+        if x0 <= x <= x1:
+            L = (x1 - x0) * 25.4 / 1000
+            a = (x - x0) / (x1 - x0)
+            sag = 7.2 * L * L / (8 * 250) * 1000          # wL^2/8T, mm
+            return y0 + (y1 - y0) * a - 4 * sag * a * (1 - a)
+    return REAR_BOT_MM
+
+
 LINE_Y_C = ROLL_Y[2] + 25.5                                   # off tier 3's AS-BUILT centre
 GANTRY_Y_C = LINE_Y_C + 5.0
 
@@ -345,7 +437,7 @@ def dim_v(x, a, b, label, col=MUTED, size=11):
     return "".join(out)
 
 
-REVC = "REV C  |  2026-09-18"
+REVC = "REV C  |  2026-09-30"
 STRAP_C = "MOTORISED manure belt"
 
 
@@ -554,7 +646,7 @@ def keepout_bands(fl, u0, u1, label=True, op=0.7, size=9.5, ulab=None):
 def water_drop(fl, side, y0, y1, w=3.2):
     """One drop pipe, in the nook of the angle upright.  side: 0 far, 1 aisle.
 
-    A white halo goes down first: at drawing scale the nook is only 15 mm off
+    A white halo goes down first: at drawing scale the nook is only 5 mm off
     the steel, so without it the pipe disappears into the upright it sits in.
     """
     u = (D["depth"] + W_CHASE) if side else -W_CHASE
@@ -568,17 +660,62 @@ def water_tee(fl, side, y, r=3.2):
             + circ(fl.p(u, y), r, fill="#dff1fa", col=WATER, w=1.6))
 
 
+def hose_path(fl, ua, ub, v, sag, w=4.2):
+    """The FLEXIBLE HOSE (white on site): a loop from ua to ub at height v whose
+    lowest point is exactly `sag` below v.  Drawn as a hollow tube so it never
+    reads as rigid pipe."""
+    h = sag / 0.75                       # cubic with equal control depth -> 0.75 h
+    a, b = fl.p(ua, v), fl.p(ub, v)
+    c1, c2 = fl.p(ua, v - h), fl.p(ub, v - h)
+    d = (f"M {f(a[0])} {f(a[1])} C {f(c1[0])} {f(c1[1])} {f(c2[0])} {f(c2[1])} "
+         f"{f(b[0])} {f(b[1])}")
+    return (f'<path d="{d}" fill="none" stroke="{MUTED}" stroke-width="{w}" '
+            f'stroke-linecap="round"/>'
+            f'<path d="{d}" fill="none" stroke="{PAPER}" stroke-width="{w - 2.2}" '
+            f'stroke-linecap="round"/>')
+
+
+def hose_line(a, b, w=4.2):
+    """A straight run of the flexible hose, screen points a -> b."""
+    return line(a, b, MUTED, w) + line(a, b, PAPER, w - 2.2)
+
+
+def hose_3d(iso, p0, p1, sag, n=28, w=4.2):
+    """The flexible hose in 3-D: from p0 to p1 (x, y, z), sagging `sag` at mid-run."""
+    pts = []
+    for k in range(n + 1):
+        t = k / n
+        x = p0[0] + (p1[0] - p0[0]) * t
+        z = p0[2] + (p1[2] - p0[2]) * t
+        y = p0[1] + (p1[1] - p0[1]) * t - sag * math.sin(math.pi * t)
+        pts.append(iso.p(x, y, z))
+    s = " ".join(f"{f(q[0])},{f(q[1])}" for q in pts)
+    return (f'<polyline points="{s}" fill="none" stroke="{MUTED}" stroke-width="{w}" '
+            f'stroke-linecap="round" stroke-linejoin="round"/>'
+            f'<polyline points="{s}" fill="none" stroke="{PAPER}" stroke-width="{w - 2.2}" '
+            f'stroke-linecap="round" stroke-linejoin="round"/>')
+
+
+def adjust_arrow(fl, u, v_top, v_bot, col=WATER):
+    """Double arrow: the drinker line's height range, roof position to cage floor."""
+    a, b = fl.p(u, v_top), fl.p(u, v_bot)
+    m = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+    return arrow(m, a, col, 1.2, 4.0) + arrow(m, b, col, 1.2, 4.0)
+
+
 def water_section(fl, bucket=True, dims=True, bands=True, labels=True):
-    """CROSS-SECTION of one row at the FRONT frame, with the confirmed water route.
+    """CROSS-SECTION of one row at the FRONT frame (x = 0), the owner's water layout.
 
     u = z across the row (inches, 0 and 32 are the two span faces);  v = height.
-    Draws: the bucket on its own holder, the one T, the two drops in the angle
-    nooks, three Ts per side, six inlets, and two nipple lines per tier at
-    180 mm inboard of the belt edges.
+    Draws: the 40 L bucket on its own small frame on the x = 0 frame's top bar,
+    the one T, the two 1" drops in the angle nooks, a T + ball valve per tier per
+    side, the flexible hose loop into each cage half, and two height-adjustable
+    drinker lines per tier shown at the roof (top) position.
     """
     o = []
     z1 = float(D["depth"])
-    o.append(line(fl.p(-LEG50 - 3, 0), fl.p(W_BKT_Z + 7, 0), INK, 2.0))
+    uL, uR = -W_CHASE, z1 + W_CHASE
+    o.append(line(fl.p(-LEG50 - 3, 0), fl.p(z1 + LEG50 + 3, 0), INK, 2.0))
     if bands:
         o.append(keepout_bands(fl, 0, z1, label=labels, size=7.5, ulab=z1 / 2))
     # the two angle uprights, body entirely OUTBOARD of the span face (D53)
@@ -586,7 +723,10 @@ def water_section(fl, bucket=True, dims=True, bands=True, labels=True):
         u0 = zz if sgn > 0 else zz - LEG50
         o.append(rect(fl.p(u0, D["upright"]), LEG50 * fl.s, D["upright"] * fl.s,
                       fill="#cfd5dd", col=STEEL, sw=1.2))
-    # tiers: cage, pan, belt, and the TWO nipple lines
+    # the x = 0 frame's TOP BAR, 40 x 40 x 3 (D136)
+    o.append(rect(fl.p(-LEG50, D["upright"]), (z1 + 2 * LEG50) * fl.s, LEG40 * fl.s,
+                  fill="#b9c1cb", col=STEEL, sw=1.2))
+    # tiers: cage, pan, belt, and the TWO drinker lines
     for t in range(3):
         o.append(rect(fl.p(0.7, TOP[t]), (z1 - 1.4) * fl.s, D["cage_h"] * fl.s,
                       fill=CAGE_F, col=CAGE_L, sw=1, op=0.55))
@@ -596,114 +736,193 @@ def water_section(fl, bucket=True, dims=True, bands=True, labels=True):
         o.append(line(fl.p(z1 / 2, FLOOR[t]), fl.p(z1 / 2, TOP[t]), CAGE_L, 1.0, dash="3 3"))
         for side in (0, 1):
             un = NIP_Z[side]
-            ud = (z1 + W_CHASE) if side else -W_CHASE
-            ug = z1 if side else 0.0                    # grommet in the cage face
-            o.append(water_tee(fl, side, NIPPLE[t]))
-            o.append(line(fl.p(ud, NIPPLE[t]), fl.p(un, NIPPLE[t]), WATER, 2.4))
-            o.append(circ(fl.p(ug, NIPPLE[t]), 2.0, fill=PAPER, col=MECH, w=1.2))
-            o.append(circ(fl.p(un, NIPPLE[t]), 3.2, fill="#dff1fa", col=WATER, w=1.8))
+            ud = uR if side else uL
+            yn = NIPPLE[t]
+            # the hose loop, nook -> through the cage face -> the drinker line
+            o.append(hose_path(fl, ud, un, yn, W_SAG))
+            o.append(water_tee(fl, side, yn))
+            # ball valve: stem VERTICAL, lever lying flat along the cage face when
+            # open -- seen end-on from here (D134)
+            c = fl.p(ud, yn)
+            sg = 1 if side else -1
+            o.append(line((c[0] + sg * 6, c[1]), (c[0] + sg * 6, c[1] - 7), MECH, 2.0))
+            o.append(circ((c[0] + sg * 6, c[1] - 8), 2.0, fill=MECH, col=MECH, w=1))
+            # the drinker line at its TOP setting, the range, and a nipple
+            o.append(adjust_arrow(fl, un + (1.6 if side == 0 else -1.6), yn - 0.6,
+                                  FLOOR[t] + 0.3))
+            o.append(line(fl.p(un, yn), fl.p(un, yn - 1.3), WATER, 1.6))
+            o.append(circ(fl.p(un, yn), W_PIPE_R * fl.s + 1.6, fill="#dff1fa", col=WATER,
+                          w=1.8))
             # the drip, landing on the belt
-            o.append(line(fl.p(un, NIPPLE[t] - 1.0), fl.p(un, PAN[t] + 1.1), WATER, 0.8,
+            o.append(line(fl.p(un, yn - 1.4), fl.p(un, PAN[t] + 1.1), WATER, 0.8,
                           dash="2 3"))
     # the two drops, in the nooks, and their drain cocks
     for side in (0, 1):
-        o.append(water_drop(fl, side, NIPPLE[0] - 2.0,
-                            W_XOVER if side == 0 else W_BKT_Y[0] - 1.0))
-        ud = (z1 + W_CHASE) if side else -W_CHASE
+        ud = uR if side else uL
+        o.append(water_drop(fl, side, NIPPLE[0] - 2.0, W_XOVER))
         o.append(circ(fl.p(ud, NIPPLE[0] - 2.6), 2.2, fill="#f6d8d4", col=MECH, w=1.3))
     if bucket:
-        # the holder: it stands on the floor and carries the bucket
-        for du in (-3.2, 3.2):
-            o.append(line(fl.p(W_BKT_Z + du, 0), fl.p(W_BKT_Z + du, W_BKT_Y[0]),
-                          STEEL, 3.0))
-        o.append(line(fl.p(W_BKT_Z - 4.4, W_BKT_Y[0]), fl.p(W_BKT_Z + 4.4, W_BKT_Y[0]),
-                      STEEL, 3.4))
-        o.append(line(fl.p(W_BKT_Z - 3.2, 14), fl.p(W_BKT_Z + 3.2, 14), STEEL, 2.0))
-        o.append(rect(fl.p(W_BKT_Z - 5.0, W_BKT_Y[1]), 10.0 * fl.s,
-                      (W_BKT_Y[1] - W_BKT_Y[0]) * fl.s, fill="#dff1fa", col=WATER,
-                      sw=2.0, r=3))
-        if labels:
-            o.append(txt(fl.p(W_BKT_Z + 5.6, (W_BKT_Y[0] + W_BKT_Y[1]) / 2 + 1.4),
-                         "BUCKET", 11, WATER, "start", "700"))
-            o.append(txt(fl.p(W_BKT_Z + 5.6, (W_BKT_Y[0] + W_BKT_Y[1]) / 2 - 1.6),
-                         "on its OWN", 10, WATER, "start", "700"))
-            o.append(txt(fl.p(W_BKT_Z + 5.6, (W_BKT_Y[0] + W_BKT_Y[1]) / 2 - 4.2),
-                         "HOLDER", 10, WATER, "start", "700"))
-            o.append(txt(fl.p(W_BKT_Z + 5.6, D["upright"] - 2.6),
-                         "TIES  —  elevation", 9.5, STEEL, "start", "700"))
-            o.append(txt(fl.p(W_BKT_Z + 5.6, D["upright"] - 5.0),
-                         "and sway ONLY", 9.5, STEEL, "start", "700"))
-            o.append(txt(fl.p(W_BKT_Z + 5.6, 30.0), "the HOLDER carries", 9.5, MECH,
-                         "start", "700"))
-            o.append(txt(fl.p(W_BKT_Z + 5.6, 27.4), "the water to the", 9.5, MECH,
-                         "start", "700"))
-            o.append(txt(fl.p(W_BKT_Z + 5.6, 24.8), "FLOOR", 9.5, MECH, "start", "700"))
-        # ties to the upright: RESTRAINT ONLY
-        for yy in (D["upright"] - 1, 64.0):
-            o.append(line(fl.p(z1 + LEG50, yy), fl.p(W_BKT_Z - 4.5, yy), STEEL12, 1.6,
-                          dash="4 3"))
-        # one T under the bucket, then two pipes
+        bz0, bz1 = W_BKT_Z - W_BKT_D / 2, W_BKT_Z + W_BKT_D / 2
+        # the ceiling
+        o.append(line(fl.p(-LEG50 - 3, CEILING), fl.p(z1 + LEG50 + 3, CEILING), INK, 1.6,
+                      dash="10 4"))
+        # the bucket's OWN small frame, standing on the stand's top bar
+        yb = W_BKT_Y[0]
+        ytb = D["upright"] + 0.1
+        for uu in (bz0 - 0.6, bz1 + 0.6):
+            o.append(line(fl.p(uu, ytb), fl.p(uu, yb), STEEL, 2.6))
+        o.append(line(fl.p(bz0 - 1.4, yb), fl.p(bz1 + 1.4, yb), STEEL, 3.2))
+        o.append(line(fl.p(bz0 - 0.6, ytb + 2), fl.p(bz1 + 0.6, yb - 2), STEEL12, 1.4))
+        o.append(line(fl.p(bz1 + 0.6, ytb + 2), fl.p(bz0 - 0.6, yb - 2), STEEL12, 1.4))
+        for uu in (bz0 - 0.6, bz1 + 0.6):           # the ties to the top bar
+            o.append(circ(fl.p(uu, ytb + 0.4), 2.6, fill=PAPER, col=MECH, w=1.4))
+        # the bucket
+        o.append(rect(fl.p(bz0, W_BKT_Y[1]), W_BKT_D * fl.s, W_BKT_H * fl.s,
+                      fill="#dff1fa", col=WATER, sw=2.0, r=3))
+        o.append(txt(fl.p(W_BKT_Z, (W_BKT_Y[0] + W_BKT_Y[1]) / 2 - 1.2), "%d L" % W_BKT_L,
+                     15, WATER, "middle", "700"))
+        # the clearance, bucket top to the ceiling
+        if dims:
+            xc = fl.p(bz1 - 2.0, 0)[0]
+            o.append(dim_v(xc, fl.p(0, W_BKT_Y[1])[1], fl.p(0, CEILING)[1], "", INK, 9.5))
+            o.append(txt((xc - 5, fl.p(0, (W_BKT_Y[1] + CEILING) / 2 - 0.5)[1]),
+                         '%.1f"' % W_CLEAR, 9.5, INK, "end", "700"))
+        # one T under the bucket, then the two 1" pipes out to the nooks
         o.append(line(fl.p(W_BKT_Z, W_BKT_Y[0]), fl.p(W_BKT_Z, W_XOVER), WATER, 3.2))
+        o.append(line(fl.p(uL, W_XOVER), fl.p(uR, W_XOVER), WATER, 3.2))
         o.append(circ(fl.p(W_BKT_Z, W_XOVER), 3.4, fill=PAPER, col=WATER, w=2.0))
-        o.append(line(fl.p(W_BKT_Z, W_XOVER), fl.p(z1 + W_CHASE, W_XOVER), WATER, 3.2))
-        o.append(line(fl.p(z1 + W_CHASE, W_XOVER), fl.p(z1 + W_CHASE, W_BKT_Y[0] - 1.0),
-                      WATER, 3.2))
-        o.append(line(fl.p(W_BKT_Z, W_XOVER), fl.p(-W_CHASE, W_XOVER), WATER, 3.2))
-        o.append(circ(fl.p(D["depth"] / 2, W_XOVER), 2.0, fill=MUTED, col=MUTED, w=1))
+        if labels:
+            ux = z1 + LEG50 + 1.2
+            o.append(txt(fl.p(ux, CEILING + 0.8), 'CEILING  108"  (9 ft)', 9.5, INK,
+                         "start", "700"))
+            o.append(txt(fl.p(ux, CEILING - 2.2), 'clear to bucket top %.1f" (~%d mm)'
+                         % (W_CLEAR, round(W_CLEAR_MM)), 9.5, INK, "start", "700"))
+            o.append(txt(fl.p(ux, W_BKT_Y[1] - 1.6), 'bucket top ~%.1f"' % W_BKT_Y[1], 9.5,
+                         WATER, "start", "700"))
+            o.append(txt(fl.p(ux, yb + 2.6), "%d L BUCKET, ~Ø%d × %d" % (W_BKT_L, W_BKT_D_MM,
+                         W_BKT_H_MM), 9.5, WATER, "start", "700"))
+            o.append(txt(fl.p(ux, yb - 4.6), "own small frame, TIED", 9.5, STEEL,
+                         "start", "700"))
+            o.append(txt(fl.p(ux, yb - 7.0), "to the x = 0 TOP BAR,", 9.5, STEEL,
+                         "start", "700"))
+            o.append(txt(fl.p(ux, yb - 9.4), "40 × 40 × 3", 9.5, STEEL,
+                         "start", "700"))
     if dims:
-        dy = 22.0                       # clear of all three bands, inside tier 1
+        dy = 19.0                       # inside tier 1, clear of all three bands
         for ua, ub in ((BELT_Z0, NIP_Z[0]), (NIP_Z[1], BELT_Z1)):
             o.append(dim_h(fl.p(ua, dy)[0], fl.p(ub, dy)[0], fl.p(0, dy)[1],
                            "180", WATER, 9.5))
             o.append(line(fl.p(ua, PAN[0] + 0.6), fl.p(ua, dy), BELT_L, 0.7, dash="2 3"))
-            o.append(line(fl.p(ub, dy), fl.p(ub, NIPPLE[0] - 1.0), WATER, 0.7, dash="2 3"))
         for t in range(3):
             o.append(txt(fl.p(-LEG50 - 1.0, NIPPLE[t] + 0.6), '%d"' % NIPPLE[t], 10,
                          WATER, "end", "700"))
+        if bucket:
+            o.append(txt(fl.p(-LEG50 - 1.0, W_BKT_Y[0] - 0.8), '%d"' % W_BKT_Y[0], 10,
+                         WATER, "end", "700"))
+            o.append(txt(fl.p(-LEG50 - 1.0, TOP[2] + 0.2), '%d"' % TOP[2], 10,
+                         STEEL, "end", "700"))
+            o.append(dim_v(fl.p(-LEG50 - 6.2, 0)[0], fl.p(0, TOP[2])[1],
+                           fl.p(0, W_BKT_Y[0])[1], "", WATER, 9.5))
+            o.append(vtxt(fl.p(-LEG50 - 7.6, (TOP[2] + W_BKT_Y[0]) / 2),
+                          '12" = 1 ft', 9.5, WATER, "middle", "700"))
     return "".join(o)
 
 
-def chase_detail(fl, side=1, zin=None, urun=None):
-    """ENLARGED PLAN through one angle upright at nipple height -- THE PIPE CHASE.
+def chase_detail(fl, side=1, urun=9.4, zin=None, labels=True):
+    """ENLARGED PLAN through one cage-frame upright (x = 0) at a tier's T height.
 
-    u = x along the row (0 = the frame),  v = z across the row.  The angle's
-    inside corner holds the drop; the inlet steps down-row past the span leg and
-    turns in through a grommet, so nothing crosses the belt or a keep-out band.
+    u = x along the row (0 = the frame),  v = z across the row.  The 1" drop sits
+    in the angle's inside corner on two welded 5 mm tabs, held by a toe-hook strap (no
+    hole in the angle).  The T's branch runs DOWN-ROW past the span leg's toe to
+    the tier's ball valve; the flexible hose leaves the valve and goes in through
+    the cage mesh to the drinker line.
     """
     o = []
     z1 = float(D["depth"])
     sg = +1 if side else -1                       # +1 = the aisle-side upright
     zf = z1 if side else 0.0                      # the span face
-    zn = NIP_Z[1] if side else NIP_Z[0]           # this cage side's nipple line
-    zin = zn if zin is None else zin              # or a cropped view of the run in
-    ur = LEG50 * 3.2 if urun is None else urun    # how far down-row the view runs
-    # the L, heel AT the span face, both legs pointing AWAY from the belt (D53)
-    o.append(poly([fl.p(0, zf), fl.p(LEG50, zf), fl.p(LEG50, zf + sg * TH50),
-                   fl.p(TH50, zf + sg * TH50), fl.p(TH50, zf + sg * LEG50),
-                   fl.p(0, zf + sg * LEG50)], fill="#cfd5dd", col=STEEL, w=1.6))
+    ur = urun
+    zin = (zf - sg * 2.2) if zin is None else zin
+    R = W_PIPE_R
+    zc = zf + sg * W_CHASE                         # pipe centre, across the row
     # belt and pan edges, on the belt side of the span face
     bz = BELT_Z1 if side else BELT_Z0
     pz0 = (z1 - D["pan_w"]) / 2
     pz = (z1 - pz0) if side else pz0
-    o.append(line(fl.p(-LEG50, zf), fl.p(ur, zf), CAGE_L, 1.1, dash="7 4"))
-    o.append(line(fl.p(-LEG50, pz), fl.p(ur, pz), PAN_L, 2.6))
-    o.append(line(fl.p(-LEG50, bz), fl.p(ur, bz), BELT_L, 3.2))
-    o.append(txt(fl.p(ur, bz - sg * 0.22), "BELT EDGE", 9.5, BELT_L, "end", "700"))
-    o.append(txt(fl.p(ur, pz + sg * 0.18), "pan lip", 9, PAN_L, "end", "600"))
-    # the drop, sitting in the nook, and its clip
-    pc = fl.p(W_CHASE, zf + sg * W_CHASE)
-    o.append(circ(pc, mm(10) * fl.s, fill="#dff1fa", col=WATER, w=2.2))
-    o.append(circ(pc, mm(10) * fl.s + 3.0, fill="none", col=MUTED, w=1.2))
-    # the inlet: T in the nook -> down-row past the span leg -> in through a grommet
-    o.append(line(pc, fl.p(W_STEP, zf + sg * W_CHASE), WATER, 2.6))
-    o.append(line(fl.p(W_STEP, zf + sg * W_CHASE), fl.p(W_STEP, zin), WATER, 2.6))
-    o.append(circ(fl.p(W_STEP, zf), 3.2, fill=PAPER, col=MECH, w=1.6))
-    if zin == zn:
-        o.append(line(fl.p(W_STEP, zn), fl.p(ur, zn), WATER, 3.0))
-        o.append(txt(fl.p(ur, zn - sg * 0.34), "NIPPLE LINE", 9.5, WATER, "end", "700"))
-    else:
-        o.append(txt(fl.p(W_STEP + 0.25, zin + sg * 0.12), "on in to the NIPPLE LINE",
-                     9.5, WATER, "start", "700"))
+    o.append(line(fl.p(-0.6, zf), fl.p(ur, zf), CAGE_L, 1.3, dash="7 4"))
+    o.append(line(fl.p(-0.6, pz), fl.p(ur, pz), PAN_L, 2.6))
+    o.append(line(fl.p(-0.6, bz), fl.p(ur, bz), BELT_L, 3.2))
+    if labels:
+        o.append(txt(fl.p(7.0, bz - sg * 0.2), "BELT EDGE", 9.5, BELT_L, "end", "700"))
+        o.append(txt(fl.p(5.4, pz + sg * 0.1), "pan lip", 9, PAN_L, "end", "600"))
+    # the T's branch, down-row to the ball valve (drawn under the L's outline)
+    vb = mm(70) / 2                                # valve body half-length
+    o.append(rect(fl.p(W_CHASE, zc + R) if sg > 0 else fl.p(W_CHASE, zc + R),
+                  (W_VALVE_U - vb - W_CHASE) * fl.s, 2 * R * fl.s,
+                  fill="#dff1fa", col=WATER, sw=1.6))
+    # the ball valve: body, stem VERTICAL (a dot in plan), and its lever lying FLAT
+    # along the cage face when OPEN (D134)
+    vh = mm(56) / 2
+    o.append(rect(fl.p(W_VALVE_U - vb, zc + vh), 2 * vb * fl.s, 2 * vh * fl.s,
+                  fill="#f6d8d4", col=MECH, sw=1.6, r=4))
+    # hose tail, then the flexible hose curving in through the cage mesh
+    ht = W_VALVE_U + vb + mm(40)
+    o.append(rect(fl.p(W_VALVE_U + vb, zc + mm(12)), mm(40) * fl.s, mm(24) * fl.s,
+                  fill="#eef1f4", col=MUTED, sw=1.2))
+    hr = mm(12)
+    a = fl.p(ht, zc)
+    c1 = fl.p(ht + 1.1, zc)
+    c2 = fl.p(ht + 1.1, zf - sg * 1.0)
+    b = fl.p(ht + 0.7, zin)
+    d = (f"M {f(a[0])} {f(a[1])} C {f(c1[0])} {f(c1[1])} {f(c2[0])} {f(c2[1])} "
+         f"{f(b[0])} {f(b[1])}")
+    wpx = 2 * hr * fl.s
+    o.append(f'<path d="{d}" fill="none" stroke="{MUTED}" stroke-width="{f(wpx)}" '
+             f'stroke-linecap="butt"/>')
+    o.append(f'<path d="{d}" fill="none" stroke="{PAPER}" stroke-width="{f(wpx - 3)}" '
+             f'stroke-linecap="butt"/>')
+    # the L, heel AT the span face, both legs pointing AWAY from the belt (D53)
+    o.append(poly([fl.p(0, zf), fl.p(LEG50, zf), fl.p(LEG50, zf + sg * TH50),
+                   fl.p(TH50, zf + sg * TH50), fl.p(TH50, zf + sg * LEG50),
+                   fl.p(0, zf + sg * LEG50)], fill="#cfd5dd", col=STEEL, w=1.6))
+    # the tee socket (~42 mm), dashed: it too sits inside the L
+    o.append(f'<circle cx="{f(fl.p(W_CHASE, zc)[0])}" cy="{f(fl.p(W_CHASE, zc)[1])}" '
+             f'r="{f(mm(W_TEE_OD_MM / 2) * fl.s)}" fill="none" stroke="{WATER}" '
+             f'stroke-width="1.1" stroke-dasharray="4 3"/>')
+    # the two 5 mm pads
+    pad, pw = mm(W_PAD_MM), mm(14)
+    o.append(rect(fl.p(W_CHASE - pw / 2, zf + sg * TH50 + (pad if sg > 0 else 0)),
+                  pw * fl.s, pad * fl.s, fill="#3d4552", col=STEEL, sw=0.8))
+    o.append(rect(fl.p(TH50, zc + pw / 2), pad * fl.s, pw * fl.s,
+                  fill="#3d4552", col=STEEL, sw=0.8))
+    # the drop
+    o.append(circ(fl.p(W_CHASE, zc), R * fl.s, fill="#dff1fa", col=WATER, w=2.4))
+    # the toe-hook strap: a band from toe to toe, round the OUTSIDE of the pipe
+    rs = R + mm(1.5)
+    toeA, toeB = (LEG50, TH50), (TH50, LEG50)       # (u, across-from-face)
+    pts = []
+
+    def tangent_ang(toe, pick):
+        du, dw = toe[0] - W_CHASE, toe[1] - W_CHASE
+        dist = math.hypot(du, dw)
+        base = math.atan2(dw, du)
+        off = math.acos(rs / dist)
+        return base + pick * off
+    a0 = tangent_ang(toeA, +1)
+    a1 = tangent_ang(toeB, -1)
+    pts.append(fl.p(toeA[0], zf + sg * toeA[1]))
+    for k in range(17):
+        an = a0 + (a1 - a0) * k / 16
+        pts.append(fl.p(W_CHASE + rs * math.cos(an), zf + sg * (W_CHASE + rs * math.sin(an))))
+    pts.append(fl.p(toeB[0], zf + sg * toeB[1]))
+    o.append('<polyline points="%s" fill="none" stroke="%s" stroke-width="2.2" '
+             'stroke-linejoin="round"/>' % (" ".join(f"{f(p[0])},{f(p[1])}" for p in pts),
+                                            MECH))
+    for toe in (toeA, toeB):                        # the hooks over each toe
+        o.append(circ(fl.p(toe[0], zf + sg * toe[1]), 3.0, fill=MECH, col=MECH, w=1))
+    # the valve lever, on top of the body: stem vertical, lever FLAT along the face
+    o.append(line(fl.p(W_VALVE_U, zc), fl.p(W_VALVE_U + mm(100), zc), MECH, 3.0))
+    o.append(circ(fl.p(W_VALVE_U, zc), 2.6, fill=MECH, col=MECH, w=1))
     return "".join(o)
 
 
@@ -713,7 +932,7 @@ def chase_detail(fl, side=1, zin=None, urun=None):
 def drawing_row():
     """One row, Rev C: 22 ft, three tiers, the drive station at the rear and the
     idler with its take-up shelf at the front."""
-    W, H = 1800, 1180
+    W, H = 1800, 1410
     z0, z1 = 0, D["depth"]
     x0, x1 = 0, D["row_len"]
     xi = -D["front_off"]                 # -8"  idler centre
@@ -758,9 +977,16 @@ def drawing_row():
         o.append(roller(iso, xd, ROLL_Y[t], bz0 - 0.5, bz1 + 0.5))
         o.append(slab_xz(iso, yfront, 0.8, xi, x0, bz0, bz1, BELT_F, BELT_L, 1.0, 0.95))
         o.append(slab_xz(iso, ytop, 0.8, x1, xd, bz0, bz1, BELT_F, BELT_L, 1.0, 0.95))
-        # return strand, riding the 20 x 20 skids one roller diameter under the pan
-        o.append(line(iso.p(xi, SKID_Y[t], (bz0 + bz1) / 2),
-                      iso.p(xd, SKID_Y[t], (bz0 + bz1) / 2), BELT_L, 1.6, dash="7 5"))
+        # ONE 1/2" GI pipe across each stand, top 63 mm below the seat (R9 / D127)
+        ypc = PAN[t] + mm(PIPE_TOP - PIPE_OD / 2)
+        for fx_ in FRAME_X:
+            o.append(line(iso.p(fx_, ypc, z0), iso.p(fx_, ypc, z1), STEEL, 2.4))
+        # the return strand: off the idler, onto the pipes, sagging between them
+        xs_ = [xi + k * (xd - xi) / 140 for k in range(141)]
+        o.append(path("M " + " L ".join(
+            "%s %s" % tuple(f(c) for c in iso.p(xx, PAN[t] + mm(strand_mm(xx)),
+                                               (bz0 + bz1) / 2)) for xx in xs_),
+            col=BELT_L, w=1.6).replace('/>', ' stroke-dasharray="7 5"/>'))
         # the discharge.  TIERS 2 AND 3: hopper across the belt width, then out
         # into the aisle.  TIER 1: nothing -- it falls straight down (R7 / D105).
         hx = xd + 2.0
@@ -806,9 +1032,11 @@ def drawing_row():
     o.append(txt((500, 176), "REAR  —  THE DRIVE STATION", 12.5, MECH, "start", "700"))
     for i, s2 in enumerate([
             'post 50 × 50 × 5, floor to 90", one each side — it IS the gantry',
-            'drive-roller centres 10.8 / 33.8 / 56.8" — tops FLUSH with the pan',
-            'line shaft 82.3"  ·  top member top face 87.3"',
-            '428 chain on 38T plates  ·  0.37 kW gearmotor on the post at 84"',
+            'drive-roller centres ~%.1f / %.1f / %.1f" — RUBBER top = pan'
+            % tuple(half(v) for v in ROLL_Y),
+            'line shaft ~%.0f" (tier 3 + 25.5")  ·  top member top face ~%.0f"'
+            % (LINE_Y_C, GANTRY_Y_C),
+            '428 chain on 38T plates  ·  gearmotor 38T → 52T on the line shaft',
             'TIERS 2–3 discharge: hopper → 100 mm channel → TWO-TIER chute',
             '   → the AISLE TRAY, spout 250 mm above its floor']):
         o.append(txt((500, 198 + i * 18), "·  " + s2, 11, MUTED))
@@ -825,11 +1053,12 @@ def drawing_row():
                  "start", "700"))
     for i, s2 in enumerate([
             'idler centre 8" beyond the front cage leg',
-            'idler centres 11.8 / 34.8 / 57.8" — 25 mm ABOVE the drive roller,',
+            'idler centres ~%.1f / %.1f / %.1f" — 25 mm ABOVE the drive roller,'
+            % tuple(half(v) for v in IDLE_Y),
             '   because the pan is PACKED UP 25 mm at THIS frame',
-            'bearings on a 150 mm shelf of 50 × 50 × 5 welded FLAT',
+            'bearings on a 200 mm shelf of 50 × 50 × 5 welded FLAT, reaching forward',
             'take-up slots ALONG the row, 95 mm centres, 60 mm of travel',
-            'the water is all at THIS frame: bucket, two drops, six inlets']):
+            'the water is all at THIS end: 40 L bucket, two 1" drops, six valves']):
         o.append(txt((150, 638 + i * 18), "·  " + s2, 11, MUTED))
     o.append(line((196, 604), iso.p(xi, IDLE_Y[0], 16), WATER, 0.9, dash="3 3"))
 
@@ -857,7 +1086,40 @@ def drawing_row():
                  'row 22 ft (264") leg to leg  ·  5 frames  ·  11 cells per side  ·  '
                  'C = 286" roller centre to centre', 12, INK, "middle", "700"))
 
-    lg, _ = legend(150, 950, [
+    # ---- the RETURN STRAND on the same strip, heights exaggerated (R9 / D128-D131) --
+    VX = 1.2                                      # px per mm, vertical only
+    Y0 = 1000                                     # the pan seat
+    def sp(x, v):
+        return (sx + x * scale, Y0 - v * VX)
+    o.append(txt((120, 952), "THE RETURN STRAND, ON THE SAME STRIP  —  heights ×13, in mm "
+                 "below the pan seat (tiers 2 and 3)", 12, INK, "start", "700"))
+    o.append(line(sp(xi, 0), sp(xd, 0), PAN_L, 1.4, dash="6 3"))
+    o.append(txt(sp(xi - 4, -3), "pan seat  0", 9.5, PAN_L, "end", "700"))
+    o.append(line(sp(0, ROOF_MM), sp(264, ROOF_MM), CAGE_L, 1.6))
+    o.append(txt(sp(xi - 4, ROOF_MM - 3), "cage roof  −101.6", 9.5, CAGE_L, "end", "700"))
+    for fx_ in FRAME_X:
+        o.append(rect(sp(fx_, 0), 5, -XBAR_LOW_MM * VX, fill="#b9c1cb", col=STEEL, sw=0.9))
+        o.append(circ(sp(fx_ + 1, PIPE_TOP - PIPE_OD / 2), PIPE_OD / 2 * VX, fill="#dfe4ea",
+                      col=STEEL, w=1.4))
+    xs_ = [xi + k * (xd - xi) / 286 for k in range(287)]
+    o.append(path("M " + " L ".join("%s %s" % (f(sp(xx, 0)[0]), f(sp(xx, strand_mm(xx))[1]))
+                                    for xx in xs_), col=BELT_L, w=2.6))
+    for xx, vv in ((xi, IDLER_BOT_MM), (xd, REAR_BOT_MM)):
+        o.append(line(sp(xx - 3, vv), sp(xx + 3, vv), MECH, 3.4))
+    o.append(txt(sp(xi - 4, IDLER_BOT_MM + 3), "IDLER rubber", 9.5, MECH, "end", "700"))
+    o.append(txt(sp(xi - 4, IDLER_BOT_MM - 8), "bottom −55", 9.5, MECH, "end", "700"))
+    o.append(txt(sp(xd, ROOF_MM - 16), "DRIVE lagging bottom ~76–82 ▲",
+                 9.5, MECH, "end", "700"))
+    for xm, lab in ((108, "sags ~12 mm"), (180, "sags ~12 mm"), (240, "~5 mm")):
+        o.append(txt(sp(xm, -84), lab, 9.5, BELT_L, "middle", "700"))
+    o.append(txt(sp(0, ROOF_MM - 16), "▲ x = 0: the strand passes ~61 below the seat — "
+                 "20 mm under the cross-bar, ~2 mm over its pipe", 9.5, BELT_L, "start", "700"))
+    o.append(txt(sp(36, -52), "pipe top −63 at every stand", 9.5, STEEL, "start", "700"))
+    o.append(txt((150, Y0 + 164), "Off the idler it runs free past x = 0, then RESTS on the pipe "
+                 "at 72 / 144 / 216 / 264″; at the rear it rises ~2–3° off the lagging onto "
+                 "the 264″ pipe.", 10, MUTED))
+
+    lg, _ = legend(150, 1195, [
         (PAN_F, "pan — 1 mm galvanised, on 40 × 40 × 3 cross-bars"),
         (BELT_F, "belt — site-cut HDPE, 770 mm wide, running ON the pan"),
         (CAGE_F, "cage — 12 mm rod and mesh"),
@@ -868,7 +1130,7 @@ def drawing_row():
     o.append(lg)
 
     # ---- D53's three checks, on every sheet that shows an upright (D110) --
-    o.append(txt((150, 1086), "★ D53 — THE THREE CHECKS ON EVERY UPRIGHT", 11.5, MECH,
+    o.append(txt((150, 1331), "★ D53 — THE THREE CHECKS ON EVERY UPRIGHT", 11.5, MECH,
                  "start", "700"))
     for i, s3 in enumerate([
             "1 · The face looking at the belt is an OUTSIDE face — never the inside of "
@@ -876,9 +1138,12 @@ def drawing_row():
             "3 · The BEARING LEG reaches into the aisle.  The two uprights of a frame are "
             "MIRROR IMAGES, heels facing each other.",
             "Turn one round and the body moves INBOARD — it eats belt width and puts "
-            "the water drop's nook inside the belt zone."]):
-        o.append(txt((150, 1106 + i * 16), s3, 10.5, MUTED if i < 2 else MECH,
-                     "start", "700" if i == 2 else "400"))
+            "the water drop's nook inside the belt zone.",
+            "★ At BOTH END frames (x = 0 and x = 264\") the span leg points INTO the row, "
+            "toward the cages; the three middle frames' span legs point toward the drive "
+            "(D142)."]):
+        o.append(txt((150, 1351 + i * 16), s3, 10.5, MUTED if i < 2 else MECH,
+                     "start", "700" if i >= 2 else "400"))
 
     # ================= right-hand column ==================================
     px, pw = 860, 900
@@ -890,12 +1155,16 @@ def drawing_row():
         ("Pan", "1 mm galvanised, formed in ~6 ft sections, packed up 25 mm at the front"),
         ("Belt run C", f'{C_CTRS:.0f}" roller centre to centre = {C_CTRS*25.4/1000:.3f} m'),
         ("Belt loop", f"{BELT_LOOP_M:.2f} m per tier → cut 15.5 m of site-cut HDPE"),
-        ("Front end", 'idler 8" beyond the leg, on a 150 mm welded-flat shelf'),
+        ("Front end", 'idler 8" beyond the leg, plain 8–10 mm rubber wrap, 200 mm '
+                      'welded-flat shelf, push-bolt take-up'),
         ("Rear end", 'drive roller 14" beyond the leg, grooved lagging'),
-        ("Drive", "38T 428 plates, one drop chain per station, one gearmotor per two rows"),
+        ("Drive", "38T 428 plates, one drop chain per station · one gearmotor per two rows, "
+                  "38T → 52T onto its line shaft"),
         ("Fall", "packed INTO the pan — 25 mm at the front to zero at the rear, ~1:270"),
-        ("Water", 'SIX nipple lines — two per tier at 28 / 51 / 74", each 180 mm '
-                  'inboard of a belt edge'),
+        ("Water", 'SIX drinker lines, two per tier, TOP setting 28 / 51 / 74", '
+                  'adjustable · %d nipples each' % NIP_PER_LINE),
+        ("Return strand", 'rests on ONE ½" GI pipe across each stand, top 63 mm below '
+                          'the seat — 5 per tier, 15 per row'),
     ]
     yy = 148
     for a, b in rows:
@@ -928,9 +1197,11 @@ def drawing_row():
             o.append(rect(fe.p(-3, seat + LEG40), 6 * ES, LEG40 * ES,
                           fill="#b9c1cb", col=STEEL, sw=1.1))
             o.append(line(fe.p(-3.4, surf), fe.p(4.4, surf), PAN_L, 2.2))
-            # roller
+            # roller, with its 8-10 mm rubber: the rubber top is flush with the pan
+            o.append(circ(fe.p(0, ctr), (D["roller_d"] / 2 + LAG) * ES, fill="#3b3b3b",
+                          col="#3b3b3b", w=0.6))
             o.append(circ(fe.p(0, ctr), D["roller_d"] / 2 * ES, fill="#f2c9c4",
-                          col=MECH, w=1.6))
+                          col=MECH, w=1.4))
             if not rear:        # the take-up shelf, welded FLAT
                 o.append(line(fe.p(-2.6, ctr - FC_SEAT), fe.p(2.6, ctr - FC_SEAT),
                               STEEL, 3.6))
@@ -943,20 +1214,20 @@ def drawing_row():
             for un in (0.9, 2.6):      # TWO nipple lines per tier, one per cage side
                 o.append(circ(fe.p(un, NIPPLE[t]), 2.0, fill="#dff1fa", col=WATER, w=1.2))
             # ONE label line per tier, all three numbers together
-            lab = ('seat %d"  ·  surface %.2f"  ·  DRIVE %.1f"' % (seat, surf, ctr)
+            lab = ('seat %d"  ·  surface %.2f"  ·  DRIVE ~%.1f"' % (seat, surf, half(ctr))
                    if rear else
-                   'seat %d"  ·  surface %.1f"  ·  IDLER %.1f"' % (seat, surf, ctr))
+                   'seat %d"  ·  surface %.1f"  ·  IDLER ~%.1f"' % (seat, surf, half(ctr)))
             o.append(line(fe.p(4.6, ctr), fe.p(8.4, ctr), MECH, 0.8, dash="3 3"))
             o.append(txt(fe.p(8.8, ctr - 0.6), lab, 9.5, MECH, "start", "700"))
         if rear:
             o.append(circ(fe.p(0, LINE_Y_C), 1.2 * ES, fill="#b9c1cb", col=STEEL, w=1.6))
             o.append(circ(fe.p(0, LINE_Y_C), D["spr_od"] / 2 * ES * 0.72, fill="none",
                           col=MECH, w=1.2))
-            o.append(txt(fe.p(4.6, LINE_Y_C - 0.6), 'LINE SHAFT 82.3"', 9.5, STEEL,
-                         "start", "700"))
+            o.append(txt(fe.p(4.6, LINE_Y_C - 0.6), 'LINE SHAFT ~%.0f" = tier 3 + 25.5"'
+                         % LINE_Y_C, 9.5, STEEL, "start", "700"))
             o.append(rect(fe.p(-1.6, GANTRY_Y_C + LEG50), 3.2 * ES, LEG50 * ES,
                           fill="#b9c1cb", col=STEEL, sw=1.3))
-            o.append(txt(fe.p(4.6, GANTRY_Y_C + 1.2), 'top member, top face 87.3"',
+            o.append(txt(fe.p(4.6, GANTRY_Y_C + 1.2), 'top member, top face ~%.0f"' % GANTRY_Y_C,
                          9.5, STEEL, "start", "700"))
             # the drop chain, down the outboard face
             for dpx in (-3.0, 3.0):
@@ -967,15 +1238,18 @@ def drawing_row():
         else:
             o.append(line(fe.p(2.8, NIPPLE[2]), fe.p(5.0, NIPPLE[2] - 1.6),
                           WATER, 0.8, dash="3 3"))
-            o.append(txt(fe.p(5.4, NIPPLE[2] - 1.2), 'nipple lines 74 / 51 / 28"  ·  '
+            o.append(txt(fe.p(5.4, NIPPLE[2] - 1.2), 'drinker lines, TOP setting 74 / 51 / 28"  ·  '
                          '2 per tier', 9.5, WATER, "start", "700"))
             o.append(txt(fe.p(-4.4, 4), "shelf, welded FLAT", 9.5, STEEL, "end", "700"))
         o.append(txt(fe.p(0, -3.4), ("REAR  —  DRIVE STATION" if rear
                                      else "FRONT  —  IDLER FRAME"),
                      11, INK, "middle", "700"))
-    o.append(txt((px + 22, 866), 'Shaded: the THREE KEEP-OUT BANDS, ' + KEEPOUT_TAPE +
-                 '.  The pan and its roller live in them — NOTHING ELSE goes in, ever: '
-                 'no pipe, no hose, no bracket.', 10.5, MECH, "start", "700"))
+    o.append(txt((px + 22, 858), 'Shaded: the THREE KEEP-OUT BANDS, ' + KEEPOUT_TAPE +
+                 '.  Only the belt, the pan, its cross-bar and the return-strand', 10.5, MECH,
+                 "start", "700"))
+    o.append(txt((px + 22, 874), 'pipes (steel, welded across the stands) live in them — '
+                 'never a water pipe, a hose or a bracket.  Centres: RUBBER top = pan (D130).',
+                 10.5, MECH, "start", "700"))
 
     # ---- what the two ends do differently --------------------------------
     o.append(rect((px, 910), pw, 236, fill="#fbfcfd", col=FAINT, sw=1, r=6))
@@ -985,16 +1259,18 @@ def drawing_row():
         ("The pan is the datum, not the table",
          'Set the cross-bars off a string line at 12 / 35 / 58" top face, lay the pan, '
          'THEN take every bearing height off the pan you have actually fitted. The belt '
-         'runs ON the pan and wraps over the TOP of the roller, so the roller top is FLUSH '
-         'with the pan surface and the centre sits one radius — 31.5 mm — below it.'),
+         'runs ON the pan and wraps over the TOP of the roller, so the roller’s RUBBER top '
+         '(8–10 mm: grooved on the drive, plain on the idler) is flush with the pan surface '
+         'to 3 mm above — NEVER below — and the centre sits ~40 mm below it.'),
         ("The 25 mm of front packing is why the two ends differ",
          'The cross-bars are dead level at all five frames; the FALL is packed into the pan, '
          '25 mm at the front tapering to zero at the rear. So the pan surface — and with it '
          'the idler centre — is 25 mm higher at the front than at the rear.'),
         ("The drive end is FIXED; the front end takes up",
          'All the take-up is at the front: slots ALONG the row in the shelf, 95 mm centres, '
-         '60 mm of travel, with a spring. HDPE moves ~31 mm per 10 °C house swing, so a '
-         'fixed screw will not hold it.'),
+         '60 mm of travel, an M10 push-bolt per bearing through the idler post, bearings '
+         'clamped, NO spring. Tension is set by SAG — 12 mm mid-bay on a 72" bay. HDPE moves '
+         '~31 mm per 10 °C house swing, so re-set it when the season changes (sheet 5).'),
         ("★ ISOLATE AND PADLOCK before any hand goes near the row",
          'The isolator is on the rear end face of the half, in sight of all six belts. '
          'Never scoop, clear a chute or touch a tray during a pass (D78).'),
@@ -1075,23 +1351,19 @@ def drawing_house():
         o.append(txt(fl.p((XLEG_F + XLEG_R) / 2, zc + 7.5), f"ROW {i+1}", 12.5,
                      CAGE_L, "middle", "700"))
 
-        # ---- water: a BUCKET at the front frame, TWO drops in the angle nooks,
-        # then SIX nipple lines -- two per tier, each 180 mm inboard of a belt
-        # edge.  Every horizontal run is at 28 / 51 / 74", so nothing sits in a
-        # keep-out band (12-17", 31-40", 54-63").
+        # ---- water: a 40 L BUCKET over the row on the front stand, ONE T, TWO
+        # 1" drops in the cage-frame nooks at x = 0, then SIX drinker lines -- two
+        # per tier, each 180 mm inboard of a belt edge, 2 nipples per cell.
         zbelt0, zbelt1 = lo + (RF - D["belt_w"]) / 2, hi - (RF - D["belt_w"]) / 2
         for zn in (zbelt0 + mm(NIP_IN_MM), zbelt1 - mm(NIP_IN_MM)):
-            o.append(line(fl.p(XLEG_F, zn), fl.p(XLEG_R, zn), WATER, 2.0, dash="7 4"))
+            o.append(line(fl.p(XLEG_F, zn), fl.p(XLEG_R, zn), WATER, 1.6, dash="7 4"))
+            for xn in NIP_X:
+                o.append(circ(fl.p(XLEG_F + xn, zn), 1.3, fill=WATER, col=WATER, w=0.6))
+        o.append(circ(fl.p(XLEG_F, zc), W_BKT_D / 2 * S, fill="#dff1fa", col=WATER, w=1.8))
         for zd in (lo + 1, hi - 1):                  # the drops, in the angle nooks
-            o.append(circ(fl.p(XLEG_F, zd), 3.2, fill="#dff1fa", col=WATER, w=1.6))
-            o.append(line(fl.p(XLEG_F, zd), fl.p(XLEG_F + 3, zd), WATER, 1.6))
-        bk = fl.p(XLEG_F + 6, zclean + sg * 5)       # the bucket, on its own holder
-        o.append(rect((bk[0] - 9, bk[1] - 9), 18, 18, fill="#dff1fa", col=WATER,
-                      sw=1.8, r=3))
-        o.append(line(fl.p(XLEG_F + 6, zclean + sg * 5), fl.p(XLEG_F, zclean + sg * 1),
-                      WATER, 1.6))
-        o.append(line(fl.p(XLEG_F + 6, zclean + sg * 5), fl.p(XLEG_F, zmach - sg * 1),
-                      WATER, 1.2, dash="4 3"))
+            o.append(line(fl.p(XLEG_F, zc), fl.p(XLEG_F, zd), WATER, 1.6))
+            o.append(circ(fl.p(XLEG_F, zd), 3.0, fill="#dff1fa", col=WATER, w=1.6))
+        o.append(txt(fl.p(XLEG_F, zc + 1.3), "40 L", 8.5, WATER, "middle", "700"))
 
         # ---- TIER 1's OWN TRAY, under the REAR of the row (R7 / D105) -------
         # 1.0 m ACROSS the row (R7(b) / D112), 0.6 m along it, x = 2-26" -- clear
@@ -1208,8 +1480,7 @@ def drawing_house():
                                              "the column plane", 10.5, WATER,
                          "start", "700"))
         else:
-            o.append(txt(fl.p(70, zc), 'WALL AISLE  33"  ·  chute + catch tray + '
-                         'the water bucket',
+            o.append(txt(fl.p(70, zc), 'WALL AISLE  33"  ·  chute + catch tray',
                          11.5, MUTED, "middle", "600"))
 
     # ---- door: CENTRE of the front wall, on the column plane -------------
@@ -1272,7 +1543,8 @@ def drawing_house():
         ("Belt loop", f"{BELT_LOOP_M:.2f} m per module → cut 15.5 m"),
         ("Belt material", "1.0 mm HDPE / LLDPE geomembrane, site-cut"),
         ("Rollers", "24 · Ø63 × 3 tube on 3 discs · 48 × UCP204"),
-        ("Drive", "2 gearmotors — one per half, 0.37 kW 4-pole DOL, 6 belts each"),
+        ("Drive", "2 gearmotors — one per half, 0.37 kW 4-pole DOL, 38T → 52T onto the line "
+                  "shaft, 6 belts each"),
         ("Discharge", f'{D["trays"]} catch trays — TWO per row: 4 × 1.2 × 0.6 m in '
                       f'the aisle, 4 × 1.0 × 0.6 m at tier 1 → 20 L rubbers'),
         ("Hoppers / channels", f'{D["hoppers"]} — tiers 2 and 3 only.  '
@@ -1291,14 +1563,15 @@ def drawing_house():
     o.append(txt((px + 20, 520), "WATER ROUTING  (drawn schematically on the plan)",
                  12.5, WATER, "start", "700"))
     for i, s2 in enumerate([
-        "A BUCKET on its OWN HOLDER at each row's front frame — the holder stands on the "
-        "floor and carries the water; the cage angle carries none of it.",
-        "ONE T off the bucket, then TWO pipes — one per side. Each DROPS INSIDE THE L of "
-        "its angle upright, so it takes no aisle width anywhere.",
-        "THREE Ts per side, one per tier: SIX INLETS PER ROW, and TWO nipple lines per "
-        "tier — one per cage side, each 180 mm inboard of a belt edge.",
-        'Every horizontal run is at 28 / 51 / 74". THREE keep-out bands: 12–17", 31–40", '
-        '54–63" — nothing water-related in any of them.',
+        "A 40 L BUCKET over each row's front end, on its OWN small frame tied to the x = 0 "
+        "frame's 40 × 40 × 3 top bar. Base %d\", 1 ft above the stack top; bucket about "
+        "400–430 mm tall, lid on." % W_BKT_Y[0],
+        "ONE T under the bucket, then TWO 1\" pipes — one per side. Each DROPS INSIDE THE "
+        "L of the cage-frame upright at x = 0.",
+        "A T + ball valve per tier per side, then a flexible hose into each cage half: TWO "
+        "height-adjustable drinker lines per tier, 22 nipples each (2 per cell).",
+        'Ts and valves at 28 / 51 / 74". THREE keep-out bands: 12–17", 31–40", 54–63" — '
+        'nothing water-related in any of them. Water at the FRONT only.',
     ]):
         t2, _ = wrap(px + 20, 546 + i * 26, pw - 44, "·  " + s2, 10.5, 13)
         o.append(t2)
@@ -1345,7 +1618,7 @@ def drawing_house():
         ("#eef4f8", "the TWO catch trays per row (light blue = the liquid third)"),
         ("#c9ced6", "reinforced-concrete column"),
         ("#ffe9a8", "control board / lockable isolator"),
-        (WATER, "water — bucket, the two drops, six nipple lines, door"),
+        (WATER, "water — 40 L bucket, the two drops, six drinker lines (dots = nipples), door"),
     ])
     o.append(lg)
 
@@ -1359,9 +1632,12 @@ def drawing_house():
             "are MIRROR IMAGES, heels facing each other.",
             "Turn one round and the angle body moves INBOARD — it eats belt width, the "
             "bearings face the cages, and the nook that carries the water drop ends up "
-            "inside the belt zone."]):
+            "inside the belt zone.",
+            "★ At BOTH END frames (x = 0 and 264\") the span leg points INTO the row, "
+            "toward the cages; the three middle frames' span legs point toward the drive "
+            "(D142)."]):
         o.append(txt((100, 1238 + i * 16), s3, 10.5, MUTED if i < 2 else MECH,
-                     "start", "700" if i == 2 else "400"))
+                     "start", "700" if i >= 2 else "400"))
 
     # ================= 3-D impression =====================================
     o.append(txt((100, 1330), "3-D impression  —  ONE HALF: two rows, the machinery aisle "
@@ -1435,7 +1711,7 @@ def drawing_house():
          "LIQUID-TIGHT, spout 250 mm above the tray."),
         ("★ TIER 1: NO CHUTE, NO HOPPER, NO CHANNEL",
          "It falls FREE over its drive roller at 305 mm — essentially vertical, 3 mm of "
-         "carry at 16 mm/s — onto ITS OWN tray under the rear of the row, 1.0 m ACROSS the "
+         "carry at 15 mm/s — onto ITS OWN tray under the rear of the row, 1.0 m ACROSS the "
          "row at x = 2–26\", clear of the 23\" access floor. A THREE-SIDED SHROUD, open "
          "rearward only, closes the discharge in, and ISOLATE–LOCK–TRY is the primary "
          "protection at that station."),
@@ -1478,7 +1754,7 @@ def drawing_details():
     UCP204 bolted to the outstanding leg, site-cut HDPE belt, roller tops flush
     with the pan, pan fall packed in at the front frame.
     """
-    W, H = 1740, 5060
+    W, H = 1740, 5330
     o = [header(W, "4 · FABRICATION DETAILS  —  for the welder",
                 "Angle-iron frame · bolted bearings · site-cut HDPE belt.  "
                 "Every dimension here is a build dimension, not an impression.",
@@ -1513,10 +1789,10 @@ def drawing_details():
     span = float(D["depth"])               # 32 in = 813 mm, OUTER face to OUTER face
     rf0, rf1 = (span - D["roller_face"]) / 2, span - (span - D["roller_face"]) / 2
     b0, b1 = (span - D["belt_w"]) / 2, span - (span - D["belt_w"]) / 2
-    vret = -PAN_T - D["roller_d"]
+    vret = -PAN_T - D["roller_d"] - 2 * LAG
 
-    o.append(txt((60, 126), "★ ROLLER TOP FLUSH WITH THE PAN SURFACE — D93.  "
-                            "The centre sits ONE RADIUS below it.", 11, MECH, "start", "700"))
+    o.append(txt((60, 126), "★ The roller's RUBBER top flush with the pan surface, to 3 mm above "
+                            "— NEVER below (D130).", 11, MECH, "start", "700"))
     t, _ = keylist(60, 150, [
         "Ø63 × 3 mm TUBE on THREE internal discs — crown +1–2 mm, PACKED",
         "BELT on the pan — site-cut HDPE, 770 mm nominal (panel K)",
@@ -1524,7 +1800,7 @@ def drawing_details():
         "50 × 50 × 5 ANGLE upright — HEEL AT THE BELT (panel B)",
         "UCP204 BOLTED to the outstanding leg — never welded (panel C)",
         "38T × 2 on the turned hub; grub-screw collar OUTBOARD (panel C)",
-        "RETURN STRAND — 63 mm below the pan seat, on THREE skids (panel H)",
+        "RETURN STRAND leaves the roller bottom onto the pipe across each stand (panel H)",
     ])
     o.append(t)
 
@@ -1539,36 +1815,37 @@ def drawing_details():
     for zz in (rf0, rf1):
         o.append(line(fl.p(zz, 0), fl.p(zz, LEG40), PAN_L, 2.8))
 
-    # drive roller -- top FLUSH with the pan surface (D93)
-    o.append(rect(fl.p(rf0, 0.0), D["roller_face"] * S, D["roller_d"] * S,
+    # drive roller -- its RUBBER top flush with the pan surface (D130): 8-10 mm of
+    # lagging round the 63 mm tube, so the centre sits one radius + the rubber below
+    yc = -(LAG + D["roller_d"] / 2)
+    o.append(rect(fl.p(rf0, 0.0), D["roller_face"] * S, (D["roller_d"] + 2 * LAG) * S,
+                  fill="#3b3b3b", col="#3b3b3b", sw=1.0, r=2))
+    o.append(rect(fl.p(rf0, -LAG), D["roller_face"] * S, D["roller_d"] * S,
                   fill="#f2c9c4", col=MECH, sw=1.7, r=2))
     o.append(path("M " + f(fl.p(rf0, 0)[0]) + " " + f(fl.p(rf0, 0)[1])
                   + " Q " + f(fl.p(span / 2, 0.5)[0]) + " " + f(fl.p(span / 2, 0.5)[1])
                   + " " + f(fl.p(rf1, 0)[0]) + " " + f(fl.p(rf1, 0)[1]), col=MECH, w=1.7))
 
-    # belt, carry strand and return strand on three skids
+    # belt: carry strand on the pan, return strand off the roller bottom
     o.append(line(fl.p(b0, 0.13), fl.p(b1, 0.13), BELT_L, 5))
     o.append(line(fl.p(b0, vret), fl.p(b1, vret), BELT_L, 3, dash="9 5"))
-    for zs in (span / 2 - mm(250), span / 2, span / 2 + mm(250)):
-        o.append(line(fl.p(zs - LEG20 / 2, vret), fl.p(zs + LEG20 / 2, vret), STEEL, 3.2))
-        o.append(line(fl.p(zs + LEG20 / 2, vret), fl.p(zs + LEG20 / 2, vret - LEG20), STEEL, 2.4))
 
     # shaft, pillow blocks, collar, sprocket sandwich -- all OUTBOARD
-    o.append(line(fl.p(-mm(118.5), -D["roller_d"] / 2), fl.p(span + mm(118.5), -D["roller_d"] / 2),
+    o.append(line(fl.p(-mm(118.5), yc), fl.p(span + mm(118.5), yc),
                   STEEL, 3.6))
     for zz, sgn in ((0.0, -1), (span, +1)):
-        c = fl.p(zz + sgn * mm(29.5), -D["roller_d"] / 2)
+        c = fl.p(zz + sgn * mm(29.5), yc)
         o.append(rect((c[0] - mm(17.5) * S, c[1] - 2.3 * S), mm(35) * S, 4.6 * S,
                       fill="#cfd5dd", col=STEEL, sw=1.4, r=2))
         o.append(circ(c, mm(20) / 2 * S + 2.0, fill=PAPER, col=STEEL, w=1.4))
-    cc = fl.p(-mm(57), -D["roller_d"] / 2)
+    cc = fl.p(-mm(57), yc)
     o.append(rect((cc[0] - mm(7) * S, cc[1] - 0.8 * S), mm(14) * S, 1.6 * S,
                   fill="#b9c1cb", col=STEEL, sw=1.1, r=1))
     for zp in (-mm(68.5), -mm(93.5)):
-        cp = fl.p(zp, -D["roller_d"] / 2)
+        cp = fl.p(zp, yc)
         o.append(rect((cp[0] - 2.0, cp[1] - D["spr_od"] / 2 * S), 4.0, D["spr_od"] * S,
                       fill="#f2c9c4", col=MECH, sw=1.2))
-    o.append(rect(fl.p(-mm(93.5), -D["roller_d"] / 2 + D["hub_flange"] / 2),
+    o.append(rect(fl.p(-mm(93.5), yc + D["hub_flange"] / 2),
                   mm(25) * S, D["hub_flange"] * S, fill="#f6d8d4", col=MECH, sw=1.1, r=1))
 
     # callouts, keyed to the list above
@@ -1610,7 +1887,7 @@ def drawing_details():
     o.append(txt((60, 594), "IDENTICAL at both ends of every roller; measure both, do not assume.  "
                             "Roller face 790 mm is the widest MOVING part.",
                  10.5, MUTED, "start"))
-    o.append(txt((60, 616), "Idler end: the pillow block bolts to a 150 mm FLAT shelf with slots "
+    o.append(txt((60, 616), "Idler end: the pillow block bolts to a 200 mm FLAT shelf with slots "
                             "along the row, 95 mm centres, 60 mm of travel, M10 push-bolts from "
                             "the aisle.", 10.5, INK, "start", "700"))
 
@@ -1713,6 +1990,8 @@ def drawing_details():
     o.append(txt((kx, 494), "At every frame the two uprights are MIRROR IMAGES,",
                  10, MUTED, "start"))
     o.append(txt((kx, 508), "heels facing each other.", 10, MUTED, "start"))
+    o.append(txt((kx, 524), "★ At BOTH END frames the span leg points INTO the row (D142).",
+                 10, MECH, "start", "700"))
 
     o.append(txt((930, 540), "WHY IT IS WORTH THIS MUCH INK", 11, MECH, "start", "700"))
     t, _ = wrap(930, 558, 740,
@@ -1792,9 +2071,12 @@ def drawing_details():
     o.append(txt((304, 975), "— butt the base against it.  There is", 9.5, MUTED, "start"))
     o.append(txt((304, 988), "nothing to measure, and it repeats", 9.5, MUTED, "start"))
     o.append(txt((304, 1001), "56 times by a different pair of hands.", 9.5, MUTED, "start"))
-    o.append(txt((304, 1026), "2 × Ø14 for M12 × 40 grade 8.8,", 10, MECH, "start", "700"))
-    o.append(txt((304, 1040), "through-bolted, nyloc or double-nutted.", 9.5, MUTED, "start"))
-    o.append(txt((304, 1053), "NO doubler plate.", 10, MECH, "start", "700"))
+    o.append(txt((304, 1021), "2 × Ø14, grade 8.8, through-bolted, nyloc", 10, MECH, "start",
+                 "700"))
+    o.append(txt((304, 1034), "or double-nutted:  DRIVE M12 × 40;", 9.5, MECH, "start", "700"))
+    o.append(txt((304, 1047), "IDLER M12 × 50 (guard carrier under the nuts).", 9.5, MECH,
+                 "start", "700"))
+    o.append(txt((304, 1061), "NO doubler plate.", 10, MECH, "start", "700"))
     o.append(txt((304, 1078), "★ IF THE 28 mm MARK AND THE 3 mm", 10, MECH, "start", "700"))
     o.append(txt((304, 1092), "OFFCUT DISAGREE, THE OFFCUT WINS.", 10, MECH, "start", "700"))
     t, _ = wrap(304, 1108, 250,
@@ -1943,16 +2225,16 @@ def drawing_details():
                                  "post: 64 holes,", 10, INK, "start", "700"))
     o.append(txt((kx, yy + 155), "one drill bit, five minutes.  Zinc-rich primer everywhere.",
                  10, INK, "start", "700"))
-    o.append(txt((kx, yy + 177), "56 UCP204 (48 roller + 8 line shaft) · 112 × M12 × 40 · "
-                                 "4 × M12 × 60", 10, MECH, "start", "700"))
-    o.append(txt((kx, yy + 190), "0 welded bearing pads · 0 tensioner brackets.",
+    o.append(txt((kx, yy + 177), "56 UCP204 (48 roller + 8 line shaft) · 64 × M12 × 40 (drive) · "
+                                 "48 × M12 × 50 (idler)", 10, MECH, "start", "700"))
+    o.append(txt((kx, yy + 190), "4 × M12 × 60 · 0 welded bearing pads · 0 tensioner brackets.",
                  10, MECH, "start", "700"))
 
     # =====================================================================
     # D .  ELEVATIONS AND THE ROLLER-CENTRE FIELD RULE  (D93)
     # =====================================================================
     o.append(panel(40, 1560, 1660, 620,
-                   "D · ★ ELEVATIONS AND THE ROLLER-CENTRE FIELD RULE  —  D93.  "
+                   "D · ★ ELEVATIONS AND THE ROLLER-CENTRE FIELD RULE  —  D93 / D130.  "
                    "EVERY ONE OF THE 96 M12 HOLES IS SET OFF THIS"))
     SE = 4.20
 
@@ -2001,6 +2283,15 @@ def drawing_details():
         o.append(line(fe.p(D["depth"], h), fe.p(D["depth"] + 3, h), FAINT, 0.8, dash="3 3"))
         o.append(txt(fe.p(D["depth"] + 4, h - 1.0), lab, 9.5,
                      MECH if isbar else MUTED, "start", "700" if isbar else "400"))
+    # the return-strand pipe across the stand, under each cross-bar (R9 / D127)
+    for t_ in range(3):
+        o.append(rect(fe.p(0, PIPE_Y[t_]), D["depth"] * SE, mm(PIPE_OD) * SE,
+                      fill="#dfe4ea", col=STEEL, sw=1.0))
+    o.append(line(fe.p(D["depth"], PIPE_Y[2] - 0.4), fe.p(D["depth"] + 3, PIPE_Y[2] - 3.0),
+                  FAINT, 0.8, dash="3 3"))
+    o.append(txt(fe.p(D["depth"] + 4, PIPE_Y[2] - 4.0),
+                 "½\" GI PIPE across the stand, top 63 mm below the seat", 9.5, STEEL,
+                 "start", "700"))
     gx = fe.p(-2.6, 0)[0]
     ga, gb = fe.p(0, TOP[0])[1], fe.p(0, FLOOR[1])[1]
     o.append(line((gx, ga), (gx, gb), MECH, 0.9))
@@ -2025,32 +2316,35 @@ def drawing_details():
     for t_ in range(3):
         ph = PAN[t_] + PAN_T
         o.append(line(fp.p(-1.2, ph), fp.p(8.4, ph), PAN_L, 2.2))
+        o.append(circ(fp.p(0, ROLL_Y[t_]), (D["roller_d"] / 2 + LAG) * SE, fill="#3b3b3b",
+                      col="#3b3b3b", w=0.6))
         o.append(circ(fp.p(0, ROLL_Y[t_]), D["roller_d"] / 2 * SE, fill="#f2c9c4",
-                      col=MECH, w=1.6))
+                      col=MECH, w=1.4))
         o.append(line(fp.p(-3.4, ROLL_Y[t_]), fp.p(3.4, ROLL_Y[t_]), MECH, 0.8, dash="6 3"))
         o.append(leadto(fp.p(3.4, ROLL_Y[t_])[0], fp.p(0, ROLL_Y[t_])[1],
                         fp.p(8.8, ROLL_Y[t_] + 1.1)[0], fp.p(0, ROLL_Y[t_] + 1.1)[1], MECH))
-        o.append(txt(fp.p(9.2, ROLL_Y[t_] + 1.5), '%.1f"  ROLLER CENTRE' % ROLL_Y[t_],
+        o.append(txt(fp.p(9.2, ROLL_Y[t_] + 1.5), '~%.1f"  ROLLER CENTRE' % half(ROLL_Y[t_]),
                      10, MECH, "start", "700"))
     o.append(txt(fp.p(9.2, PAN[2] + PAN_T + 4.4), 'pan surface 58.04" = seat + 1 mm pan',
                  9.5, PAN_L, "start", "700"))
     o.append(leadto(fp.p(8.4, PAN[2] + PAN_T)[0], fp.p(0, PAN[2] + PAN_T)[1],
                     fp.p(9.0, PAN[2] + PAN_T + 4.0)[0], fp.p(0, PAN[2] + PAN_T + 4.0)[1],
                     PAN_L))
-    o.append(txt(fp.p(9.2, ROLL_Y[2] - 2.1), 'centre = pan surface − 31.5 mm (ONE RADIUS)',
+    o.append(txt(fp.p(9.2, ROLL_Y[2] - 2.1), 'centre = pan surface − 8–10 mm rubber − 31.5 mm',
                  9.5, MUTED, "start"))
     o.append(circ(fp.p(0, LINE_Y_C), 1.1 * SE, fill="#b9c1cb", col=STEEL, w=1.6))
-    o.append(txt(fp.p(2.6, LINE_Y_C + 0.6), 'LINE SHAFT  %.1f"' % LINE_Y_C, 9.5, STEEL,
+    o.append(txt(fp.p(2.6, LINE_Y_C + 0.6), 'LINE SHAFT  ~%.0f"' % LINE_Y_C, 9.5, STEEL,
                  "start", "700"))
     o.append(txt(fp.p(2.6, LINE_Y_C - 2.4), '= 25.5" above tier 3 AS BUILT', 8.5, MUTED,
                  "start"))
     o.append(rect(fp.p(-LEG50 / 2 - 1.2, GANTRY_Y_C), (LEG50 + 2.4) * SE, LEG50 * SE,
                   fill="#b9c1cb", col=STEEL, sw=1.3))
-    o.append(txt(fp.p(2.6, GANTRY_Y_C + 0.4), 'gantry top member, top face %.1f"' % GANTRY_Y_C,
+    o.append(txt(fp.p(2.6, GANTRY_Y_C + 0.4), 'gantry top member, top face ~%.0f"' % GANTRY_Y_C,
                  9.5, STEEL, "start", "700"))
     dxp = fp.p(-3.2, 0)[0]
     o.append(dim_v(dxp, fp.p(0, 0)[1], fp.p(0, ROLL_Y[0])[1], "", MECH))
-    o.append(txt((dxp - 6, fp.p(0, ROLL_Y[0] / 2)[1]), "10.8", 9.5, MECH, "end", "700"))
+    o.append(txt((dxp - 6, fp.p(0, ROLL_Y[0] / 2)[1]), "~%.1f" % half(ROLL_Y[0]), 9.5, MECH,
+                 "end", "700"))
     for t_ in (0, 1):
         o.append(dim_v(dxp, fp.p(0, ROLL_Y[t_])[1], fp.p(0, ROLL_Y[t_ + 1])[1], "", MECH))
         o.append(txt((dxp - 6, fp.p(0, (ROLL_Y[t_] + ROLL_Y[t_ + 1]) / 2)[1]),
@@ -2069,10 +2363,11 @@ def drawing_details():
     steps = [
         ("FIT THE PAN FIRST.", "Cross-bars off a string line, dead level, at 12 / 35 / 58\" "
          "top face. Then form and lay the pan."),
-        ("SET THE TOP OF EVERY ROLLER FLUSH WITH THE PAN SURFACE.",
+        ("SET THE RUBBER TOP FLUSH WITH THE PAN — UP TO 3 mm ABOVE, NEVER BELOW.",
          "Take the bearing height from the pan you have actually fitted — not from a number. "
-         "The as-built pan surface is the only honest datum: 10.8\" is itself derived from a "
-         "1 mm pan on a nominal 12\" seat, and the pan is site-formed in ~6 ft sections."),
+         "The as-built pan surface is the only honest datum: ~10.5\" is itself derived from a "
+         "1 mm pan on a nominal 12\" seat and 8–10 mm of rubber, and the pan is site-formed "
+         "in ~6 ft sections."),
         ("THEN SET THE LINE SHAFT 25.5\" ABOVE TIER 3's AS-BUILT CENTRE,",
          "and the gantry top member 5\" above the line shaft."),
     ]
@@ -2083,14 +2378,19 @@ def drawing_details():
         t, yy = wrap(kx + 26, yy + 14, 470, b, 10, 13)
         o.append(t)
         yy += 10
-    o.append(txt((kx, yy + 10), "WHY THE CENTRE SITS ONE RADIUS BELOW THE PAN", 11, MECH,
+    o.append(txt((kx, yy + 10), "WHY THE RUBBER TOP — AND WHY NEVER BELOW THE PAN", 11, MECH,
                  "start", "700"))
     t, yy = wrap(kx, yy + 28, 490,
-                 "The belt runs ON the pan and wraps over the TOP of the roller, so the roller "
-                 "top is FLUSH with the pan surface and the centre sits ONE RADIUS — 31.5 mm, "
-                 "1.24\" — below it.  Ruling R3 says the same thing from the other side: the "
-                 "return strand runs 63 mm below the pan and the skid top face 63 mm below the "
-                 "pan seat, and 63 mm is ONE ROLLER DIAMETER.  Two derivations, one answer.",
+                 "The belt touches the rubber, not the tube.  It runs ON the pan and wraps over "
+                 "the TOP of the roller, so the roller's RUBBER surface — the 8–10 mm grooved "
+                 "lagging on the drive, the same offcut PLAIN on the idler — is set flush with "
+                 "the pan surface to 3 mm above it.  If the rubber sits BELOW the pan, the belt "
+                 "is dragged down over the pan's end edge under full tension and cut on every "
+                 "pass.  So the centre sits ~40 mm under the pan surface (31.5 mm radius + the "
+                 "rubber): drive ~%.1f / %.1f / %.1f\", idler ~%.1f / %.1f / %.1f\" — exactly "
+                 "one 25 mm packing apart.  Inside the cage run the return strand's height is "
+                 "set by the pipes, not by the rollers (panel H)."
+                 % (tuple(half(v) for v in ROLL_Y) + tuple(half(v) for v in IDLE_Y)),
                  10, 13)
     o.append(t)
     o.append(txt((kx, yy + 18), "★ A HOLE DRILLED OFF A TABLE IS A HOLE IN SCRAP STEEL.",
@@ -2100,8 +2400,8 @@ def drawing_details():
     o.append(txt((kx, yy + 54), "★ CONSEQUENCE TO BUILD, NOT TO NOTE", 10.5, MECH,
                  "start", "700"))
     t, yy = wrap(kx, yy + 70, 490,
-                 "At these centres the lowest sprocket's bottom edge sits nearer 7.7\" than "
-                 "10.4\" — inside the zone where a man crouches to scoop.  R4's closed-bottom "
+                 "At these centres the lowest sprocket's bottom edge sits at ~7.3\" (~185 mm) "
+                 "— inside the zone where a man crouches to scoop.  R4's closed-bottom "
                  "drop-chain enclosure, its sloped lower corner and its separate hinged tier-1 "
                  "panel all matter here.  Build them exactly as ruling R4 says.", 10, 13)
     o.append(t)
@@ -2161,13 +2461,15 @@ def drawing_details():
                                 "the front and watch it", 10.5, MECH, "start", "700"))
     o.append(txt((kx, yy + 30), "reach the rear.  If it stalls, increase the front packing in "
                                 "10 mm steps.  Record the", 10.5, MECH, "start", "700"))
-    o.append(txt((kx, yy + 44), "figure that works and use it on all twelve.",
-                 10.5, MECH, "start", "700"))
+    o.append(txt((kx, yy + 44), "figure that works and use it on all twelve — but only while "
+                                "the return strand", 10.5, MECH, "start", "700"))
+    o.append(txt((kx, yy + 58), "keeps daylight under the front cross-bar: every mm of packing "
+                                "closes that gap.", 10.5, MECH, "start", "700"))
+    yy += 14
     o.append(txt((kx, yy + 68), "At 1:270 the back-drive force on a loaded belt is about 0.6 N "
                                 "against 132 N of", 10, MUTED, "start"))
-    o.append(txt((kx, yy + 81), "sliding friction (D28), so a loaded belt cannot run itself "
-                                "backwards and nothing", 10, MUTED, "start"))
-    o.append(txt((kx, yy + 94), "is fitted to hold it.", 10, MUTED, "start"))
+    o.append(txt((kx, yy + 81), "sliding friction (D28): a loaded belt cannot run itself "
+                                "backwards, so nothing holds it.", 10, MUTED, "start"))
 
     # =====================================================================
     # F .  THE DRIVE ROLLER -- tube on THREE discs, grooved lagging
@@ -2230,14 +2532,15 @@ def drawing_details():
         c += step
     o.append(txt((gx0 + gW / 2, gy0 + gHh + 13), "direction of travel →", 9, MUTED,
                  "middle", "600"))
-    o.append(txt((100, 2924), "8–10 mm rubber, GROOVED:", 9.5, MECH, "start", "700"))
-    o.append(txt((100, 2937), "10 × 5 mm grooves at 45°,", 9.5, MECH, "start", "700"))
-    o.append(txt((100, 2950), "cut on site from the same", 9.5, MUTED, "start"))
-    o.append(txt((100, 2963), "conveyor-belt offcut as the", 9.5, MUTED, "start"))
-    o.append(txt((100, 2976), "scraper.  Wrap ~790 × 210.", 9.5, MUTED, "start"))
-    o.append(txt((100, 2999), "Idler: same wrap, PLAIN.", 9.5, INK, "start", "700"))
-    o.append(txt((100, 3012), "Crown BOTH rollers.", 9.5, INK, "start", "700"))
-    o.append(txt((100, 3031), "Roller Ø 63 — DO NOT INCREASE.", 9.5, MECH, "start", "700"))
+    o.append(txt((100, 2936), "8–10 mm rubber, GROOVED:", 9.5, MECH, "start", "700"))
+    o.append(txt((100, 2948), "10 × 5 mm grooves at 45°,", 9.5, MECH, "start", "700"))
+    o.append(txt((100, 2960), "cut on site from the same", 9.5, MUTED, "start"))
+    o.append(txt((100, 2972), "conveyor-belt offcut as the", 9.5, MUTED, "start"))
+    o.append(txt((100, 2984), "scraper.  Wrap ~790 × 210.", 9.5, MUTED, "start"))
+    o.append(txt((100, 2999), "IDLER: the same 8–10 mm", 9.5, INK, "start", "700"))
+    o.append(txt((100, 3011), "offcut, PLAIN — no grooves.", 9.5, INK, "start", "700"))
+    o.append(txt((100, 3023), "Crown BOTH rollers.", 9.5, INK, "start", "700"))
+    o.append(txt((100, 3039), "Roller Ø 63 — DO NOT INCREASE.", 9.5, MECH, "start", "700"))
 
     nx = 372
     o.append(txt((nx, 2802), "★ WHY THE MID-SPAN DISC IS NOT OPTIONAL", 11, MECH,
@@ -2260,9 +2563,10 @@ def drawing_details():
     o.append(t)
     o.append(txt((nx, yy + 16), "DIAGNOSTIC WORTH MEMORISING", 10.5, INK, "start", "700"))
     t, yy = wrap(nx, yy + 32, 470,
-                 "If a drive roller slips on a normal morning run, the lagging is GLAZED.  Clean "
-                 "it and cut fresh grooves.  Do NOT tighten the tensioner first — tightening "
-                 "removes the fuse and promotes \"the roller slips\" into \"the belt tears\".",
+                 "If a drive roller slips on a normal morning run, MEASURE THE SAG FIRST.  More "
+                 "than ~20 mm: the belt has warmed and slackened — re-set it to 12 mm.  Sag "
+                 "correct and still slipping: the lagging is glazed — clean and re-groove it.  "
+                 "Never tighten past 12 mm to cure a slip.",
                  10, 13)
     o.append(t)
 
@@ -2313,7 +2617,8 @@ def drawing_details():
                  "is 20 mm, exactly like a roller shaft.  Identical hubs are what makes every "
                  "chain in the house coplanar, and they delete a second part number.  The "
                  "gearbox output sprocket is the ONE exception: bore and keyway turned to fit "
-                 "whatever box you actually buy.", 10, 13)
+                 "whatever box you actually buy.  On the two gearbox-row line-shaft hubs the "
+                 "gearbox-chain plate is a 52T — same hub, bigger plate.", 10, 13)
     o.append(t)
     t, yy = wrap(nx, yy + 12, 390,
                  "Each hub has TWO tooth rows and only FIVE of the six per row are used.  DO NOT "
@@ -2324,11 +2629,13 @@ def drawing_details():
     yy += 18
     o.append(txt((nx, yy), "CHAIN — 428, AND NEVER MIXED", 11.5, MECH, "start", "700"))
     yy += 18
-    for a, b in [("Chain", "428 MOTORCYCLE chain on 428 plates, 38T"),
+    for a, b in [("Chain", "428 MOTORCYCLE chain, 428 plates, 38T (52T: gearbox chain)"),
                  ("Tier to tier", '23" centres = exactly 130 pitches = one 130L loop'),
                  ("Line → tier 3", '25.5" centres = exactly 140 pitches = one 140L'),
                  ("Tensioner", "★ SPRING type, one per loop — MANDATORY.  14 off"),
                  ("Loops", "8 × 130L + 4 × 140L + 2 gearbox loops, cut"),
+                 ("Plates", "38T × 38 + 52T × 2 — the 52T only on the two gearbox-row"),
+                 ("", "line-shaft hubs, taking the gearbox chain (sheet 6 H)"),
                  ("Never", "★ mix 428 with 08B — roller Ø 7.77 vs 8.51 mm")]:
         o.append(txt((nx, yy), a, 9.5, INK, "start", "700"))
         o.append(txt((nx + 96, yy), b, 9.5, MECH if b.startswith("★") else MUTED, "start",
@@ -2354,10 +2661,10 @@ def drawing_details():
                  10, MUTED, "start"))
 
     # =====================================================================
-    # H .  SCRAPER AND RETURN-STRAND SKIDS
+    # H .  SCRAPER AND THE RETURN-STRAND PIPE
     # =====================================================================
-    o.append(panel(40, 3070, 830, 720,
-                   "H · SCRAPER, AND THE RETURN-STRAND SKIDS  —  ruling R3, a NEW part"))
+    o.append(panel(40, 3070, 830, 820,
+                   "H · SCRAPER, AND THE RETURN-STRAND PIPES  —  ruling R9"))
 
     # ---- H1: the scraper, sectioned at the drive roller ------------------
     o.append(txt((100, 3104), "H1 · SCRAPER, AT THE DRIVE ROLLER", 11, INK, "start", "700"))
@@ -2365,27 +2672,28 @@ def drawing_details():
                               "the belt and eventually cuts it", 9.5, MECH, "start", "700"))
     SC = 1.55
     fsc = Flat(SC, 250, 3270)                  # u, v in mm about the drive-roller centre
+    o.append(circ(fsc.p(0, 0), 40.5 * SC, fill="#4a4f55", col=INK, w=1.0))   # 9 mm lagging
     o.append(circ(fsc.p(0, 0), 31.5 * SC, fill="#f2c9c4", col=MECH, w=1.8))
     o.append(circ(fsc.p(0, 0), 10 * SC, fill="#b9c1cb", col=STEEL, w=1.2))
-    o.append(line(fsc.p(-120, 31.5), fsc.p(-34, 31.5), PAN_L, 2.6))
-    o.append(path("M " + f(fsc.p(-120, 34)[0]) + " " + f(fsc.p(0, 34)[1])
-                  + " L " + f(fsc.p(0, 34)[0]) + " " + f(fsc.p(0, 34)[1])
-                  + " A " + f(34 * SC) + " " + f(34 * SC) + " 0 0 1 "
-                  + f(fsc.p(0, -34)[0]) + " " + f(fsc.p(0, -34)[1])
-                  + " L " + f(fsc.p(-120, -34)[0]) + " " + f(fsc.p(0, -34)[1]),
+    o.append(line(fsc.p(-120, 40.5), fsc.p(-43, 40.5), PAN_L, 2.6))
+    o.append(path("M " + f(fsc.p(-120, 43)[0]) + " " + f(fsc.p(0, 43)[1])
+                  + " L " + f(fsc.p(0, 43)[0]) + " " + f(fsc.p(0, 43)[1])
+                  + " A " + f(43 * SC) + " " + f(43 * SC) + " 0 0 1 "
+                  + f(fsc.p(0, -43)[0]) + " " + f(fsc.p(0, -43)[1])
+                  + " L " + f(fsc.p(-120, -43)[0]) + " " + f(fsc.p(0, -43)[1]),
                   col=BELT_L, w=4.2))
-    o.append(txt((100, 3166), "pan ends here — the blade bears on the ROLLER,", 9.5, PAN_L,
+    o.append(txt((100, 3150), "pan ends here — the blade bears on the ROLLER,", 9.5, PAN_L,
                  "start", "700"))
-    o.append(txt((100, 3179), "where the belt is backed by steel.  Never on an", 9.5, MUTED,
+    o.append(txt((100, 3163), "where the belt is backed by steel.  Never on an", 9.5, MUTED,
                  "start"))
-    o.append(txt((100, 3192), "unsupported span.", 9.5, MUTED, "start"))
-    o.append(txt((100, 3211), "belt in, LOADED →", 9.5, BELT_L, "start", "700"))
+    o.append(txt((100, 3176), "unsupported span.", 9.5, MUTED, "start"))
+    o.append(txt((100, 3197), "belt in, LOADED →", 9.5, BELT_L, "start", "700"))
     o.append(txt((100, 3350), "← return strand, clean", 9.5, MUTED, "start"))
-    o.append(line(fsc.p(-120, -63), fsc.p(-20, -63), STEEL, 3.0))
-    o.append(txt((100, 3390), "skid, 63 mm below the pan seat", 9, STEEL, "start", "600"))
+    o.append(txt((100, 3364), "   rises onto the 264\" pipe, 356 mm ahead", 9, STEEL, "start",
+                 "600"))
     # the blade, clamped between two flat bars, trailing ~35 deg
     ca, sa = math.cos(math.radians(35.0)), math.sin(math.radians(35.0))
-    tipu, tipv = 38.0 * ca + 6, -38.0 * sa - 2
+    tipu, tipv = 47.0 * ca + 6, -47.0 * sa - 2
     o.append(line(fsc.p(tipu, tipv), fsc.p(tipu + 78 * ca, tipv - 78 * sa), MECH, 6.0))
     o.append(line(fsc.p(tipu + 18 * ca, tipv - 18 * sa),
                   fsc.p(tipu + 78 * ca, tipv - 78 * sa), STEEL, 3.4))
@@ -2407,70 +2715,83 @@ def drawing_details():
                               "(nominally 770 × 60 mm).", 10, MECH, "start", "700"))
     o.append(txt((100, 3438), "FULL WIDTH IN ONE PIECE, no butt joints — a joint leaves a "
                               "permanent un-scraped stripe.", 10, MECH, "start", "700"))
-    o.append(txt((100, 3452), "12 blades + 12 grooved lagging wraps come out of ONE piece of "
-                              "8–10 mm rubber conveyor belt,", 10, MUTED, "start"))
-    o.append(txt((100, 3466), "at least 800 mm wide × 4 m — the 770 mm must run ACROSS the piece "
-                              "in one go.", 10, MUTED, "start"))
+    o.append(txt((100, 3452), "12 blades, 12 grooved lagging wraps and 12 PLAIN idler wraps come "
+                              "out of ONE piece of 8–10 mm rubber", 10, MUTED, "start"))
+    o.append(txt((100, 3466), "conveyor belt, at least 800 mm wide × ~7 m — the 770 mm must run "
+                              "ACROSS the piece in one go.", 10, MUTED, "start"))
 
-    # ---- H2: the skid, hung off a pan cross-bar --------------------------
-    o.append(txt((100, 3500), "H2 · RETURN-STRAND SKID — hung off a pan cross-bar",
-                 11, INK, "start", "700"))
-    SK = 1.90
-    fsk = Flat(SK, 180, 3670)                  # u, v in mm
-    o.append(rect(fsk.p(-30, 40), 60 * SK, 3 * SK, fill="#b9c1cb", col=STEEL, sw=1.4))
-    o.append(rect(fsk.p(-30, 40), 3 * SK, 40 * SK, fill="#b9c1cb", col=STEEL, sw=1.4))
-    o.append(line(fsk.p(-34, 40), fsk.p(34, 40), STEEL, 2.6))
-    o.append(line(fsk.p(-34, 41), fsk.p(34, 41), PAN_L, 2.0))
-    o.append(txt((250, 3588), "PAN SEAT — top face of the", 9.5, STEEL, "start", "700"))
-    o.append(txt((250, 3601), "40 × 40 × 3 cross-bar", 9.5, STEEL, "start", "700"))
-    o.append(rect(fsk.p(-2, 38), 4 * SK, 61 * SK, fill="#e7ebef", col=STEEL, sw=1.3))
-    o.append(txt((250, 3634), "25 × 3 flat strap, 180 off", 9.5, STEEL, "start", "700"))
-    o.append(rect(fsk.p(-10, -23), 20 * SK, 3 * SK, fill="#b9c1cb", col=STEEL, sw=1.5))
-    o.append(rect(fsk.p(-10, -23), 3 * SK, 20 * SK, fill="#b9c1cb", col=STEEL, sw=1.5))
-    o.append(line(fsk.p(-16, -23), fsk.p(16, -23), BELT_L, 3.2, dash="8 4"))
-    o.append(txt((250, 3708), "20 × 20 × 3 galvanised angle,", 9.5, STEEL, "start", "700"))
-    o.append(txt((250, 3721), "HORIZONTAL LEG UP", 9.5, STEEL, "start", "700"))
-    o.append(txt((250, 3734), "the return strand slides on the 20 mm flat", 9, BELT_L, "start"))
-    o.append(dim_v(fsk.p(-24, 0)[0], fsk.p(0, 40)[1], fsk.p(0, -23)[1], "", MECH))
-    o.append(txt((fsk.p(-24, 0)[0] - 6, fsk.p(0, 12)[1]), "63", 11, MECH, "end", "700"))
-    o.append(txt((fsk.p(-24, 0)[0] - 6, fsk.p(0, 2)[1]), "EXACTLY", 8.5, MECH, "end", "700"))
-
-    nx = 470
-    o.append(txt((nx, 3500), "THE SKID, IN NUMBERS", 11, INK, "start", "700"))
-    yy = 3520
-    for a, b in [("Member", "20 × 20 × 3 galvanised angle, leg UP"),
-                 ("Runs / module", "3 — centreline and ±250 mm"),
-                 ("Length", "★ ~7.3 m (D97), NOT 7.42 m"),
-                 ("", "= one 6 m length + a 1.3 m piece,"),
-                 ("", "butt-welded OVER a cross-bar"),
-                 ("Fixing", "off all 5 pan cross-bars"),
-                 ("Datum", "★ top face EXACTLY 63 mm below"),
-                 ("", "the pan seat"),
-                 ("Quantity", "36 runs · 45 lengths · 180 straps")]:
-        o.append(txt((nx, yy), a, 9.5, INK, "start", "700"))
-        o.append(txt((nx + 90, yy), b, 9.5, MECH if b.startswith("★") else MUTED, "start",
-                     "700" if b.startswith("★") else "400"))
-        yy += 15
-    t, yy = wrap(nx, yy + 10, 380,
-                 "Why an ANGLE and not a flat bar: a flat bar laid flat is far too floppy over "
-                 "1830 mm, and a flat bar on edge presents a 3 mm edge to the belt — a knife.",
-                 9.5, 12.5)
-    o.append(t)
-    t, yy = wrap(nx, yy + 8, 380,
-                 "Why THREE runs and not two: at ±200 mm the belt edge cantilevers 185 mm and "
-                 "droops ~20 mm, which eats the entire remaining clearance.  Three gives 135 mm "
-                 "and ~5.8 mm.", 9.5, 12.5)
-    o.append(t)
-    t, yy = wrap(nx, yy + 8, 380,
-                 "★ Do NOT put bearing strips on the cage roof instead.  It puts the belt in "
-                 "contact with something directly over the birds, and tier 1 has no cage below "
-                 "it anyway.", 9.5, 12.5, MECH, "700")
-    o.append(t)
+    # ---- H2: SECTION AT A STAND -- looking ACROSS the row (R9 / D127-D128) --
+    o.append(txt((60, 3500), "H2 · SECTION AT A STAND, looking ACROSS the row  —  the return "
+                 "strand RESTS on the pipe (R9)", 11, INK, "start", "700"))
+    SK = 2.6
+    fsk = Flat(SK, 376, 3548)                  # u = mm along the row, v = mm from the PAN SEAT
+    U0, U1 = -90, 90
+    # cage roof of the tier below (tiers 2 and 3)
+    o.append(rect(fsk.p(U0, ROOF_MM), (U1 - U0) * SK, 8 * SK, fill=CAGE_F, col="none",
+                  sw=0, op=0.8))
+    o.append(line(fsk.p(U0, ROOF_MM), fsk.p(U1, ROOF_MM), CAGE_L, 2.0))
+    for k in range(10):
+        uu = U0 + 9 + k * 18.5
+        o.append(circ(fsk.p(uu, ROOF_MM - 2.2), 2.0, fill=CAGE_F, col=CAGE_L, w=1.0))
+    # pan and belt carry strand, above the seat
+    o.append(line(fsk.p(U0, 0.6), fsk.p(U1, 0.6), PAN_L, 2.4))
+    o.append(line(fsk.p(U0, 3.2), fsk.p(U1, 3.2), BELT_L, 4.0))
+    # the pan cross-bar, 40 x 40 x 3, horizontal leg ON TOP, seen end-on
+    o.append(rect(fsk.p(-20, 0), 40 * SK, 3 * SK, fill="#b9c1cb", col=STEEL, sw=1.4))
+    o.append(rect(fsk.p(17, 0), 3 * SK, 40 * SK, fill="#b9c1cb", col=STEEL, sw=1.4))
+    # the pipe, 1/2" GI, OD 21.3, seen END-ON, directly under the cross-bar
+    pc = fsk.p(0, PIPE_TOP - PIPE_OD / 2)
+    o.append(circ(pc, PIPE_OD / 2 * SK, fill="#dfe4ea", col=INK, w=2.2))
+    o.append(circ(pc, (PIPE_OD / 2 - 2.6) * SK, fill=PAPER, col=STEEL, w=1.0))
+    # the return strand, resting on the pipe top and sagging away both sides
+    sl = 4 * SAG72_MM / (72 * 25.4)            # strand slope leaving a middle stand
+    ya_, yb_ = PIPE_TOP + 0.8 - sl * 90, PIPE_TOP + 0.8 + sl * 90
+    o.append(path("M %s %s Q %s %s %s %s" % (
+        f(fsk.p(U0, ya_)[0]), f(fsk.p(U0, ya_)[1]), f(fsk.p(0, yb_)[0]), f(fsk.p(0, yb_)[1]),
+        f(fsk.p(U1, ya_)[0]), f(fsk.p(U1, ya_)[1])), col=BELT_L, w=3.4))
+    # the two gaps that matter, on the left
+    xg = fsk.p(U0 - 8, 0)[0]
+    o.append(rect((xg - 3, fsk.p(0, XBAR_LOW_MM)[1]), 6, THREAD_MM * SK, fill="#fff2cc",
+                  col="none", sw=0))
+    o.append(dim_v(xg, fsk.p(0, XBAR_LOW_MM)[1], fsk.p(0, PIPE_TOP)[1], "", MECH))
+    o.append(txt((xg - 6, fsk.p(0, -48)[1]), "%d mm" % THREAD_MM, 11, MECH, "end", "700"))
+    o.append(txt((xg - 6, fsk.p(0, -56)[1]), "THREADING", 8.5, MECH, "end", "700"))
+    o.append(txt((xg - 6, fsk.p(0, -62)[1]), "GAP", 8.5, MECH, "end", "700"))
+    o.append(dim_v(xg, fsk.p(0, PIPE_BOT)[1], fsk.p(0, ROOF_MM)[1], "", MECH))
+    o.append(txt((xg - 6, fsk.p(0, -90.5)[1]), "%.1f mm" % ROOF_CLR_MM, 11, MECH, "end", "700"))
+    o.append(txt((xg - 6, fsk.p(0, -98.5)[1]), "GATE ≥%d" % ROOF_GATE_MM, 8.5, MECH, "end",
+                 "700"))
+    # the height schedule, on the right, one tick per level
+    xh = fsk.p(U1 + 6, 0)[0]
+    for v_, lab, col_ in [
+            (0, "0  PAN SEAT — the cross-bar's top face", STEEL),
+            (XBAR_LOW_MM, "−40  cross-bar LOWER EDGE", STEEL),
+            (PIPE_TOP, "−63  PIPE TOP — the strand rests on it, ±2", BELT_L),
+            (PIPE_BOT, "−84.3  PIPE UNDERSIDE", INK),
+            (ROOF_MM, "−101.6  CAGE ROOF of the tier below", CAGE_L)]:
+        yv_ = fsk.p(0, v_)[1]
+        o.append(line((xh - 4, yv_), (xh + 8, yv_), col_, 1.0))
+        o.append(txt((xh + 12, yv_ + 4), lab, 9.5, col_, "start", "700"))
+    o.append(line((xh + 2, fsk.p(0, 0)[1]), (xh + 2, fsk.p(0, ROOF_MM)[1]), FAINT, 0.8))
+    # part labels, placed in the open air of the section
+    o.append(txt(fsk.p(24, -24), "40 × 40 × 3 cross-bar, end-on", 9.5, STEEL, "start", "700"))
+    o.append(txt(fsk.p(U0 + 4, PIPE_TOP + 5), "return strand — threads under EVERY cross-bar",
+                 9.5, BELT_L, "start", "700"))
+    for k, s_ in enumerate(["½\" GI PIPE, OD 21.3", "end-on here — welded to both",
+                            "span legs, behind this cut"]):
+        o.append(txt(fsk.p(14, PIPE_TOP - 10 - k * 5.4), s_, 9.5,
+                     INK if k < 1 else MUTED, "start", "700" if k < 1 else "400"))
+    o.append(txt((60, 3846), "Heights in mm from the pan seat, tiers 2 and 3.  Mid-bay the strand "
+                 "sags to ~−75 — ~26.6 mm to the roof.  Tier 1: pipe top ~242 mm off the floor, "
+                 "no cage below.", 9.5, MUTED, "start"))
+    o.append(txt((60, 3862), "The pipe supports from BELOW and nothing crosses the strand, so the "
+                 "belt goes in OPEN — over the pipes, under the cross-bars — lap welded after.",
+                 9.5, MUTED, "start"))
 
     # =====================================================================
     # J .  THE BELT -- site-cut HDPE geomembrane
     # =====================================================================
-    o.append(panel(900, 3070, 800, 720,
+    o.append(panel(900, 3070, 800, 820,
                    "J · THE BELT  —  SITE-CUT HDPE GEOMEMBRANE.  THE PP ORDER HAS LAPSED"))
     o.append(txt((930, 3104), "★ NOBODY ORDERS A 770 mm BELT ANY MORE  (G5 gates the cut)",
                  11.5, MECH, "start", "700"))
@@ -2567,101 +2888,302 @@ def drawing_details():
                  "start"))
 
     # =====================================================================
-    # K .  WATER LINE ROUTING -- the CONFIRMED route, and the THREE keep-out bands
+    # K .  WATER LINE ROUTING -- the owner's layout, and the THREE keep-out bands
     # =====================================================================
-    o.append(panel(40, 3810, 1660, 500,
-                   "K · WATER LINE ROUTING  —  BUCKET, ONE T, TWO PIPES, SIX INLETS.  "
-                   "THERE ARE THREE KEEP-OUT BANDS, NOT TWO"))
-    SW = 4.4
-    fw = Flat(SW, 160, 4286)                   # u = z inches ; v = height above floor
-    o.append(water_section(fw))
-    o.append(txt(fw.p(D["depth"] / 2, -3.4), "ONE ROW, AT THE FRONT FRAME  ·  "
-                 "6 INLETS  ·  3 tiers × 2 sides", 9.5, WATER, "middle", "700"))
+    # =====================================================================
+    # H3 .  THE RETURN-STRAND PIPES: across the row, along the row, in numbers
+    # =====================================================================
+    HY, HH = 3910, 600
+    o.append(panel(40, HY, 1660, HH,
+                   "H3 · RETURN-STRAND PIPES  —  ruling R9: ONE ½\" GI PIPE ACROSS EACH "
+                   "STAND, 5 per tier, 60 in the house"))
+    o.append(txt((64, HY + 50), "ACROSS THE ROW AT ANY OF THE 5 STANDS (0 / 72 / 144 / 216 / "
+                 "264\"), tiers 2 and 3, looking along the row.  Heights in mm from the pan "
+                 "seat.", 10.5, INK, "start", "700"))
+    SX = 1.12
+    fx = Flat(SX, 130, HY + 128)               # u = mm across the row from the far span face
+    SP = PIPE_L_MM                             # 813 mm: belt-side face to belt-side face
+    pz0m, pz1m = (SP - 790) / 2, SP - (SP - 790) / 2
+    bz0m, bz1m = (SP - 770) / 2, SP - (SP - 770) / 2
+    # the tier below's cage roof, and its mesh
+    o.append(rect(fx.p(0, ROOF_MM), SP * SX, 12 * SX, fill=CAGE_F, col="none", sw=0, op=0.8))
+    o.append(line(fx.p(0, ROOF_MM), fx.p(SP, ROOF_MM), CAGE_L, 2.0))
+    for k in range(27):
+        o.append(line(fx.p(15 + k * 30, ROOF_MM), fx.p(15 + k * 30, ROOF_MM - 12), CAGE_L, 0.7))
+    o.append(txt(fx.p(SP / 2, ROOF_MM - 9.5), "cage roof of the tier below  (−101.6)", 9.5,
+                 CAGE_L, "middle", "700"))
+    # the two span legs, 50 x 50 x 5, heel at the belt, body OUTBOARD
+    for zz, sg in ((0.0, -1), (SP, 1)):
+        u0_ = zz if sg > 0 else zz - 50
+        o.append(rect(fx.p(u0_, 52), 50 * SX, 170 * SX, fill="#e4e8ed", col=STEEL, sw=1.0))
+        o.append(line(fx.p(zz, 52), fx.p(zz, -118), STEEL, 4.2))
+    o.append(txt(fx.p(-25, 58), "span leg", 9, STEEL, "middle", "700"))
+    o.append(txt(fx.p(SP + 25, 58), "span leg", 9, STEEL, "middle", "700"))
+    # the cross-bar's down-leg face, leg to leg, and its top leg
+    o.append(rect(fx.p(0, 0), SP * SX, 40 * SX, fill="#eef1f4", col=STEEL, sw=1.0))
+    o.append(line(fx.p(0, -1.5), fx.p(SP, -1.5), STEEL, 3.4))
+    o.append(txt(fx.p(640, -24), "40 × 40 × 3 pan cross-bar (down-leg to −40)", 9.5, STEEL,
+                 "middle", "700"))
+    # pan with its lips, and the carry strand
+    o.append(line(fx.p(pz0m, 1), fx.p(pz1m, 1), PAN_L, 2.6))
+    for zz in (pz0m, pz1m):
+        o.append(line(fx.p(zz, 1), fx.p(zz, 40), PAN_L, 2.6))
+    o.append(line(fx.p(bz0m, 3.5), fx.p(bz1m, 3.5), BELT_L, 4.0))
+    o.append(txt(fx.p(SP / 2, 14), "pan 790 mm · belt carry strand ON it", 9.5, BELT_L,
+                 "middle", "700"))
+    # the PIPE: one piece, span leg to span leg, directly under the cross-bar
+    o.append(rect(fx.p(0, PIPE_TOP), SP * SX, PIPE_OD * SX, fill="#dfe4ea", col=INK, sw=2.0))
+    o.append(line(fx.p(0, PIPE_TOP - 4), fx.p(SP, PIPE_TOP - 4), "#ffffff", 1.4))
+    for zz, sg in ((0.0, 1), (SP, -1)):
+        # zinc ground back ~25 mm, and the fillet ALL ROUND
+        o.append(rect(fx.p(min(zz, zz + sg * 25), PIPE_TOP), 25 * SX, PIPE_OD * SX,
+                      fill="#c9b99a", col="none", sw=0, op=0.7))
+        o.append(poly([fx.p(zz, PIPE_TOP + 5), fx.p(zz + sg * 6, PIPE_TOP), fx.p(zz, PIPE_TOP)],
+                      fill=MECH, col=MECH, w=0.6))
+        o.append(poly([fx.p(zz, PIPE_BOT - 5), fx.p(zz + sg * 6, PIPE_BOT), fx.p(zz, PIPE_BOT)],
+                      fill=MECH, col=MECH, w=0.6))
+    # the return strand resting on the pipe top
+    o.append(line(fx.p(bz0m, PIPE_TOP + 1.5), fx.p(bz1m, PIPE_TOP + 1.5), BELT_L, 3.4))
+    o.append(txt(fx.p(118, PIPE_TOP + 5), "return strand, 770", 9.5, BELT_L, "middle",
+                 "700"))
+    o.append(txt(fx.p(SP / 2, PIPE_TOP - 15.5), "½\" GI PIPE, OD 21.3 — ONE piece, span leg to "
+                 "span leg", 9.5, INK, "middle", "700"))
+    o.append(txt(fx.p(12, PIPE_BOT - 8), "zinc ground back ~25 mm · fillet ALL ROUND", 9,
+                 MECH, "start", "700"))
+    # the pipe length
+    ys_ = fx.p(0, ROOF_MM - 14)[1] + 16
+    o.append(dim_h(fx.p(0, 0)[0], fx.p(SP, 0)[0], ys_ + 8,
+                   "PIPE  813 mm  —  cut to the span measured at its own height, welded to "
+                   "both belt-side faces", INK, 10.5))
+    # heights and the two gaps, on the right of the section
+    xr_ = fx.p(SP + 58, 0)[0]
+    for v_, lab, col_ in [(0, "0  seat", STEEL), (XBAR_LOW_MM, "−40  cross-bar edge", STEEL),
+                          (PIPE_TOP, "−63  pipe top", BELT_L),
+                          (PIPE_BOT, "−84.3  pipe underside", INK),
+                          (ROOF_MM, "−101.6  cage roof", CAGE_L)]:
+        yv_ = fx.p(0, v_)[1]
+        o.append(line((xr_ - 4, yv_), (xr_ + 6, yv_), col_, 1.0))
+        dy = {ROOF_MM: 14}.get(v_, 4)
+        o.append(txt((xr_ + 10, yv_ + dy), lab, 9.5, col_, "start", "700"))
+    o.append(line((xr_, fx.p(0, 0)[1]), (xr_, fx.p(0, ROOF_MM)[1]), FAINT, 0.8))
+    xd_ = fx.p(SP + 34, 0)[0]
+    o.append(dim_v(xd_, fx.p(0, XBAR_LOW_MM)[1], fx.p(0, PIPE_TOP)[1], "", MECH))
+    o.append(dim_v(xd_, fx.p(0, PIPE_BOT)[1], fx.p(0, ROOF_MM)[1], "", MECH))
+    o.append(txt(fx.p(SP - 14, -52), "%d mm THREADING GAP  →" % THREAD_MM, 10, MECH,
+                 "end", "700"))
+    o.append(txt(fx.p(SP - 14, -95.5), "%.1f mm, GATE ≥%d  →" % (ROOF_CLR_MM, ROOF_GATE_MM),
+                 10, MECH, "end", "700"))
 
-    kx = 620
-    o.append(txt((kx, 3864), "★ THE RULE", 11.5, MECH, "start", "700"))
-    t, yy = wrap(kx, 3882, 460,
-                 "Nothing may enter a keep-out band except the BELT, the PAN and the "
-                 "CROSS-BAR that carries the pan.  No pipe, no fitting, no valve, no hose "
+    # ---- along the row: ONE pipe at each of the 5 stands -----------------
+    RY = HY + 420
+    o.append(txt((64, RY - 58), "ALONG THE ROW  —  one pipe at each of the 5 stands, every tier.  "
+                 "Horizontal to scale; heights exaggerated.", 10.5, INK, "start", "700"))
+    fr = Flat(3.0, 262, RY)                    # u = inches along the row
+    VK = 0.9                                   # px per mm, heights only
+
+    def yv(v):
+        return RY + 14 + (PIPE_TOP - v) * VK
+    XI, XD = -D["front_off"], D["row_len"] + D["rear_off"]
+    rr_ = D["roller_d"] / 2 * fr.s + 3
+    o.append(circ((fr.p(XI, 0)[0], yv(IDLER_BOT_MM) - rr_), rr_, fill="#f2c9c4", col=MECH,
+                  w=1.6))
+    o.append(circ((fr.p(XD, 0)[0], yv(REAR_BOT_MM) - rr_), rr_, fill="#f2c9c4", col=MECH,
+                  w=1.6))
+    o.append(txt((fr.p(XI, 0)[0] - 14, RY - 4), "IDLER", 10, MECH, "end", "700"))
+    o.append(txt((fr.p(XD, 0)[0] + 14, RY + 4), "DRIVE ROLLER", 10, MECH, "start", "700"))
+    for xf_ in FRAME_X:
+        o.append(line((fr.p(xf_, 0)[0], RY - 20), (fr.p(xf_, 0)[0], yv(PIPE_BOT) + 10), FAINT,
+                      1.0, dash="3 3"))
+        o.append(circ((fr.p(xf_, 0)[0], yv(PIPE_TOP - PIPE_OD / 2)), PIPE_OD / 2 * VK,
+                      fill="#dfe4ea", col=INK, w=1.6))
+        o.append(txt((fr.p(xf_, 0)[0], RY - 24), '%d"' % xf_, 9.5, MUTED, "middle", "700"))
+    xs_ = [XI + k * (XD - XI) / 286 for k in range(287)]
+    o.append(path("M " + " L ".join("%s %s" % (f(fr.p(xx, 0)[0]), f(yv(strand_mm(xx))))
+                                    for xx in xs_), col=BELT_L, w=2.2))
+    for xm, lab in ((108, "sags ~12 mm"), (180, "sags ~12 mm"), (240, "~5 mm")):
+        o.append(txt((fr.p(xm, 0)[0], yv(-80) + 12), lab, 9.5, BELT_L, "middle", "700"))
+    o.append(txt((fr.p(0, 0)[0] - 4, yv(PIPE_BOT) + 26), "x = 0: strand ~61 below the seat, just over its "
+                 "pipe", 9.5, BELT_L, "start", "700"))
+    o.append(txt((fr.p(0, 0)[0] - 4, yv(PIPE_BOT) + 39), "— the pipe catches it when slack",
+                 9.5, MUTED, "start"))
+    o.append(txt((fr.p(264, 0)[0] + 6, yv(PIPE_BOT) + 26), "264\": rises ~2–3° onto it off "
+                 "the lagging", 9.5, BELT_L, "end", "700"))
+    o.append(txt((fr.p(264, 0)[0] + 6, yv(PIPE_BOT) + 39), "(lagging bottom ~76–82 below the "
+                 "seat)", 9.5, MUTED, "end"))
+    o.append(txt((64, RY + 104), "Every pipe is the same part at the same height — top 63 mm "
+                 "below its own pan seat — at the front stand (x = 0) as at the rear (264\").",
+                 10, INK, "start", "700"))
+
+    # ---- the numbers and the rules, on the right -----------------------
+    nx = 1250
+    o.append(txt((nx, HY + 76), "THE PIPE, IN NUMBERS", 11.5, INK, "start", "700"))
+    yy = HY + 98
+    for a_, b_ in [("Pipe", "★ ½\" GI — MEDIUM wall (2.6 mm) preferred, light OK"),
+                   ("", "OD 21.3 mm · round pipe only · not ¾\""),
+                   ("Length", "813 mm — each cut to its own measured span"),
+                   ("Where", "belt-side faces of both span legs, directly"),
+                   ("", "UNDER the pan cross-bar · all 5 stands, every tier"),
+                   ("Height", "★ TOP 63 mm below the pan seat, ±2 mm each end"),
+                   ("Flat", "★ level — it does NOT follow the 25 mm packing"),
+                   ("Setting", "J-gauge: hook on the cross-bar, FOOT at 63 mm,"),
+                   ("", "pipe top pushed up to the foot"),
+                   ("Quantity", "%d pipes · %d lengths of 6 m (7 to a length,"
+                    % (PIPE_PER_HOUSE, PIPE_LENGTHS)),
+                   ("", "63 pieces, 3 spare)"),
+                   ("Weld", "★ grind the zinc back ~25 mm each end; fillet ALL"),
+                   ("", "ROUND each end (it seals the bore); moving air,"),
+                   ("", "nobody downwind; zinc-rich primer the same day"),
+                   ("Finish", "★ GALVANISED, NOT PAINTED — the top is a wear surface")]:
+        o.append(txt((nx, yy), a_, 9.5, INK, "start", "700"))
+        o.append(txt((nx + 70, yy), b_, 9.5, MECH if b_.startswith("★") else MUTED, "start",
+                     "700" if b_.startswith("★") else "400"))
+        yy += 14.5
+    t, yy = wrap(nx, yy + 12, 420,
+                 "★ GATE: PIPE UNDERSIDE ≥%d mm ABOVE THE HIGHEST ROOF WIRE, TIERS 2 AND 3 "
+                 "(drawn %.1f).  Weld ONE tier-2 pipe, sit a real cage box under it and measure "
+                 "BEFORE the other 59; then check every stand once the cage boxes are in."
+                 % (ROOF_GATE_MM, ROOF_CLR_MM), 10, 13, MECH, "700")
+    o.append(t)
+    t, yy = wrap(nx, yy + 6, 420,
+                 "Failing stand only: re-seat the cage box and dress any bowed wire; then raise "
+                 "THAT pipe up to %d mm — top no higher than %d mm below the seat, an %d mm "
+                 "threading gap.  Still under %d mm → STOP and refer back."
+                 % (PIPE_RAISE_MM, -(PIPE_TOP + PIPE_RAISE_MM), THREAD_MM - PIPE_RAISE_MM,
+                    ROOF_GATE_MM), 10, 13, MECH, "700")
+    o.append(t)
+    t, yy = wrap(nx, yy + 8, 420,
+                 "ORDER: weld the pipes FIRST — before the pans, the paint and any PVC.  "
+                 "Welding heat cooks plastic, and the x = 0 pipe shares its upright with the "
+                 "water drop (pipe on the belt-side face, drop in the nook).", 9.5, 12.5)
+    o.append(t)
+    t, yy = wrap(nx, yy + 6, 420,
+                 "Weld at the ends only and dress any spatter or bead off the pipe top — the "
+                 "belt slides on it.  Once per flock: look at the pipe tops for wear or burrs, "
+                 "and at the belt's underside for score lines.", 9.5, 12.5)
+    o.append(t)
+    t, yy = wrap(nx, yy + 6, 420,
+                 "★ Do NOT put bearing strips on the cage roof instead: that is belt contact "
+                 "directly over the birds, and tier 1 has no cage below it.", 9.5, 12.5,
+                 MECH, "700")
+    o.append(t)
+
+    KY, KH = HY + HH + 20, 820
+    o.append(panel(40, KY, 1660, KH,
+                   "K · WATER  —  40 L BUCKET, ONE T, TWO 1\" DROPS, A T + VALVE PER TIER, "
+                   "HOSE INTO EACH CAGE HALF.  THERE ARE THREE KEEP-OUT BANDS"))
+    SW = 5.0
+    fw = Flat(SW, 150, KY + 780)               # u = z inches ; v = height above floor
+    o.append(water_section(fw))
+    o.append(txt(fw.p(D["depth"] / 2, -3.0), "ONE ROW, AT THE FRONT FRAME x = 0  ·  "
+                 "6 Ts + 6 VALVES + 6 HOSES", 9.5, WATER, "middle", "700"))
+
+    kx = 640
+    o.append(txt((kx, KY + 54), "★ THE RULE", 11.5, MECH, "start", "700"))
+    t, yy = wrap(kx, KY + 72, 460,
+                 KEEPOUT_SENTENCE + "  No water pipe, no fitting, no valve, no hose "
                  "loop, no clip, no hanger.  Anything in one of those bands is dragged by "
-                 "the belt on every pass — and the belt is now driven by a motor that will "
+                 "the belt on every pass — and the belt is driven by a motor that will "
                  "not notice.", 10, 13)
     o.append(t)
-    o.append(txt((kx, yy + 16), "★ THE TAPE CHECK — ONE HEIGHT RULE AND THREE BANDS",
+    o.append(txt((kx, yy + 16), "★ THE TAPE CHECK — THE HEIGHTS AND THE THREE BANDS",
                  11, MECH, "start", "700"))
     yy += 34
     o.append(txt((kx, yy), '28 / 51 / 74"', 10.5, WATER, "start", "700"))
-    o.append(txt((kx + 86, yy), "every HORIZONTAL run of water, and nothing else",
-                 10, WATER, "start", "700"))
-    o.append(txt((kx + 86, yy + 14), "— the nipple-line heights, 3\" under each cage roof",
+    o.append(txt((kx + 86, yy), "the fixed Ts + ball valves, and the drinker lines' TOP "
+                 "setting", 10, WATER, "start", "700"))
+    o.append(txt((kx + 86, yy + 14), "— 3\" under each cage roof (31 / 54 / 77\")",
                  10, MUTED, "start"))
     yy += 32
     for ka, kb in KEEPOUT:
         o.append(rect((kx, yy - 10), 80, 14, fill="#f7d9d5", col="#eec4bd", sw=0.9, r=2))
         o.append(txt((kx + 40, yy), '%d–%d"' % (ka, kb), 10, MECH, "middle", "700"))
-        o.append(txt((kx + 86, yy), "NOTHING water-related, at any height, anywhere",
+        o.append(txt((kx + 86, yy), "NOTHING water-related inside the frame line",
                      10, MECH, "start", "700"))
         yy += 17
     t, yy = wrap(kx, yy + 8, 460,
                  "THREE bands, not two.  12–17\" is tier 1's own belt zone and it is a "
-                 "keep-out band exactly like the two dropping gaps above it.  28 / 51 / 74 "
-                 "are all 3\" under their cage roofs (roofs at 31 / 54 / 77\"), i.e. inside "
-                 "the cage volume — and every band starts exactly where a roof is.  A "
-                 "plumber who has never read the design document can check all four numbers "
-                 "with a tape.", 10, 13)
+                 "keep-out band exactly like the two dropping gaps above it.  Every band "
+                 "starts exactly where a roof or a pan is, so a plumber can check all of "
+                 "it with a tape.", 10, 13)
     o.append(t)
-    o.append(txt((kx, yy + 16), "★ WATER AND DRIVE SHARE NO STATION", 11, MECH,
+    o.append(txt((kx, yy + 16), "★ A HOSE STAYS BETWEEN ITS OWN CAGE'S FLOOR AND ROOF",
+                 11, MECH, "start", "700"))
+    o.append(txt((kx, yy + 30), "— 17–31, 40–54, 63–77\" — SLACK INSIDE THE CAGE, BOTH ENDS "
+                 "CLAMPED.", 11, MECH, "start", "700"))
+    t, yy = wrap(kx, yy + 48, 460,
+                 "Valve: stem VERTICAL, lever lying FLAT along the cage face when OPEN, body "
+                 "strapped to the steel — never drilled.  A lever standing out is a CLOSED line.  "
+                 "Cut each hose just long enough to reach its drinker line at the LOWEST "
+                 "setting.  As drawn, at the top setting the loop drops %.0f\" — lowest "
+                 "point %d / %d / %d\", %.0f\" above the cage floors 17 / 40 / 63\"."
+                 % (W_SAG, NIPPLE[0] - W_SAG, NIPPLE[1] - W_SAG, NIPPLE[2] - W_SAG,
+                    NIPPLE[0] - W_SAG - FLOOR[0]), 10, 13)
+    o.append(t)
+    o.append(txt((kx, yy + 16), "★ WATER AT THE FRONT, DRIVE AT THE REAR", 11, MECH,
                  "start", "700"))
     t, yy = wrap(kx, yy + 34, 460,
-                 "All the water is at the FRONT frame.  All the drive — both drop chains, "
-                 "the line shafts and the cross-aisle propshaft — is 278\" away at the "
-                 "REAR.  And because both drops sit inside the nook of an angle upright, "
-                 "the pipework takes no aisle width on either side of the row, so neither "
-                 "aisle has to be reserved for it.", 10, 13)
+                 "All the water is at the FRONT frame.  Both drop chains, the line shafts "
+                 "and the cross-aisle propshaft are 278\" away at the REAR.  They never "
+                 "share an end.", 10, 13)
+    o.append(t)
+    o.append(txt((kx, yy + 16), "THE BUCKET HEIGHT AND THE HEAD", 11, INK,
+                 "start", "700"))
+    t, yy = wrap(kx, yy + 34, 460,
+                 "40 L, ~Ø%d × %d mm.  Base %d\" (1 ft above the 77\" stack top), top "
+                 "~%.1f\", ceiling 108\": %.1f\" (~%d mm) clear.  Head, bucket base to "
+                 "drinker line: %d / %d / %d\" (tiers 1 / 2 / 3) at the top setting; "
+                 "%d / %d / %d\" with the lines lowered to the cage floors.  ★ Check the "
+                 "real bucket is about 400–430 mm tall, lid on.  Tier 1 has "
+                 "the most head: watch it for dripping."
+                 % ((W_BKT_D_MM, W_BKT_H_MM, W_BKT_Y[0], W_BKT_Y[1], W_CLEAR,
+                     round(W_CLEAR_MM)) + tuple(W_HEAD) + tuple(W_HEAD_LO)),
+                 10, 13)
     o.append(t)
 
     ux = 1140
-    o.append(txt((ux, 3864), "HOW THE WATER RUNS  —  SIX INLETS, TWO PER TIER",
-                 11.5, INK, "start", "700"))
-    t, yy = wrap(ux, 3882, 540,
-                 "A BUCKET on its OWN HOLDER — the holder stands on the floor and carries "
-                 "the water; it is tied to the frame for ELEVATION ONLY, and the cage angle "
-                 "carries none of it.  ONE T at the bucket splits into TWO pipes, one per "
-                 "side of the row.  Each pipe drops INSIDE THE L of its angle upright, 15 mm "
-                 "off both legs.  THREE Ts per side, one per tier, feed SIX inlets — and "
-                 "each tier gets TWO nipple lines, one per cage side.", 10, 13)
+    o.append(txt((ux, KY + 54), "HOW THE WATER RUNS", 11.5, INK, "start", "700"))
+    t, yy = wrap(ux, KY + 72, 540,
+                 "A 40 L BUCKET on its OWN small frame, TIED to the TOP BAR of the x = 0 "
+                 "frame — 40 × 40 × 3, horizontal leg on top.  ONE T under the bucket splits into "
+                 "TWO 1\" pipes, one per side of the row.  Each drops INSIDE THE L of the "
+                 "cage-frame upright at x = 0.  At each tier a T and a BALL VALVE (six per "
+                 "row); from each valve a FLEXIBLE HOSE loops in through the cage face to "
+                 "that cage half's drinker line.", 10, 13)
     o.append(t)
     yy += 10
     for s, col, w_ in [
-            ("THE ANGLE'S INSIDE CORNER IS THE PIPE CHASE.", MECH, "700"),
-            ("The nook opens AWAY from the belt (D53: heel into the belt), so the pipe stays "
-             "inside the steel's own outline — nothing in an", MUTED, "400"),
-            ("aisle, nothing in a band, nothing near a belt or a roller.  Clip it to the "
-             "legs; never clip on the belt side of the angle.", MUTED, "400"),
-            ("EACH INLET STEPS ~75 mm DOWN-ROW before it turns in.", MECH, "700"),
-            ("That is how it passes the angle's SPAN LEG instead of going through it — "
-             "★ THE SPAN LEG IS NOT DRILLED, at any", MUTED, "400"),
-            ("frame, for any pipe: its outer face is the cage face and the roller-face "
-             "datum (D53).  In through ONE grommet or", MUTED, "400"),
-            ("short sleeve in the cage mesh, then a tee into that cage side's nipple line, "
-             "which carries on both ways.", MUTED, "400"),
+            ("THE ANGLE'S INSIDE CORNER IS THE PIPE CHASE — 1\" PIPE ON WELDED 5 mm STEEL TABS.",
+             MECH, "700"),
+            ("Ø33.4 mm pipe, 5 mm off both inside faces; a ~42 mm tee then just fits "
+             "(0.7 mm).  Hold it with a", MUTED, "400"),
+            ("toe-hook strap from toe to toe, within ~100 mm of each tee, ≤600 mm apart — no "
+             "hole in the angle.", MUTED, "400"),
+            ("Tabs 5–6 mm, never under 5.  A tee socket over 43 mm: STOP and call.  Sheet 5, E2.",
+             MUTED, "400"),
+            ("THE T's BRANCH RUNS DOWN-ROW TO ITS VALVE.", MECH, "700"),
+            ("The valve sits ~110 mm down-row, clear of the span leg's toe; the hose goes in "
+             "through the mesh.", MUTED, "400"),
+            ("★ THE SPAN LEG IS NOT DRILLED, at any frame, for any pipe or clip: its outer "
+             "face is the cage face", MUTED, "400"),
+            ("and the roller-face datum (D53).", MUTED, "400"),
             ("AND THE CHASE ONLY WORKS AT A CAGE FRAME — x = 0.", MECH, "700"),
-            ("At a cage frame the nook is clear floor to top.  At the IDLER POST (x = −8\") "
-             "and the DRIVE-STATION POST (x = 14\")", MUTED, "400"),
-            ("the same nook carries the BEARING-BOLT NUTS.  So both drops stay on the cage "
-             "frame — never tidied onto a post.", MUTED, "400"),
-            ("BOTH NIPPLE LINES SIT 180 mm INBOARD OF A BELT EDGE.", MECH, "700"),
-            ("That is the proof the route is safe: every drip lands on the belt, and the "
-             "belt is cleared twice a day.", MUTED, "400"),
-            ("Hang the nipple line UNDER the cage roof — never lay it ON TOP.", MECH, "700"),
-            ("A line resting on a cage roof is sitting in the band above it.  That is the "
-             "one mistake to watch for.", MUTED, "400"),
-            ("RIGID PIPE throughout.  NEVER a flexible loop.", MECH, "700"),
-            ("A hose sags, and below it is a cage floor with a belt under that.  Tie back "
-             "every flexible tail; no free loops below cage-floor level.", MUTED, "400"),
+            ("At the IDLER POST the nook carries the push-bolt heads and panel studs; at the "
+             "DRIVE-STATION POST (x = 14\")", MUTED, "400"),
+            ("the bearing-bolt NUTS.  Both drops stay on the cage frame — never tidied onto "
+             "a post.", MUTED, "400"),
+            ("TWO DRINKER LINES PER TIER, HEIGHT-ADJUSTABLE.", MECH, "700"),
+            ("1\" pipe along the middle of each 16\" cage half, 180 mm inboard of its belt "
+             "edge.  They start at the", MUTED, "400"),
+            ("TOP setting, 28 / 51 / 74\", and go down toward the cage floor for chicks — "
+             "always inside the cage.", MUTED, "400"),
+            ("Hang them UNDER the cage roof — never lay one ON TOP of a roof.", MUTED, "400"),
+            ("%d NIPPLES PER LINE — 2 PER CELL, 11 CELLS." % NIP_PER_LINE, MECH, "700"),
+            ("12\" apart, the first 6\" from the frame: %d per row, %d for the house."
+             % (NIP_PER_LINE * 6, NIP_PER_LINE * 24), MUTED, "400"),
             ("A DRAIN COCK at the foot of each drop — it is the low point.", MECH, "700"),
             ("It empties the drop and lets you flush after medication.", MUTED, "400"),
-            ("FLUSH OUTLET AT THE REAR, piped over the end of the belt.", MECH, "700"),
+            ("FLUSH OUTLET AT THE REAR of each drinker line, over the end of the belt.",
+             MECH, "700"),
             ("A flush is several litres — far more than the pan and belt can carry.  Never "
              "flush into the middle of the run.", MUTED, "400")]:
         o.append(txt((ux, yy), s, 10, col, "start", w_))
@@ -2672,9 +3194,41 @@ def drawing_details():
     o.append(txt((ux, yy + 26), "liquid-tight, and it is cleared twice a day.", 10, MUTED,
                  "start"))
 
+    # the nook, enlarged, and its clearances as drawn
+    o.append(txt((kx, KY + 560), "K2 · THE 1\" DROP IN THE NOOK  —  plan, aisle-side upright "
+                 "at x = 0, cut at 51\"", 11, INK, "start", "700"))
+    zf_ = float(D["depth"])
+    ck = Flat(40.0, kx + 30, KY + 606 + (zf_ + 2.2) * 40.0)
+    o.append(chase_detail(ck, side=1, urun=9.4))
+    o.append(txt(ck.p(-0.6, zf_ + 2.35), "AISLE", 9.5, MECH, "start", "700"))
+    o.append(txt(ck.p(6.6, zf_ + 2.35), "ball valve ~110 mm down-row", 9.5, MECH,
+                 "start", "700"))
+    o.append(txt(ck.p(6.6, zf_ + 2.05), "lever FLAT along the face = OPEN · hose on", 9.5, MUTED,
+                 "start", "600"))
+    o.append(txt(ck.p(0.0, zf_ - 1.6), "span face = the cage face", 9.5, CAGE_L, "start",
+                 "600"))
+    ty_ = KY + 560
+    o.append(txt((ux, ty_), 'THE NOOK AS DRAWN  —  1" PVC, Ø%.1f mm, in 50 × 50 × 5'
+                 % W_PIPE_OD_MM, 11, INK, "start", "700"))
+    for i, (a_, b_) in enumerate([
+            ("pipe to EACH inside face", "%.1f mm, on the 5 mm steel tabs" % W_GAP_MM),
+            ("pipe edge to each leg toe", "%.1f mm of leg left beyond it" % W_TOE_MM),
+            ("tee socket (~Ø42) to the faces", "%.1f mm — it fits, only just" % W_TEE_GAP_MM),
+            ("pipe to a 12 mm root fillet", "9 mm clear"),
+            ("without tabs", "the pipe fits, but a 42 mm tee fouls both legs by ~4 mm")]):
+        o.append(txt((ux, ty_ + 20 + i * 16), a_, 10, INK, "start", "700"))
+        o.append(txt((ux + 200, ty_ + 20 + i * 16), b_, 10, MUTED))
+    t, _ = wrap(ux, ty_ + 112, 520,
+                "Take one real 1\" tee to the angle before buying: if its socket is over "
+                "43 mm it will not sit in the nook — stop and ask.", 10, 13, MECH, "700")
+    o.append(t)
+
+    KSHIFT = KY + KH + 20 - 4330           # everything below K moves down by this
+    iL = len(o)
+
     # L .  TOLERANCES, THE FIVE THINGS, AND THE GATED ITEMS
     # =====================================================================
-    o.append(panel(40, 4330, 1660, 675,
+    o.append(panel(40, 4330, 1660, 940,
                    "L · THE TOLERANCES, THE FIVE THINGS THAT DECIDE WHETHER THIS WORKS, "
                    "AND THE GATED ITEMS"))
 
@@ -2730,7 +3284,7 @@ def drawing_details():
     t, yy = wrap(640, yy + 36, 560,
                  "Paint a vertical WHITE STRIPE on the pan lip at BOTH ends of ALL TWELVE "
                  "modules, lined up with the centred belt edge, and mark the set position of "
-                 "every tensioner nut.  A 5 mm drift then shows from the aisle, from a standing "
+                 "every idler push-bolt.  A 5 mm drift then shows from the aisle, from a standing "
                  "position, in one second.  Walk the row after every run — thirty seconds.  It "
                  "is the only thing in the whole design that catches mistracking: the torque "
                  "limiter cannot see it.", 10, 13, MECH, "700")
@@ -2739,36 +3293,57 @@ def drawing_details():
     o.append(txt((1250, 4384), "★ GATED — NOTHING IS CUT OR ORDERED UNTIL THESE PASS",
                  11.5, MECH, "start", "700"))
     yy = 4408
-    for n, s in [("1", "UCP204 + 38T bench check, before ANY metal is"),
-                 ("", "welded at a drive station."),
-                 ("2", "One TIER-2 hopper and its 100 mm channel taken"),
-                 ("", "through a LOADED run, before any chute or guard"),
-                 ("", "metal is cut.  (Tier 1 has no hopper — R7 / D105.)"),
-                 ("3", "The prototype pull test, before anything is ordered."),
-                 ("4", "The 2 L flush proved on that same hopper —"),
-                 ("", "TWO channel mouths per row, 4 L a row, 8 channels,"),
-                 ("", "16 L/day for the house."),
-                 ("5", "★ TIER 1's SPLATTER, CHALKED.  Run tier 1 bare,"),
-                 ("", "tip a full 17.6 kg load over its roller and mark the"),
-                 ("", "floor where it actually lands — nobody has measured"),
-                 ("", "a free discharge at 305 mm.  MEASURE REARWARD FROM"),
-                 ("", "THE ROLLER PLANE AT x = 14\":  ACCEPT if the patch"),
-                 ("", "stops inside x = 26\", i.e. within ±305 mm.  Throws"),
-                 ("", "past → a 150 mm APRON on the shroud's open rear"),
-                 ("", "face — NOT a chute and NOT a bigger tray.  It gates"),
-                 ("", "THE FOUR APRONS AND FOLDING THE FOUR SHROUDS: the"),
-                 ("", "trays are 1.0 × 0.6 m on geometry and are not gated."),
-                 ("", "Chalk the across-row spread too, and write it down."),
-                 ("6", "★ PRE-WELD, AT THE REAR FLOOR: the two drive-"),
-                 ("", "station post feet at x = 14\" stay ~1100 mm CLEAR,"),
-                 ("", "foot to foot.  The tier-1 tray draws out REARWARD"),
-                 ("", "between them with ~50 mm each side, so NO foot is"),
-                 ("", "splayed, cranked or foot-plated OUTBOARD for an"),
-                 ("", "easier fit-up.  Check it before the post is set.")]:
+    for n, head_, body in [
+            ("G1", "BENCH CHECK, real parts.", "A real UCP204, two 38T plates, a 3 mm offcut "
+             "and 50 × 50 × 5 on the bench — measure the collar.  Gates WELDING THE "
+             "DRIVE-STATION POSTS."),
+            ("G2", "ONE TIER-2 HOPPER, LOADED.", "One hopper and its 100 mm channel take a "
+             "full 17.6 kg run and clear with ≤2 L of flush (two channel mouths per row, "
+             "4 L a row, 8 channels, 16 L/day).  Gates cutting ANY chute or guard metal.  "
+             "Tier 1 has no hopper (R7 / D105)."),
+            ("G3", "THE ROLLER PULL TEST, ON THE TRIAL ROW.", "Roller + 1 m bar, loaded "
+             "overnight: accept ≤2.35 kgf (trip line 2.53); 2.35–3.0 → REFER BACK, phone; "
+             "over 3.0 → STOP.  Gates the other 22 rollers; the trip stays at 27.4 kgf.  The owner's "
+             "tray test (TRAY-TEST-SHEET) comes first and gates ORDERING anything."),
+            ("G4", "THE GEARBOX INPUT (owner / buyer).", "A bare keyed input shaft or an "
+             "IEC 71 B5/B14 input flange.  Gates BUYING THE MOTOR."),
+            ("G5", "THE CLEAR SPAN, all five frames of the first row.", "Belt = smallest "
+             "span − 43 mm, rounded DOWN to 5 mm.  Gates CUTTING THE BELT."),
+            ("G6", "TIER 1's SPLATTER, CHALKED.", "Run tier 1 bare, tip a full 17.6 kg "
+             "load over its roller, MEASURE REARWARD FROM THE ROLLER PLANE AT x = 14\": "
+             "accept inside x = 26\".  Past it → a 150 mm APRON, NOT a chute and NOT a "
+             "bigger tray.  Gates THE FOUR APRONS AND FOLDING THE FOUR SHROUDS; the trays "
+             "are not gated."),
+            ("G7", "(a) THE PIPE ROOF.", "Weld ONE tier-2 pipe over a real cage box: pipe "
+             "UNDERSIDE ≥8 mm above the highest roof wire (drawn 17.3).  Gates the other 59.  "
+             "Under 8 → re-seat the box, dress the wire, raise THAT pipe ≤5 mm (top no higher "
+             "than 58 below the seat); still under → stop and refer back.  Panel H3."),
+            ("", "(b) FRONT DAYLIGHT, prototype, belt tensioned.", "Daylight between the "
+             "return strand and the FRONT cross-bar at x = 0.  Gates THE FRONT-PACKING FIGURE "
+             "and so every IDLER SHELF — the prototype's shelves stay TACKED, its push-bolt "
+             "nuts and lower panel studs held, until it passes.  Touching → stop and refer "
+             "back: the cure is LESS packing, never more, and never a pipe."),
+            ("G8", "WATER (plumber / owner).", "(a) A real 1\" tee in a 50 × 50 × 5 offcut on "
+             "5 mm pads, socket ≤43 mm — gates the nook pads.  (b) The real 40 L bucket, "
+             "~400–430 mm lid on — gates the bucket frame's seat."),
+            ("G9", "THE IDLER NOSE-GUARD CHEEK.", "(a) CAD's cheek check — PASSED on sheet 5 "
+             "as drawn; it releases ONE row's three nose guards for fit-up.  (b) That row's "
+             "fit-up — no opening over 8 mm at any take-up position, cheek clear of the pan "
+             "lip — releases the other nine.")]:
         if n:
-            o.append(txt((1250, yy), n, 13, MECH, "start", "700"))
-        o.append(txt((1268, yy), s, 10, INK, "start", "700"))
-        yy += 17
+            o.append(txt((1250, yy), n, 12, MECH, "start", "700"))
+        o.append(txt((1280, yy), head_, 10, MECH, "start", "700"))
+        t, yy = wrap(1280, yy + 14, 380, body, 10, 13.5, INK, "600")
+        o.append(t)
+        yy += 7
+    o.append(txt((1250, yy + 4), "Full test for each: welder brief §0.", 10, MUTED,
+                 "start", "700"))
+    t, yy = wrap(1250, yy + 24, 390,
+                 "★ PRE-WELD, AT THE REAR FLOOR: the two drive-station post feet at x = 14\" "
+                 "stay ~1100 mm CLEAR, foot to foot — the tier-1 tray draws out REARWARD "
+                 "between them with ~50 mm each side, so NO foot is splayed, cranked or "
+                 "foot-plated OUTBOARD.  Check it before the post is set.", 10, 13.5, MECH, "700")
+    o.append(t)
     t, yy = wrap(1250, yy + 14, 420,
                  "One 450 mm emergency handle hangs on a nail by the switchboard, on a removable "
                  "two-bolt coupling at the gearbox output, for the day the generator will not "
@@ -2781,12 +3356,13 @@ def drawing_details():
     o.append(t)
     o.append(txt((1250, yy + 26), "Source: reference/design.md §8 + §15 · decisions.md",
                  9.5, MUTED, "start"))
-    o.append(txt((1250, yy + 39), "D1–D113 · and the Rev C WELDER BRIEF.  Where this",
+    o.append(txt((1250, yy + 39), "D1–D159 · and the Rev C WELDER BRIEF.  Where this",
                  9.5, MUTED, "start"))
     o.append(txt((1250, yy + 52), "sheet and the brief disagree, THE BRIEF WINS.",
                  9.5, INK, "start", "700"))
 
-    write("manure-belt-REVC-4-details.svg", W, H, "".join(o))
+    o[iL:] = ['<g transform="translate(0,%d)">' % KSHIFT] + o[iL:] + ["</g>"]
+    write("manure-belt-REVC-4-details.svg", W, H + KSHIFT, "".join(o))
 
 
 
@@ -2848,31 +3424,43 @@ def lead(p, tp, s, col=INK, size=11, weight="700", anchor="start"):
 
 
 # ============================================================================
-# DRAWING 5 (REV C) -- FRONT END: the idler shelf, the tensioner, the pan
-#   packing, and the WATER ROUTE as confirmed.
-#   D55 (shelf replaces the bracket) - the water: bucket on its own holder, one
+# DRAWING 5 (REV C) -- FRONT END: the idler shelf, the push-bolt take-up, the
+#   nose-guard cheeks, the pan packing, and the WATER ROUTE as confirmed.
+#   D55 (shelf replaces the bracket) - the water: 40 L bucket on its own frame, one
 #   T, two pipes, each dropping inside the L of its angle upright, three Ts per
 #   side, six inlets, two nipple lines per tier 180 mm inboard of the belt
-#   edges - D93 (roller top FLUSH with the pan, centres ~10.8/33.8/56.8) -
+#   edges - D93 / D130 (the roller's RUBBER top flush with the pan) -
 #   D94 (cross-bars dead level, pan PACKED UP 25 mm AT THIS END).
 # ============================================================================
 FC_WALL = -14.0                     # front wall face -- the 14" front allocation
-FC_IDLER = -float(D["front_off"])   # -8" : idler centre AND the idler-station post
-FC_SHELF = mm(150)                  # 150 mm of 50 x 50 x 5, welded FLAT (D55)
+FC_IDLER = -float(D["front_off"])   # -8" : idler SHAFT centre at mid-travel (C = 286")
+FC_POST = -mm(103)                  # idler POST heel / front face: BEHIND its shelves (D144/D146)
+FC_SHELF = mm(200)                  # 200 mm of 50 x 50 x 5, welded FLAT, reaching FORWARD (D144)
 FC_SLOT = mm(60)                    # 60 mm of take-up travel, slots ALONG the row
 FC_BOLT = mm(95)                    # the two bolt holes, 95 mm centres
 FC_SHAFT = mm(130)                  # shaft end past the roller face, into the aisle
 FC_PACK = mm(25)                    # D94: pan packed up 25 mm AT THIS FRAME
 FC_SEAT = mm(33)                    # UCP204 base face to shaft centre
 FC_NEED = mm(50)                    # HDPE thermal minimum (D59)
-FC_BLK = float(D["depth"]) + 1.5    # UCP204 body centre, outboard on the shelf
-REVC5 = "REV C  |  2026-09-18"       # this sheet, re-issued
+FC_BLK = float(D["depth"]) + mm(25)  # UCP204 base centreline, on the shelf's slot line
+# D146 -- the push-bolt take-up, all mm
+PB_LEN = 100.0                      # M10 x 100 full thread -- never longer
+PB_UP = 7.0                         # bolt axis above the shelf top
+PB_LEG, PB_NUT = 5.0, 8.0           # post leg; welded nut and jam nut, 8 mm each
+PB_HEAD, PB_AF, PB_AC = 6.4, 17.0, 19.6   # M10 hex head height / across flats / corners
+BASE_HALF = 63.5                    # UCP204 base, 127 mm along the row
+POST_MM = 103.0                     # post front face, mm in front of the front leg
+SHAFT_MM = D["front_off"] * 25.4    # 203.2: shaft at mid-travel
+PF_MM = -120.0                      # pan's FRONT END: 120 ahead of x = 0, nominal -- measure the actual pan
+CHEEK_FWD, CHEEK_AFT = 50.0, 160.0  # cheek edges ahead of / behind the shaft centre
+CHEEK_W = -mm(5.7)                  # cheek plane, inboard of the span face (11.4 mm strip)
+REVC5 = "REV C  |  2026-09-29"       # this sheet, re-issued (D142-D146)
 
-# ★ D93's field rule MEETS D94's packing, and nobody has written the answer down:
-# the pan SURFACE at this frame is one packing thickness high, so the IDLER centre
-# is 25 mm ABOVE the drive roller's 10.8 / 33.8 / 56.8.
+# D93's field rule MEETS D94's packing (D123, D130): the pan SURFACE at this frame is
+# one packing thickness high, so the IDLER centre is 25 mm ABOVE the drive roller's.
+# The idler carries the same 8-10 mm rubber wrap, plain (D130).
 PAN_SURF_F = [p + FC_PACK + PAN_T for p in PAN]                 # 13.0 / 36.0 / 59.0
-IDLE_Y = [s - D["roller_d"] / 2 for s in PAN_SURF_F]            # ~11.8 / 34.8 / 57.8
+IDLE_Y = [s - LAG - D["roller_d"] / 2 for s in PAN_SURF_F]      # ~11.5 / 34.5 / 57.5
 
 
 def slotbolt(p, ln, col=STEEL):
@@ -2895,12 +3483,27 @@ def shroud(p, w=15, h=13):
     ])
 
 
+def cheek_outline(xs, yseat, ysurf):
+    """Idler nose-guard END CHEEK (D144/D146), as (x, y) inches for a shaft at xs.
+    Front edge 50 mm ahead of the shaft; top at the pan lip (seat + 66); the UPPER part
+    reaches back to the pan's front end (drawn at PF_MM for the shaft at FULL FORWARD);
+    the LOWER part, from the pan's UNDERSIDE down to seat - 85, reaches 160 mm behind the
+    shaft -- 30 mm behind the post's front face at full forward."""
+    fwd = FC_IDLER - mm(30)                       # shaft at full forward
+    xpf = mm(PF_MM) + (xs - fwd)                  # upper rear edge moves with the guard
+    ytop, ystep, ybot = ysurf + mm(40), ysurf - PAN_T, yseat - mm(85)
+    xf, xa = xs - mm(CHEEK_FWD), xs + mm(CHEEK_AFT)
+    return [(xf, ytop), (xpf, ytop), (xpf, ystep), (xa, ystep), (xa, ybot), (xf, ybot)]
+
+
 def drawing_frontend_c():
-    W, H = 1760, 2210
-    o = [header(W, "5 · FRONT END  —  the idler shelf, the tensioner and the WATER ROUTE",
-                "The door/water end.  Only ~6\" to the wall.  A bucket on its own holder, "
-                "ONE T, TWO pipes — each one dropping inside the L of its angle upright — "
-                "THREE Ts per side, SIX inlets, SIX nipple lines.",
+    S5 = 240                                    # extra height for panels A and B
+    W = 1760                                    # H is set at the end, after panel F
+    o = [header(W, "5 · FRONT END  —  the idler shelf, the push-bolt take-up and the WATER ROUTE",
+                "The door/water end.  Only ~6\" to the wall.  A 40 L bucket on its own small "
+                "frame, ONE T, TWO 1\" drops in the L of the cage-frame upright, a T + ball "
+                "valve per tier per side, a hose loop into each cage half, SIX adjustable "
+                "drinker lines.",
                 rev=REVC5, strap=STRAP_C)]
     z0, z1 = 0.0, float(D["depth"])
     pz0, pz1 = (z1 - D["pan_w"]) / 2, z1 - (z1 - D["pan_w"]) / 2
@@ -2917,11 +3520,11 @@ def drawing_frontend_c():
     # ========================================================================
     # A -- ISOMETRIC, ONE TIER (three tiers at once is unreadable)
     # ========================================================================
-    o.append(panel(40, 80, 915, 740,
+    o.append(panel(40, 80, 915, 740 + S5,
                    "A · ONE TIER AT THE FRONT END, IN 3-D   (tier 2 shown — tiers 1 and 3 "
                    "repeat it exactly.  The shelf is drawn to scale in panel C)"))
     xa, xb = -16.0, 10.0
-    iso = Iso(9.5, 509, 779)
+    iso = Iso(9.5, 509, 829)
     o.append(keepout_box(iso, xa + 1, xb, ygap0 + 1.0, yf, z0, z1, "fill"))
 
     # ---- the frame: far cage leg, the DEAD LEVEL cross-bar, the packing ----
@@ -2931,13 +3534,24 @@ def drawing_frontend_c():
         a, b = iso.p(0, yseat, zz), iso.p(0, ysurf, zz)
         o.append(line(a, b, MECH, 3.4))
 
+    # ---- the x = 0 PIPE across the stand, under the cross-bar (R9 / D127) ----
+    ypc = yseat + mm(PIPE_TOP - PIPE_OD / 2)
+    xpc = LEG50 / 2                             # centred on the span leg's 50 mm face
+    o.append(line(iso.p(xpc, ypc, z0), iso.p(xpc, ypc, z1), INK, 9.0))
+    o.append(line(iso.p(xpc, ypc, z0), iso.p(xpc, ypc, z1), "#dfe4ea", 6.4))
+    # ---- the return strand: idler bottom -> ~61 below the seat at x = 0 -> on ----
+    xs5 = [FC_IDLER + k * (xb - FC_IDLER) / 24 for k in range(25)]
+    pts5 = ([iso.p(xx, yseat + mm(strand_mm(xx)), bz0) for xx in xs5]
+            + [iso.p(xx, yseat + mm(strand_mm(xx)), bz1) for xx in reversed(xs5)])
+    o.append(poly(pts5, fill=BELT_F, col=BELT_L, w=1.2, op=0.75))
     # ---- pan (packed up), belt on it, manure ----
     o.append(slab_xz(iso, ysurf, 1.0, FC_IDLER, xb, pz0, pz1, PAN_F, PAN_L, 1.0, 0.95))
     o.append(slab_xz(iso, ysurf + 0.55, 0.8, FC_IDLER, xb, bz0, bz1, BELT_F, BELT_L, 1.0, 0.95))
     o.append(manure_on_belt(iso, ysurf + 1.6, 2, xb - 2, bz0, bz1, 5))
 
-    # ---- the idler: TOP FLUSH WITH THE PAN SURFACE (D93) ----
-    o.append(roller(iso, FC_IDLER, yroll, bz0 - 0.7, bz1 + 0.7))
+    # ---- the idler: its RUBBER top flush with the pan surface (D130) ----
+    o.append(roller(iso, FC_IDLER, yroll, bz0 - 0.7, bz1 + 0.7,
+                    r=(D["roller_d"] / 2 + LAG) * 9.5))
     o.append(line(iso.p(FC_IDLER, yroll, pz0), iso.p(FC_IDLER, yroll, pz1), MECH, 2.0, op=0.5))
     # shaft ends, both aisles, 130 mm out, with FIXED shrouds
     for zz, sg in ((pz0, -1), (pz1, +1)):
@@ -2947,7 +3561,7 @@ def drawing_frontend_c():
 
     # ---- the idler-station POST and its horizontal SHELF (D55) ----
     for zz in (z0, z1):
-        o.append(line(iso.p(FC_IDLER, ygap0 - 2, zz), iso.p(FC_IDLER, yt + 3, zz), STEEL, 5.2))
+        o.append(line(iso.p(FC_POST, ygap0 - 2, zz), iso.p(FC_POST, yt + 3, zz), STEEL, 5.2))
     sx0, sx1 = FC_IDLER - FC_SHELF / 2, FC_IDLER + FC_SHELF / 2
     o.append(slab_xz(iso, yshelf, 0.55, sx0, sx1, z1, z1 + mm(50), "#dfe4ea", STEEL, 1.4, 1.0))
     for xx in (FC_IDLER - FC_BOLT / 2, FC_IDLER + FC_BOLT / 2):
@@ -2955,16 +3569,42 @@ def drawing_frontend_c():
     pb = iso.p(FC_IDLER, yshelf, FC_BLK)
     o.append(rect((pb[0] - 10, pb[1] - 15), 20, 15, fill="#eef1f4", col=STEEL, sw=1.5, r=2))
     o.append(circ((pb[0], pb[1] - 7), 3.0, fill=PAPER, col=STEEL, w=1.3))
-    # push-bolt: axis ALONG the row, head at the wall end, turned from the AISLE
-    lg = iso.p(sx0 - 0.4, yshelf, FC_BLK)
-    o.append(line(lg, (lg[0], lg[1] - 13), MECH, 3.2))
-    o.append(line((lg[0], lg[1] - 8), (pb[0] - 10, lg[1] - 8), MECH, 2.4))
-    o.append(circ((lg[0] - 4, lg[1] - 8), 3.2, fill="#f6d8d4", col=MECH, w=1.5))
-    o.append(spring((lg[0] - 1, lg[1] - 8), (pb[0] - 11, lg[1] - 8), 5, 2.4, MECH, 1.1))
+    # PUSH-BOLT (D146): M10 x 100 through the post's leg, tip on the base's REAR end
+    # face, nut welded on the leg's rear face, head in the nook -- drawn at mid-travel
+    ybt = yshelf + mm(PB_UP)
+    xtip = FC_IDLER + mm(BASE_HALF)
+    xhd = xtip + mm(PB_LEN)
 
     o.append(keepout_box(iso, xa + 1, xb, ygap0 + 1.0, yf, z0, z1, "edge"))
     o.append(line(iso.p(0, ygap0 - 2, z1), iso.p(0, yt + 3, z1), STEEL, 6.0))
     o.append(txt(iso.p(xb, ygap0 + 4.8, z1), "KEEP OUT", 11.5, MECH, "middle", "700"))
+    # ---- the IDLER-GUARD END PANEL, near side (D133): mesh, idler post -> x = 0 leg,
+    #      pan lip -> 85 mm below the seat, on welded M6 studs with hex nuts
+    ep_t, ep_b = ysurf + mm(40), yseat - mm(85)
+    o.append(poly([iso.p(FC_POST, ep_t, z1), iso.p(0, ep_t, z1), iso.p(0, ep_b, z1),
+                   iso.p(FC_POST, ep_b, z1)], fill="#cfe0ee", col=MECH, w=1.6, op=0.28,
+                  dash="6 3"))
+    for k in range(1, 4):
+        xx = FC_POST + k * (-FC_POST) / 4
+        o.append(line(iso.p(xx, ep_t, z1), iso.p(xx, ep_b, z1), "#8fa9c0", 0.6))
+    for k in range(1, 4):
+        yy_ = ep_b + k * (ep_t - ep_b) / 4
+        o.append(line(iso.p(FC_POST, yy_, z1), iso.p(0, yy_, z1), "#8fa9c0", 0.6))
+    # studs (D143/D146): upper seat + 56, lower seat - 5, at BOTH uprights
+    for xx in (FC_POST + mm(8), -mm(8)):
+        for yy_ in (yseat + mm(56), yseat - mm(5)):
+            o.append(circ(iso.p(xx, yy_, z1), 2.6, fill=MECH, col=MECH, w=1))
+    # the NOSE-GUARD CHEEK, near side (D144): rides on the take-up, drawn at mid-travel
+    ch_pts = cheek_outline(FC_IDLER, yseat, ysurf)
+    o.append(poly([iso.p(xx, yy_, z1 + CHEEK_W) for xx, yy_ in ch_pts],
+                  fill="#f6d8d4", col=MECH, w=1.6, op=0.35))
+    # the push-bolt, drawn over the cheek and panel (it is outboard of both)
+    o.append(line(iso.p(xtip, ybt, FC_BLK), iso.p(xhd, ybt, FC_BLK), MECH, 3.0))
+    o.append(line(iso.p(FC_POST + mm(PB_LEG), ybt, FC_BLK),
+                  iso.p(FC_POST + mm(PB_LEG + 2 * PB_NUT), ybt, FC_BLK), MECH, 7.0,
+                  cap="butt"))
+    o.append(line(iso.p(xhd, ybt, FC_BLK), iso.p(xhd + mm(PB_HEAD), ybt, FC_BLK), INK, 8.0,
+                  cap="butt"))
 
     # ---- the cage above, and the water ----
     o.append(cage_box(iso, 0, xb, yf, yt, z0, z1, mesh=True, op=0.20))
@@ -2972,35 +3612,43 @@ def drawing_frontend_c():
     for a, b in (((0, yf, zdiv), (0, yt, zdiv)), ((0, yt, zdiv), (xb, yt, zdiv)),
                  ((xb, yf, zdiv), (xb, yt, zdiv))):
         o.append(line(iso.p(*a), iso.p(*b), CAGE_L, 1.1, op=0.6))
-    # THE ROUTE: drop INSIDE THE L of the upright -> T -> step past the span
-    # leg -> in through a grommet -> the tier's TWO nipple lines
+    # THE ROUTE: 1" drop INSIDE THE L of the cage-frame upright -> T + ball
+    # valve -> FLEXIBLE HOSE loop in through the cage face -> the drinker line
     zch = z1 + W_CHASE                       # the drop, in the angle's nook
     o.append(line(iso.p(0, ygap0 - 1, zch), iso.p(0, yt + 10, zch), WATER, 4.6))
     tp = iso.p(0, yn, zch)
+    o.append(line(iso.p(0, yn, zch), iso.p(W_VALVE_U, yn, zch), WATER, 3.4))
     o.append(circ(tp, 4.0, fill="#dff1fa", col=WATER, w=2.0))
-    o.append(line(iso.p(0, yn, zch), iso.p(W_STEP, yn, zch), WATER, 3.0))
-    o.append(line(iso.p(W_STEP, yn, zch), iso.p(W_STEP, yn, NIP_Z[1]), WATER, 3.0))
-    o.append(line(iso.p(W_STEP, yn, NIP_Z[1]), iso.p(xb, yn, NIP_Z[1]), WATER, 3.4))
-    o.append(circ(iso.p(W_STEP, yn, z1), 2.8, fill=PAPER, col=MECH, w=1.6))
-    # the far cage side's own nipple line, and its inlet off the far drop
-    o.append(line(iso.p(0, yn, NIP_Z[0]), iso.p(xb, yn, NIP_Z[0]), WATER, 2.2, dash="6 4"))
-    o.append(line(iso.p(W_STEP, yn, -W_CHASE), iso.p(W_STEP, yn, NIP_Z[0]), WATER, 1.6,
-                  dash="4 3"))
+    vp = iso.p(W_VALVE_U, yn, zch)
+    o.append(valve_flat(Flat(1, 0, 0), vp[0], -vp[1], 4.0))
+    o.append(hose_3d(iso, (W_TAIL, yn, zch), (W_HOSE_X, yn, NIP_Z[1]), W_SAG))
+    # the drinker line at its TOP setting, its nipples, and its range
+    o.append(line(iso.p(W_HOSE_X, yn, NIP_Z[1]), iso.p(xb, yn, NIP_Z[1]), WATER, 3.4))
+    for xn in NIP_X:
+        if xn < xb:
+            o.append(line(iso.p(xn, yn, NIP_Z[1]), iso.p(xn, yn - 1.1, NIP_Z[1]), WATER, 2.2))
+    am = iso.p(xb - 1.2, (yn + yf) / 2, NIP_Z[1])
+    o.append(arrow(am, iso.p(xb - 1.2, yn - 0.5, NIP_Z[1]), WATER, 1.4, 5.0)
+             + arrow(am, iso.p(xb - 1.2, yf + 0.3, NIP_Z[1]), WATER, 1.4, 5.0))
+    # the far cage side's own drinker line, and its hose off the far drop
+    o.append(line(iso.p(W_HOSE_X, yn, NIP_Z[0]), iso.p(xb, yn, NIP_Z[0]), WATER, 2.2,
+                  dash="6 4"))
     o.append(line(iso.p(0, ygap0 - 1, -W_CHASE), iso.p(0, yt + 10, -W_CHASE), WATER, 2.2,
                   dash="6 4"))
-    o.append(txt(iso.p(0, yt + 11.4, zch), "up to the BUCKET", 10.5, WATER, "middle", "700"))
+    o.append(txt(iso.p(0, yt + 11.4, zch), "up to the 40 L BUCKET", 10.5, WATER, "middle",
+                 "700"))
 
     # ---- what the two aisles carry, now that the pipe never leaves the steel ----
-    o.append(txt((62, 786), "The drop is INSIDE the angle's own outline on BOTH sides, so "
-                            "NEITHER aisle loses floor to pipework.", 11.5, WATER,
+    o.append(txt((62, 786 + S5), "The drops are INSIDE the angle's own outline on BOTH sides; only "
+                            "the valves and hose tails stand proud of the cage face.", 11.5, WATER,
                  "start", "700"))
-    o.append(txt((62, 804), "MACHINERY AISLE  —  the FAR side here.  Drop chains and the "
+    o.append(txt((62, 804 + S5), "MACHINERY AISLE  —  the FAR side here.  Drop chains and the "
                             "cross-aisle propshaft, ALL AT THE REAR.", 11.5, MECH,
                  "start", "700"))
 
     # ---- labels down the right-hand side ----
     LX = 676
-    _ly = [168]
+    _ly = [132]
 
     def note(anchor_pt, head, body, hcol=WATER, hot=None):
         y = _ly[0]
@@ -3012,55 +3660,74 @@ def drawing_frontend_c():
         _ly[0] = y + 16 + len(body) * 15 + 8
         return "".join(out)
 
-    o.append(note(iso.p(0, yt + 8.4, zch), "THE DROP  —  INSIDE THE L OF THE UPRIGHT",
-                  ["the angle's inside corner IS the pipe",
-                   "chase: pipe centre 15 mm off both legs,",
-                   "so it never leaves the steel's own",
-                   "outline. ONE PER SIDE — panel E."], hot=3))
-    o.append(note(tp, "T  —  ONE PER TIER, THREE PER SIDE",
-                  ['in the nook at 28 / 51 / 74", so SIX',
-                   "inlets per row: 3 tiers × 2 sides."]))
-    o.append(note(iso.p(W_STEP, yn, z1), "GROMMET  —  through the cage face",
-                  ["the inlet steps ~75 mm DOWN-ROW first,",
-                   "to clear the angle's span leg, then",
-                   "turns in. RIGID PIPE, never a hose."], hot=2))
-    o.append(note(iso.p(xb - 2, yn, NIP_Z[1]), "NIPPLE LINE  —  TWO PER TIER",
-                  ["one per cage side, each 180 mm inboard",
-                   "of its belt edge, so every drip lands",
-                   "on the belt.  Panel E dimensions it."]))
-    o.append(note(pb, "UCP204 ON A FLAT SHELF", 
-                  ["150 mm of 50 x 50 x 5 welded FLAT off",
-                   "the idler post, ONE EACH SIDE; shelf top",
-                   "face 33 mm below the roller centre. NOT",
-                   "on the vertical leg: the shelf IS the mount."], hcol=STEEL))
-    o.append(note(iso.p(FC_IDLER - FC_BOLT / 2, yshelf, z1 + mm(25)),
-                  "TAKE-UP SLOTS, ALONG THE ROW",
-                  ["cut in the shelf itself, 95 mm centres,",
-                   '60 mm travel (HDPE needs >=50 mm).',
-                   "M10 + lock nuts, TURNED FROM THE AISLE.",
-                   "Prefer a SPRING take-up.  ~250 N slack."],
+    o.append(note(iso.p(0, yt + 8.4, zch), "THE DROP  —  1\" PIPE INSIDE THE L",
+                  ["of the CAGE-FRAME upright, x = 0, on welded",
+                   "5 mm steel tabs: 5 mm off both inside faces.",
+                   "ONE PER SIDE.  Panel E2 shows the strap."], hot=2))
+    o.append(note(tp, "T + BALL VALVE  —  ONE PER TIER PER SIDE",
+                  ['in the nook at 28 / 51 / 74", fixed; SIX per row.',
+                   "Stem VERTICAL; lever FLAT along the face = OPEN."]))
+    o.append(note(iso.p(W_TAIL + 0.6, yn - 2.0, z1 + 0.3), "FLEXIBLE HOSE LOOP  (white)",
+                  ["valve → in through the cage face → the line.",
+                   "Stays between its OWN cage's floor and roof,",
+                   "slack inside the cage, both ends clamped."], hcol=MUTED, hot=1))
+    o.append(note(iso.p(xb - 2, yn, NIP_Z[1]), "DRINKER LINE  —  TWO PER TIER, ADJUSTABLE",
+                  ["1\" pipe, one per cage half, 180 mm inboard",
+                   "of its belt edge.  Shown at the TOP setting;",
+                   "lowered toward the cage floor for chicks.",
+                   "%d nipples per line — 2 per cell." % NIP_PER_LINE]))
+    o.append(note(pb, "UCP204 ON A FLAT SHELF, IN FRONT OF THE POST",
+                  ["200 mm of 50 x 50 x 5 welded FLAT to the FRONT",
+                   "face of the idler post's outstanding leg,",
+                   "reaching FORWARD; shelf top 33 mm below the",
+                   "roller centre. Slots along the row, 95 mm",
+                   "centres, 60 mm of travel. ONE EACH SIDE."], hcol=STEEL))
+    o.append(note(iso.p(xhd, ybt, FC_BLK),
+                  "PUSH-BOLT TAKE-UP  —  NO SPRING  (D146)",
+                  ["M10 × 100 through the post's leg, 7 mm above",
+                   "the shelf top; nut welded on the leg's REAR",
+                   "face + jam nut; head in the nook, turned from",
+                   "the aisle.  IN → bearing FORWARD → TIGHTER.",
+                   "Clamp both M12 bearing nuts after every turn."],
+                  hcol=MECH, hot=3))
+    o.append(note(iso.p(FC_IDLER, yroll, (bz0 + bz1) / 2), "IDLER  —  RUBBER TOP FLUSH WITH THE PAN",
+                  ["Ø63 × 3 tube, 8–10 mm PLAIN rubber wrap; the",
+                   "rubber flush with the pan to 3 mm above, never",
+                   'below.  Centres ~%.1f / %.1f / %.1f".' % tuple(half(v) for v in IDLE_Y)],
+                  hcol=MECH))
+    o.append(note(iso.p(0, ypc, z1 - 3.0), "x = 0 PIPE  —  ½\" GI, ACROSS THE STAND",
+                  ["on the BELT-SIDE faces of the span legs, top",
+                   "63 mm below the seat.  The drop is in the nook,",
+                   "the other side of the leg.  The strand passes",
+                   "~2 mm over it; it catches the belt when slack."], hcol=STEEL))
+    o.append(note(iso.p(FC_POST / 2, ep_b + 0.6, z1), "IDLER-GUARD END PANEL  —  ONE EACH SIDE",
+                  ["≤8 mm mesh, idler post → x = 0 leg, pan lip →",
+                   "85 mm below the seat; 20 mm TABS on WELDED",
+                   "M6 × 25 studs, M6 HEX NUTS; belt side of the",
+                   "nook, clear of the push-bolt, drop, straps, valves."],
+                  hcol=MECH))
+    o.append(note(iso.p(FC_IDLER - mm(20), yseat - mm(70), z1 + CHEEK_W),
+                  "NOSE-GUARD CHEEK  —  RIDES ON THE TAKE-UP",
+                  ["on the two bearings, under their M12 × 50 nuts;",
+                   "closes the bay AHEAD of the post.  G9(a) passed:",
+                   "ONE row first; the other nine after G9(b) (panel F)."],
                   hcol=MECH, hot=2))
-    o.append(note(iso.p(FC_IDLER, yroll, (bz0 + bz1) / 2), "IDLER  —  TOP FLUSH WITH THE PAN",
-                  ["so the centre sits ONE RADIUS",
-                   "(31.5 mm) below the pan surface.",
-                   'Ø63 x 3 tube, grooved lagging.'], hcol=MECH))
     o.append(note(iso.p(FC_IDLER, yroll, pz1 + FC_SHAFT - 0.8), "SHAFT END  —  130 mm OUT",
                   ["into BOTH aisles, and tier 1's is at shin",
                    "height. Under Rev C it ROTATES whenever",
                    "the row runs: FIXED shroud, 48 off."],
                   hcol=STEEL, hot=2))
     o.append(note(iso.p(0, (yseat + ysurf) / 2, zdiv), "PACKING  —  25 mm AT THIS FRAME",
-                  ["tapering to zero at the rear (~1:270).",
-                   "The cross-bar itself is DEAD LEVEL at",
-                   "all five frames — tracking wins."], hcol=MECH, hot=1))
+                  ["tapering to zero at the rear (~1:270); the",
+                   "cross-bar and the pipe ignore it — both level."], hcol=MECH, hot=1))
 
     # ========================================================================
     # B -- SIDE ELEVATION, from the clean aisle.  All three tiers.
     # ========================================================================
-    o.append(panel(975, 80, 765, 740,
+    o.append(panel(975, 80, 765, 740 + S5,
                    "B · SIDE ELEVATION from the CLEAN aisle  —  heights, the 14\" front "
                    "allocation, and the packing"))
-    fl = Flat(6.05, 1120, 745)
+    fl = Flat(7.1, 1120, 900)
     XR = 58.0
 
     # floor, front wall, spanner-swing strip
@@ -3092,9 +3759,9 @@ def drawing_frontend_c():
     o.append(txt(fl.p(30, kb - 1.7), 'KEEP OUT  —  bottom belt zone  12–17"', 9.5,
                  MECH, "middle", "700"))
 
-    # posts: idler-station post at -8, front cage leg at 0
-    o.append(line(fl.p(FC_IDLER, 0), fl.p(FC_IDLER, 78), STEEL, 5.0))
-    o.append(txt(fl.p(FC_IDLER, 80.4), 'idler post  78"', 10, STEEL, "middle", "700"))
+    # posts: idler post 103 mm in front of the front leg, BEHIND its shelves; cage leg at 0
+    o.append(line(fl.p(FC_POST, 0), fl.p(FC_POST, 78), STEEL, 5.0))
+    o.append(txt(fl.p(FC_POST - 0.6, 80.4), 'idler post  78"', 10, STEEL, "middle", "700"))
     o.append(line(fl.p(0, 0), fl.p(0, 78), STEEL, 5.5))
     o.append(txt(fl.p(3.4, 83.6), 'front cage leg  78"', 10, STEEL, "start", "700"))
 
@@ -3113,60 +3780,116 @@ def drawing_frontend_c():
         # pan + belt, carry strand
         o.append(line(fl.p(FC_IDLER, ys), fl.p(XR, ys - 0.35), PAN_L, 3.6))
         o.append(line(fl.p(FC_IDLER, ys + 0.62), fl.p(XR, ys + 0.27), BELT_L, 2.6))
-        # roller: TOP FLUSH with the pan surface
+        # roller: its 8-10 mm PLAIN rubber top flush with the pan surface (D130)
         rc = fl.p(FC_IDLER, yrl)
-        rr = D["roller_d"] / 2 * fl.s
-        o.append(circ(rc, rr, fill="#f2c9c4", col=MECH, w=1.8))
+        rr = (D["roller_d"] / 2 + LAG) * fl.s
+        o.append(circ(rc, rr, fill="#4a4f55", col=INK, w=1.0))
+        o.append(circ(rc, D["roller_d"] / 2 * fl.s, fill="#f2c9c4", col=MECH, w=1.6))
         o.append(path(f'M {f(rc[0])} {f(rc[1] - rr)} A {f(rr)} {f(rr)} 0 0 0 '
                       f'{f(rc[0])} {f(rc[1] + rr)}', col=BELT_L, w=3.0))
-        # return strand on the R3 skids, one roller diameter below the pan seat
-        o.append(line(fl.p(FC_IDLER, yrl - D["roller_d"] / 2), fl.p(XR, SKID_Y[tt]),
-                      BELT_L, 2.2))
-        for xk in (10, 26, 42):
-            sk = fl.p(xk, SKID_Y[tt])
-            o.append(rect((sk[0] - 4, sk[1]), 8, 0.79 * fl.s, fill="#dfe4ea",
-                          col=STEEL12, sw=1.0))
-        # the shelf and its take-up, seen from the aisle
+        # the return strand: off the idler's rubber bottom, ~61 below the seat at
+        # x = 0, then on towards the 72" pipe (D131)
+        xs5 = [FC_IDLER + k * (XR - FC_IDLER) / 60 for k in range(61)]
+        o.append(path("M " + " L ".join("%s %s" % tuple(f(c) for c in
+                                                    fl.p(xx, yq + mm(strand_mm(xx))))
+                                        for xx in xs5), col=BELT_L, w=2.4))
+        # the x = 0 PIPE, end-on: on the belt-side face of the span leg, under the
+        # cross-bar; the drop is in the nook, on this (aisle) side of the leg
+        o.append(circ(fl.p(LEG50 / 2, yq + mm(PIPE_TOP - PIPE_OD / 2)),
+                      PIPE_OD / 2 / 25.4 * fl.s + 0.6,
+                      fill="#b9c1cb", col=INK, w=1.8))
+        # the IDLER-GUARD END PANEL, face-on from the aisle (D133)
+        ep_t, ep_b = ys + mm(40), yq - mm(85)
+        o.append(rect(fl.p(FC_POST, ep_t), -FC_POST * fl.s, (ep_t - ep_b) * fl.s,
+                      fill="#cfe0ee", col=MECH, sw=1.4, op=0.30))
+        for k in range(1, 6):
+            xx = FC_POST + k * (-FC_POST) / 6
+            o.append(line(fl.p(xx, ep_t), fl.p(xx, ep_b), "#9db4c8", 0.5))
+        for k in range(1, 5):
+            yy_ = ep_b + k * (ep_t - ep_b) / 5
+            o.append(line(fl.p(FC_POST, yy_), fl.p(0, yy_), "#9db4c8", 0.5))
+        for xx in (FC_POST + mm(12), -mm(12)):     # studs: seat + 56 and seat - 5 (D146)
+            for yy_ in (yq + mm(56), yq - mm(5)):
+                o.append(circ(fl.p(xx, yy_), 2.2, fill=MECH, col=MECH, w=1))
+        # the nose-guard CHEEK, riding on the take-up (D144) -- mid-travel, outline
+        o.append(poly([fl.p(xx, yy_) for xx, yy_ in cheek_outline(FC_IDLER, yq, ys)],
+                      fill="none", col=MECH, w=1.1, dash="4 2"))
+        # the shelf, in FRONT of the post, and the push-bolt behind it (D146)
         sh = fl.p(FC_IDLER, yrl - FC_SEAT)
         o.append(rect((sh[0] - FC_SHELF / 2 * fl.s, sh[1]), FC_SHELF * fl.s, 0.4 * fl.s,
                       fill="#dfe4ea", col=STEEL, sw=1.6))
-        o.append(rect((rc[0] - 9, sh[1] - 15), 18, 15, fill="none", col=STEEL, sw=1.2, r=2))
-        bx = sh[0] - FC_SHELF / 2 * fl.s
-        o.append(line((bx, sh[1]), (bx, sh[1] - 12), MECH, 2.6))
-        o.append(spring((bx + 1, sh[1] - 7), (rc[0] - 10, sh[1] - 7), 5, 2.4, MECH, 1.2))
-        o.append(circ((bx - 4, sh[1] - 7), 3.0, fill="#f6d8d4", col=MECH, w=1.4))
-        # water: the nipple line, INSIDE the cage under its roof, the whole 22 ft
-        o.append(line(fl.p(W_STEP, NIPPLE[tt]), fl.p(XR, NIPPLE[tt]), WATER, 3.0))
-        o.append(circ(fl.p(1.0, NIPPLE[tt]), 3.2, fill="#dff1fa", col=WATER, w=1.6))
-        o.append(line(fl.p(1.0, NIPPLE[tt]), fl.p(W_STEP, NIPPLE[tt]), WATER, 2.2))
+        o.append(rect((rc[0] - mm(BASE_HALF) * fl.s, sh[1] - mm(14) * fl.s),
+                      mm(2 * BASE_HALF) * fl.s, mm(14) * fl.s, fill="none", col=STEEL,
+                      sw=1.2, r=1))
+        ybt_ = yrl - FC_SEAT + mm(PB_UP)
+        xt_ = FC_IDLER + mm(BASE_HALF)
+        o.append(line(fl.p(xt_, ybt_), fl.p(xt_ + mm(PB_LEN), ybt_), MECH, 2.2))
+        o.append(line(fl.p(xt_ + mm(PB_LEN), ybt_), fl.p(xt_ + mm(PB_LEN + PB_HEAD), ybt_),
+                      INK, 5.0, cap="butt"))
+        # water: T + ball valve in the nook, the hose loop, the drinker line at
+        # its TOP setting with its nipples, and the range it is lowered through
+        yn = NIPPLE[tt]
+        o.append(line(fl.p(1.0, yn), fl.p(W_VALVE_U, yn), WATER, 3.0))
+        o.append(hose_path(fl, W_TAIL, W_HOSE_X, yn, W_SAG))
+        o.append(line(fl.p(W_HOSE_X, yn), fl.p(XR, yn), WATER, 3.4))
+        for xn in NIP_X:
+            if xn < XR:
+                o.append(line(fl.p(xn, yn), fl.p(xn, yn - 1.2), WATER, 2.4))
+        o.append(circ(fl.p(1.0, yn), 3.4, fill="#dff1fa", col=WATER, w=1.6))
+        o.append(valve_flat(fl, W_VALVE_U, yn, 3.6))
+        o.append(adjust_arrow(fl, 48.0, yn - 1.5, FLOOR[tt] + 0.2))
         # the three numbers, out on the right
-        o.append(txt(fl.p(XR + 1.2, NIPPLE[tt] + 1.0), f'{NIPPLE[tt]}"  water',
+        o.append(txt(fl.p(XR + 1.2, NIPPLE[tt] + 1.0), f'{NIPPLE[tt]}"  T + valve',
                      11, WATER, "start", "700"))
+        o.append(txt(fl.p(XR + 1.2, NIPPLE[tt] - 1.4), "line TOP setting", 9.5, WATER,
+                     "start", "600"))
         o.append(txt(fl.p(XR + 1.2, yq + 2.3), f'{PAN[tt]}"  pan seat  —  LEVEL',
                      10.5, STEEL, "start", "700"))
         o.append(line(fl.p(XR, yq), fl.p(XR + 1.0, yq + 2.0), STEEL, 0.9, dash="3 3"))
-        o.append(txt(fl.p(XR + 1.2, yrl - 3.6), f'{yrl:.1f}"  idler centre',
+        o.append(txt(fl.p(XR + 1.2, yrl - 2.4), '~%.1f"  idler centre' % half(yrl),
                      10.5, MECH, "start", "700"))
-        o.append(line(fl.p(XR, yrl), fl.p(XR + 1.0, yrl - 3.3), MECH, 0.9, dash="3 3"))
+        o.append(line(fl.p(XR, yrl), fl.p(XR + 1.0, yrl - 2.1), MECH, 0.9, dash="3 3"))
 
     # the drop in the nook, its drain cock, and the run up to the bucket
-    BX = 12.0
-    o.append(line(fl.p(1.5, NIPPLE[0] - 2.4), fl.p(1.5, W_XOVER), WATER, 4.2))
-    o.append(circ(fl.p(1.5, NIPPLE[0] - 3.0), 2.6, fill="#f6d8d4", col=MECH, w=1.4))
-    o.append(txt(fl.p(3.8, NIPPLE[0] - 3.4), "drain cock  —  the foot of the drop", 9.5,
+    o.append(line(fl.p(1.0, NIPPLE[0] - 2.4), fl.p(1.0, 92.0), WATER, 4.2))
+    o.append(arrow(fl.p(1.0, 88.0), fl.p(1.0, 93.5), WATER, 3.0, 7.0))
+    o.append(circ(fl.p(1.0, NIPPLE[0] - 3.0), 2.6, fill="#f6d8d4", col=MECH, w=1.4))
+    o.append(line(fl.p(1.6, NIPPLE[0] - 3.0), fl.p(9.2, NIPPLE[0] - 3.0), MECH, 0.8,
+                  dash="3 3"))
+    o.append(txt(fl.p(9.6, NIPPLE[0] - 3.6), "drain cock  —  the foot of the drop", 9.5,
                  MECH, "start", "700"))
-    o.append(txt(fl.p(3.8, 68.0), "THE DROP  —  in the nook of this upright", 10,
+    o.append(txt(fl.p(9.6, 66.0), 'THE 1" DROP  —  in the nook of this upright', 10,
                  WATER, "start", "700"))
-    o.append(line(fl.p(1.5, W_XOVER), fl.p(BX, W_XOVER), WATER, 4.2))
-    o.append(valve_flat(fl, BX - 2.2, W_XOVER, 3.6))
-    o.append(txt(fl.p(BX + 2.6, 95.0), "TO THE BUCKET ON ITS OWN HOLDER", 10.5,
+    o.append(txt(fl.p(3.6, 92.6), 'UP TO THE ONE T UNDER THE 40 L BUCKET', 10.5,
                  WATER, "start", "700"))
-    o.append(txt(fl.p(BX + 2.6, 92.4), 'everything above the 77" top tie: the '
-                 "bucket, its ONE T and", 10, MUTED, "start"))
-    o.append(txt(fl.p(BX + 2.6, 89.8), "the run across to the far upright.  "
-                 "Drawn in panel E1.", 10, MUTED, "start"))
-    o.append(line(fl.p(BX + 1.6, 88.6), fl.p(BX, W_XOVER + 0.6), WATER, 0.9, dash="3 3"))
+    o.append(txt(fl.p(3.6, 90.0), 'bucket base %d", on its own small frame on the x = 0 '
+                 "top bar, 40 × 40 × 3." % W_BKT_Y[0], 10, MUTED, "start"))
+    o.append(txt(fl.p(3.6, 87.4), "Drawn in panel E1.", 10, MUTED, "start"))
+    # the hose-loop check, on tier 1
+    o.append(dim_v(fl.p(8.4, 0)[0], fl.p(0, FLOOR[0])[1],
+                   fl.p(0, NIPPLE[0] - W_SAG)[1], "", MUTED, 9))
+    o.append(line(fl.p(4.4, NIPPLE[0] - W_SAG), fl.p(8.9, NIPPLE[0] - W_SAG), MUTED, 0.8,
+                  dash="2 2"))
+    o.append(txt(fl.p(12.0, (FLOOR[0] + NIPPLE[0] - W_SAG) / 2 + 0.2),
+                 '%.0f" clear of the cage floor' % (NIPPLE[0] - W_SAG - FLOOR[0]), 9.5,
+                 MUTED, "start", "700"))
+    o.append(txt(fl.p(12.0, (FLOOR[0] + NIPPLE[0] - W_SAG) / 2 - 2.2),
+                 "hose loop at the TOP setting", 9, MUTED, "start"))
+    o.append(txt(fl.p(49.2, NIPPLE[2] - 5.0), "line lowered", 9, WATER, "start", "700"))
+    o.append(txt(fl.p(49.2, NIPPLE[2] - 7.0), "toward the floor", 9, WATER, "start", "700"))
 
+    o.append(lead(fl.p(0.3, PAN[0] + mm(PIPE_TOP - PIPE_OD / 2)), fl.p(20, 6.2),
+                  "x = 0 PIPE, end-on — ½\" GI, top 63 mm below the seat", STEEL, 10))
+    o.append(txt(fl.p(20.5, 4.4), "belt-side face of the span leg; the strand passes ~2 mm "
+                 "over it", 9.5, MUTED, "start"))
+    o.append(lead(fl.p(FC_POST / 2, PAN[0] - mm(85) + 0.2), fl.p(6, -3.0),
+                  "IDLER-GUARD END PANEL, mesh (D133) — pan lip to 85 mm below the seat",
+                  MECH, 10))
+    o.append(txt(fl.p(6.6, -4.9), "20 mm tabs on M6 × 25 studs WELDED to the idler post and "
+                 "the x = 0 upright, M6 hex nuts · 24 panels, 96 studs in the house", 9.5,
+                 MUTED, "start"))
+    o.append(txt(fl.p(6.6, -6.7), "dashed red: the NOSE-GUARD CHEEK on the take-up (panel F)",
+                 9.5, MECH, "start", "700"))
     o.append(lead(fl.p(0.8, PAN[1] + FC_PACK / 2), fl.p(20, 46.5),
                   "PACKING 25 mm at THIS frame", MECH, 10.5))
     o.append(txt(fl.p(20, 44.4), "→ tapering to ZERO at the rear frame, 264\" away "
@@ -3175,22 +3898,24 @@ def drawing_frontend_c():
                  10, MUTED, "start"))
 
     # the 14" allocation, dimensioned once
-    yd = fl.p(0, 0)[1] + 20
+    yd = fl.p(0, 0)[1] + 80
     o.append(dim_h(fl.p(FC_WALL, 0)[0], fl.p(FC_IDLER, 0)[0], yd, '6"', MECH))
     o.append(dim_h(fl.p(FC_IDLER, 0)[0], fl.p(0, 0)[0], yd, '8"', MECH))
+    o.append(dim_h(fl.p(FC_POST, 0)[0], fl.p(0, 0)[0], yd - 24, '103 mm', STEEL, 10))
     o.append(dim_h(fl.p(FC_WALL, 0)[0], fl.p(0, 0)[0], yd + 30, 'FRONT 14"', MECH, 11))
-    o.append(dim_h(fl.p(0, 0)[0], fl.p(BX, 0)[0], yd + 30, 'holder', WATER))
-    o.append(txt((992, 812), "The front 14\" is ALL BELT  —  nothing stands where a spanner "
-                             "must swing.  The bucket holder stands BEHIND the front leg.",
+    o.append(txt((992, 812 + S5), "The front 14\" is ALL BELT  —  nothing stands where a spanner "
+                             "must swing.  The water is on the cage frame at x = 0.",
                  11, MECH, "start", "700"))
 
     # ========================================================================
     # C -- PLAN AT ONE TIER: the shelf, its slots, the shaft ends, the T
     # ========================================================================
-    o.append(panel(40, 840, 915, 625,
+    iC = len(o)                                 # panels C, D, E move down by S5
+    S5E = 330                                   # extra height for panels C and D
+    o.append(panel(40, 840, 915, 625 + S5E,
                    "C · PLAN AT ONE TIER  —  the idler shelf and its take-up, and how the "
                    "water gets in without crossing the belt"))
-    pl = Flat(11.4, 244, 1383)
+    pl = Flat(11.4, 244, 1503)
     PXR = 56.0
     zsl0, zsl1 = z1, z1 + mm(50)          # the shelf, outboard of the near post
     zsr0, zsr1 = z0 - mm(50), z0
@@ -3204,7 +3929,7 @@ def drawing_frontend_c():
         o.append(line(pl.p(0, zz), pl.p(PXR, zz), CAGE_L, 2.4))
     o.append(line(pl.p(0, zdiv), pl.p(PXR, zdiv), CAGE_L, 1.4, dash="6 4"))
     o.append(txt(pl.p(PXR - 0.6, zdiv + 0.9), "wire divider", 10, CAGE_L, "end", "600"))
-    o.append(txt(pl.p(1.6, z1 - 1.6), "cage face / mesh", 10, CAGE_L, "start", "600"))
+    o.append(txt(pl.p(9.2, z1 - 1.6), "cage face / mesh", 10, CAGE_L, "start", "600"))
 
     # front wall
     o.append(line(pl.p(FC_WALL, z0 - 5.5), pl.p(FC_WALL, z1 + 6.5), MUTED, 3.0))
@@ -3225,25 +3950,28 @@ def drawing_frontend_c():
                      (a[0], a[1] + sv * LEG50 * pl.s)],
                     fill="#cfd5dd", col=STEEL, w=1.5)
 
-    for u in (0.0, FC_IDLER):
+    for u in (0.0, FC_POST):
         # HEEL AT THE CAGE FACE, body entirely OUTBOARD -- D53.  The inside of
         # the L therefore opens AWAY from the belt: that nook is the pipe chase.
-        o.append(ell(u, z1, +1, +1))          # near post
-        o.append(ell(u, z0, +1, -1))          # far post, mirrored
-    o.append(txt(pl.p(1.6, 27.6), "front cage leg  —  ANGLE, heel into the belt (D53)",
+        # (screen y runs DOWN, so -1 puts the outstanding leg OUTBOARD at the near side)
+        o.append(ell(u, z1, +1, -1))          # near post
+        o.append(ell(u, z0, +1, +1))          # far post, mirrored
+    o.append(txt(pl.p(9.2, 27.6), "front cage leg  —  ANGLE, heel into the belt (D53)",
                  10, STEEL, "start", "700"))
     for i3, s3 in enumerate([
             "★ D53's THREE CHECKS, on EVERY upright:",
             "1 · the belt-side face is an OUTSIDE face, never the inside of the L",
             "2 · the HEEL points at the belt.   3 · the BEARING LEG reaches into the aisle.",
-            "Turn one round and this pipe chase ends up INSIDE the belt zone."]):
+            "Turn one round and this pipe chase ends up INSIDE the belt zone.",
+            "",
+            "★ At BOTH END frames (x = 0 and 264\") the span leg points INTO the row (D142)."]):
         o.append(txt(pl.p(1.6, 22.6 - i3 * 1.7), s3, 9,
-                     MECH, "start", "700" if i3 in (0, 3) else "400"))
-    o.append(txt(pl.p(1.6, 4.2), "idler-station post at −8\", one each side  —  "
-                                 "78\", it carries all three shelves",
+                     MECH, "start", "700" if i3 in (0, 3, 5) else "400"))
+    o.append(txt(pl.p(9.2, 4.2), "idler-station post 103 mm in front of the front leg, "
+                 "BEHIND its shelves — 78\", carries all three",
                  10, STEEL, "start", "700"))
 
-    # the SHELVES: 150 mm of 50 x 50 x 5 welded flat, slots ALONG the row
+    # the SHELVES: 200 mm of 50 x 50 x 5 welded flat, slots ALONG the row
     for zsa, zsb, sgn in ((zsl0, zsl1, -1),):
         o.append(rect(pl.p(FC_IDLER - FC_SHELF / 2, max(zsa, zsb)),
                       FC_SHELF * pl.s, mm(50) * pl.s,
@@ -3251,21 +3979,38 @@ def drawing_frontend_c():
         zc = (zsa + zsb) / 2
         for uu in (FC_IDLER - FC_BOLT / 2, FC_IDLER + FC_BOLT / 2):
             o.append(slotbolt(pl.p(uu, zc), FC_SLOT * pl.s))
-        # UCP204 base footprint
-        o.append(rect(pl.p(FC_IDLER - FC_BOLT / 2 - 0.9, zc + 0.75),
-                      (FC_BOLT + 1.8) * pl.s, 1.5 * pl.s,
+        # UCP204 base footprint, 127 x 38
+        o.append(rect(pl.p(FC_IDLER - mm(BASE_HALF), zc + mm(19)),
+                      mm(2 * BASE_HALF) * pl.s, mm(38) * pl.s,
                       fill="none", col=STEEL, sw=1.2, r=2, op=0.9))
-        # push-bolt lug at the WALL end, bolt axis along the row, spring take-up
-        lgp = pl.p(FC_IDLER - FC_SHELF / 2 - 0.35, zc)
-        o.append(line((lgp[0], lgp[1] - 11), (lgp[0], lgp[1] + 11), MECH, 3.2))
-        o.append(line((lgp[0] - 10, lgp[1]), (lgp[0], lgp[1]), MECH, 2.6))
-        o.append(circ((lgp[0] - 13, lgp[1]), 3.4, fill="#f6d8d4", col=MECH, w=1.6))
-        o.append(spring((lgp[0] + 1, lgp[1]),
-                        (pl.p(FC_IDLER - FC_BOLT / 2 - 0.9, zc)[0], lgp[1]), 5, 3.0, MECH, 1.3))
-        o.append(path(f'M {f(lgp[0] - 22)} {f(lgp[1] - 11)} A 13 13 0 0 '
-                      f'{1 if sgn > 0 else 0} {f(lgp[0] - 22)} {f(lgp[1] + 11)}',
-                      col=MECH, w=1.2))
+        # the PUSH-BOLT (D146): tip on the base's REAR end face, through the post's
+        # leg, nut welded on the leg's REAR face + jam nut, head in the nook
+        xtp = FC_IDLER + mm(BASE_HALF)
+        xhp = xtp + mm(PB_LEN)
+        o.append(line(pl.p(xtp, zc), pl.p(xhp, zc), MECH, mm(10) * pl.s + 0.8, cap="butt"))
+        o.append(rect(pl.p(FC_POST + mm(PB_LEG), zc + mm(PB_AF / 2)),
+                      mm(2 * PB_NUT) * pl.s, mm(PB_AF) * pl.s, fill=MECH, col=INK, sw=0.8))
+        o.append(rect(pl.p(xhp, zc + mm(PB_AF / 2)), mm(PB_HEAD) * pl.s,
+                      mm(PB_AF) * pl.s, fill=INK, col=INK, sw=0.8))
+        # arrow ON THE BASE: turning the bolt IN moves the bearing toward the wall
+        o.append(arrow(pl.p(FC_IDLER + mm(45), zc - mm(12)),
+                       pl.p(FC_IDLER - mm(45), zc - mm(12)), MECH, 1.8, 6.0))
 
+    # the x = 0 PIPE, span leg to span leg, UNDER the pan and belt -- hidden, dashed
+    o.append(rect(pl.p(LEG50 / 2 - mm(PIPE_OD / 2), z1), mm(PIPE_OD) * pl.s,
+                  D["depth"] * pl.s, fill="#dfe4ea", col=INK, sw=1.4, op=0.55))
+    o.append(rect(pl.p(LEG50 / 2 - mm(PIPE_OD / 2), z1), mm(PIPE_OD) * pl.s,
+                  D["depth"] * pl.s, fill="none", col=INK, sw=1.4).replace(
+                      "/>", ' stroke-dasharray="5 3"/>'))
+    # the IDLER-GUARD END PANELS, one each side: idler post -> x = 0 leg (D133), on the
+    # belt side of the nook; and the NOSE-GUARD CHEEKS, inboard of the span face, riding
+    # on the take-up (D144) -- drawn at mid-travel
+    for zz, sg in ((z1, 1), (z0, -1)):
+        o.append(line(pl.p(FC_POST + mm(PB_LEG), zz + sg * mm(6.5)),
+                      pl.p(0, zz + sg * mm(6.5)), MECH, 2.4, cap="butt"))
+        o.append(line(pl.p(FC_IDLER - mm(CHEEK_FWD), zz + sg * CHEEK_W),
+                      pl.p(FC_IDLER + mm(CHEEK_AFT), zz + sg * CHEEK_W), MECH, 2.0,
+                      dash="5 2", cap="butt"))
     # the roller, its shafts and the FIXED shrouds
     o.append(line(pl.p(FC_IDLER, pz0), pl.p(FC_IDLER, pz1), MECH, 9.0))
     for zz, sg in ((pz0, -1), (pz1, +1)):
@@ -3273,43 +4018,56 @@ def drawing_frontend_c():
         o.append(shroud(pl.p(FC_IDLER, zz + sg * (FC_SHAFT - 0.9)), 17, 15))
     o.append(txt(pl.p(FC_IDLER + 1.4, (pz0 + pz1) / 2), "IDLER", 10.5, MECH, "start", "700"))
 
-    # the water: the drop in each angle nook, then the inlet in through a grommet
+    # the water: the 1" drop in each angle nook, T + valve, then the hose in
+    # through the cage mesh to that cage half's drinker line
     for side in (1, 0):
         sg = +1 if side else -1
         zf = z1 if side else z0
         zch = zf + sg * W_CHASE
         zn = NIP_Z[1] if side else NIP_Z[0]
-        o.append(circ(pl.p(W_CHASE, zch), 5.2, fill="#dff1fa", col=WATER, w=2.6))
-        o.append(line(pl.p(W_CHASE, zch), pl.p(W_STEP, zch), WATER, 3.0))
-        o.append(line(pl.p(W_STEP, zch), pl.p(W_STEP, zn), WATER, 3.0))
-        o.append(line(pl.p(W_STEP, zn), pl.p(PXR, zn), WATER, 4.0))
-        o.append(circ(pl.p(W_STEP, zf), 3.4, fill=PAPER, col=MECH, w=1.7))
-        o.append(txt(pl.p(38.0, zn + sg * 1.3), "NIPPLE LINE  —  all 22 ft", 10.5,
-                     WATER, "middle", "700"))
-    o.append(txt(pl.p(W_STEP + 1.2, z1 + 1.0), "grommet", 9.5, MECH, "start", "600"))
+        o.append(line(pl.p(W_HOSE_X, zn), pl.p(PXR, zn), WATER, 4.0))
+        for xn in NIP_X:
+            if xn < PXR:
+                o.append(circ(pl.p(xn, zn), 3.0, fill=WATER, col=WATER, w=1))
+        o.append(line(pl.p(W_CHASE, zch), pl.p(W_VALVE_U, zch), WATER, 3.4))
+        a_, c1, c2, b_ = (pl.p(W_TAIL, zch), pl.p(W_TAIL + 3.0, zch),
+                          pl.p(W_HOSE_X + 3.0, zn), pl.p(W_HOSE_X, zn))
+        dh = (f"M {f(a_[0])} {f(a_[1])} C {f(c1[0])} {f(c1[1])} {f(c2[0])} {f(c2[1])} "
+              f"{f(b_[0])} {f(b_[1])}")
+        o.append(f'<path d="{dh}" fill="none" stroke="{MUTED}" stroke-width="5" '
+                 f'stroke-linecap="round"/><path d="{dh}" fill="none" stroke="{PAPER}" '
+                 f'stroke-width="2.6" stroke-linecap="round"/>')
+        o.append(circ(pl.p(W_CHASE, zch), W_PIPE_R * pl.s, fill="#dff1fa", col=WATER, w=2.2))
+        o.append(valve_flat(pl, W_VALVE_U, zch, 3.8))
+        o.append(txt(pl.p(38.0, zn + sg * 1.3), "DRINKER LINE  —  all 22 ft, %d nipples"
+                     % NIP_PER_LINE, 10.5, WATER, "middle", "700"))
+    o.append(txt(pl.p(W_TAIL + 2.2, z1 + 1.4), "valve → hose, in through the mesh", 9.5,
+                 MUTED, "start", "700"))
     o.append(lead(pl.p(W_CHASE, z1 + W_CHASE), pl.p(9.0, 39.6),
-                  "The drop sits INSIDE the angle's own outline.", WATER, 10.5))
-    o.append(txt(pl.p(9.4, 38.2), "It takes no aisle width, it is nowhere near the belt, "
-                 "and the inlet steps ~75 mm", 10, MUTED, "start"))
-    o.append(txt(pl.p(9.4, 36.8), "DOWN-ROW before turning in, so it passes the span leg "
-                 "instead of through it.", 10, MUTED, "start"))
-    o.append(txt(pl.p(9.4, 35.4), "Both nipple lines sit 180 mm INBOARD OF A BELT EDGE, so "
-                 "every drip lands on the belt.", 10, WATER, "start", "700"))
+                  "The 1\" drop sits INSIDE the angle's own outline.", WATER, 10.5))
+    o.append(txt(pl.p(9.4, 38.2), "Only its valve and hose tail stand proud of the cage "
+                 "face.  The T's branch runs down-row", 10, MUTED, "start"))
+    o.append(txt(pl.p(9.4, 36.8), "past the span leg's toe; the hose goes in through the "
+                 "mesh — no hole in the span leg.", 10, MUTED, "start"))
+    o.append(txt(pl.p(9.4, 35.4), "Both drinker lines sit 180 mm INBOARD OF A BELT EDGE; "
+                 "dots = nipples, 2 per cell.", 10, WATER, "start", "700"))
 
     # dimensions
     o.append(dim_h(pl.p(FC_IDLER - FC_BOLT / 2, 0)[0], pl.p(FC_IDLER + FC_BOLT / 2, 0)[0],
                    pl.p(0, 38.4)[1], "95 mm bolt centres", STEEL, 10))
     o.append(dim_h(pl.p(FC_IDLER - FC_SHELF / 2, 0)[0], pl.p(FC_IDLER + FC_SHELF / 2, 0)[0],
-                   pl.p(0, 41.0)[1], "150 mm shelf  ·  60 mm travel", STEEL, 10))
+                   pl.p(0, 41.0)[1], "200 mm shelf  ·  60 mm travel", STEEL, 10))
+    o.append(dim_h(pl.p(FC_POST, 0)[0], pl.p(0, 0)[0], pl.p(0, 44.0)[1], "103 mm", STEEL, 10))
     o.append(dim_h(pl.p(FC_WALL, 0)[0], pl.p(FC_IDLER, 0)[0], pl.p(0, 42.4)[1], '6"', MECH))
     o.append(dim_h(pl.p(FC_IDLER, 0)[0], pl.p(0, 0)[0], pl.p(0, 42.4)[1], '8"', MECH))
     for ua, ub in ((BELT_Z1, NIP_Z[1]), (BELT_Z0, NIP_Z[0])):
         o.append(dim_v(pl.p(50.0, ua)[0], pl.p(0, ua)[1], pl.p(0, ub)[1],
                        "180 mm", WATER, 10))
         o.append(line(pl.p(46.0, ua), pl.p(51.0, ua), BELT_L, 0.9, dash="3 3"))
-    o.append(dim_v(pl.p(FC_IDLER + 2.6, 0)[0], pl.p(0, pz0)[1],
-                   pl.p(0, pz0 - FC_SHAFT)[1], "130 mm of shaft, into the aisle",
-                   STEEL, 10))
+    o.append(dim_v(pl.p(FC_IDLER + 1.2, 0)[0], pl.p(0, pz0)[1],
+                   pl.p(0, pz0 - FC_SHAFT)[1], "", STEEL, 10))
+    o.append(txt(pl.p(FC_IDLER + 0.6, pz0 - FC_SHAFT - 1.3), "130 mm of shaft, into the aisle",
+                 10, STEEL, "start", "600"))
     o.append(txt(pl.p(13.0, z0 - 2.4), "the machinery-aisle post carries an "
                  "IDENTICAL shelf, bearing and push-bolt  —  mirror image",
                  10, STEEL, "start", "600"))
@@ -3317,11 +4075,33 @@ def drawing_frontend_c():
     o.append(txt(pl.p(PXR - 0.4, z0 - 5.2),
                  "MACHINERY AISLE  —  drop chains and the cross-aisle propshaft, "
                  "ALL 278\" AWAY AT THE REAR.", 11.5, MECH, "end", "700"))
+    o.append(lead(pl.p(LEG50 / 2, 12.0), pl.p(4.2, -8.4),
+                  "x = 0 PIPE, ½\" GI, span leg to span leg — UNDER the pan (dashed)", STEEL, 10))
+    o.append(txt(pl.p(4.7, -9.9), "welded to the BELT-SIDE faces; each drop is in the nook, "
+                 "the other side of its leg", 9.5, MUTED, "start"))
+    o.append(lead(pl.p(FC_IDLER / 2, z0 - 0.2), pl.p(-3.0, -11.6),
+                  "IDLER-GUARD END PANEL, mesh, one each side (D133)", MECH, 10))
+    o.append(txt(pl.p(-2.5, -13.1), "The post stands BEHIND its shelves: the panel runs "
+                 "post → x = 0 and never meets the shaft.", 9.5, MECH, "start", "700"))
+    o.append(txt(pl.p(-2.5, -14.5), "The bay ahead is closed by the nose guard's cheeks, "
+                 "riding on the take-up.", 9.5, MECH, "start", "700"))
+    # the PUSH-BOLT callout, up in the clear band above the dimensions
+    zcb = z1 + mm(25)
+    o.append(lead(pl.p(FC_IDLER + mm(BASE_HALF + PB_LEN), zcb + mm(10)), pl.p(-13.4, 52.6),
+                  "PUSH-BOLT — M10 × 100 full thread, nut welded on the post's REAR face, "
+                  "head in the nook, turned from the aisle.", MECH, 10.5))
+    for k3, s3 in enumerate([
+            "Turn IN → bearing moves FORWARD → belt TIGHTER.  No spring.  Clamp the two M12 "
+            "bearing nuts after every adjustment.",
+            "Set by sag: 12 mm mid-bay (≈ 250 N).   The arrow on the base: the way the "
+            "bearing moves when the bolt is turned IN."]):
+        o.append(txt(pl.p(-12.9, 51.0 - k3 * 1.45), s3, 10, MECH if k3 == 0 else INK,
+                     "start", "700"))
 
     # ========================================================================
     # D -- what this end IS, the field rules, and the parts
     # ========================================================================
-    o.append(panel(975, 840, 765, 625,
+    o.append(panel(975, 840, 765, 625 + S5E,
                    "D · WHAT THIS END IS, AND WHAT TO BUY PER ROW"))
     dx = 996
     yy = 894
@@ -3329,27 +4109,42 @@ def drawing_frontend_c():
                  12, MECH, "start", "700"))
     yy += 20
     for a, b in [
-        ("The water drops INSIDE THE L of the upright",
-         "One bucket, ONE T, TWO pipes — one per side of the row. Each pipe drops in the "
-         "inside corner of its angle upright, 15 mm off both legs, so it stays inside the "
-         "steel's own outline: no aisle width lost, nothing in a keep-out band, nothing "
-         "near a belt or a roller."),
-        ("THREE Ts per side — SIX inlets per row",
-         "One T per tier per side at 28 / 51 / 74\". Each inlet steps ~75 mm down-row to "
-         "clear the angle's span leg, then turns in through a grommet to that cage side's "
-         "own nipple line: SIX nipple lines per row, TWO per tier."),
-        ("The bucket stands on its OWN holder",
-         "The holder's legs take the weight to the floor; the ties to the upright set its "
-         "elevation and stop it swaying. THE CAGE ANGLE CARRIES NO WATER LOAD. It stands "
-         "behind the front leg, clear of the front 14\"."),
-        ("The bearings sit on a SHELF (D55)",
-         "At the idler end the bearings are NOT on the vertical leg. They sit on 150 mm of "
-         "50 × 50 × 5 welded FLAT, slots cut along the row IN THE SHELF, 95 mm "
-         "centres, 60 mm travel."),
-        ("Idler centres ~11.8 / 34.8 / 57.8\" (D93 + D94)",
-         "Roller tops sit FLUSH with the pan surface, so the centre is one radius below "
-         "it — and at THIS frame the pan surface is one 25 mm packing higher than at "
-         "the rear, so these centres are 25 mm above the drive roller's."),
+        ("The 1\" water drops INSIDE THE L of the cage-frame upright",
+         "One 40 L bucket, ONE T, TWO 1\" pipes — one per side of the row. Each drops in "
+         "the inside corner of the upright at x = 0 on welded 5 mm steel tabs, inside "
+         "the steel's own outline: nothing in a keep-out band, nothing near a belt or a "
+         "roller."),
+        ("A T + BALL VALVE per tier per side — SIX per row",
+         "Fixed, at 28 / 51 / 74\". From each valve a FLEXIBLE HOSE loops in through the "
+         "cage face to that cage half's drinker line, so the line can be RAISED as the "
+         "chicks grow. The hose stays between its own cage's floor and roof, slack inside "
+         "the cage, both ends clamped. Valve stem vertical; lever flat along the face = open."),
+        ("The 40 L bucket sits on its OWN small frame",
+         "Tied to the x = 0 frame's TOP BAR, 40 × 40 × 3, horizontal leg on top. Base %d\", "
+         "1 ft above the 77\" stack top; the bucket about 400–430 mm tall, lid on, under "
+         "the 108\" ceiling (panel E)." % W_BKT_Y[0]),
+        ("The bearings sit on a SHELF, in front of the post (D55, D144)",
+         "At the idler end the bearings are NOT on the vertical leg. They sit on 200 mm of "
+         "50 × 50 × 5 welded FLAT to the FRONT face of the idler post's outstanding leg and "
+         "reaching FORWARD, slots cut along the row IN THE SHELF, 95 mm centres, 60 mm "
+         "travel. The post stands 103 mm in front of the front leg; the idler shaft stays "
+         "at 8\" (mid-travel). Shelf welded to the post UNDERNEATH and on BOTH SIDES only "
+         "— no top fillet within 15 mm of the push-bolt line."),
+        ("The take-up is a PUSH-BOLT — no spring (D146)",
+         "One M10 × 100 per bearing through a Ø11 hole in the post's leg, on the base's "
+         "centreline, 7 mm above the shelf top; nut welded on the leg's REAR face, jam nut "
+         "behind it; the tip bears on the base's rear end face. Turn IN → the bearing moves "
+         "FORWARD → the belt is TIGHTER. Clamp both M12 bearing nuts after every "
+         "adjustment. No force: it takes ~0.5 N·m. Never a longer bolt."),
+        ("Idler centres ~%.1f / %.1f / %.1f\" (D93, D94, D130)" % tuple(half(v) for v in IDLE_Y),
+         "The idler's 8–10 mm PLAIN rubber top sits flush with the pan surface (to 3 mm "
+         "above, never below) — and at THIS frame the pan surface is one 25 mm packing "
+         "higher than at the rear, so these centres are 25 mm above the drive roller's."),
+        ("The x = 0 pipe and the idler-guard end panels",
+         "The return strand leaves the idler's rubber bottom (~55 mm below the seat) and "
+         "passes x = 0 at ~61 below the seat — ~20 mm under the cross-bar, ~2 mm over the "
+         "x = 0 pipe — then rests on the 72\" pipe. Mesh end panels close the idler guard's "
+         "ends back to the x = 0 leg."),
         ("Cross-bars dead level; the FALL IS PACKED (D94)",
          "Cross-bars dead level at all five frames; the pan is packed up 25 mm HERE, at the "
          "front, tapering to zero at the rear — about 1:270."),
@@ -3383,8 +4178,9 @@ def drawing_frontend_c():
     o.append(txt((ex, 894), "TWO FIELD RULES  —  DO NOT SET EITHER OFF A TABLE",
                  12, MECH, "start", "700"))
     t, yv = wrap(ex, 914, 340,
-                 "1 · FIT THE PAN FIRST. Then set the TOP of every roller FLUSH with "
-                 "the pan surface and take the bearing height from that (D93).", 10.8, 14,
+                 "1 · FIT THE PAN FIRST. Then set the RUBBER top of every roller flush "
+                 "with the pan surface — to 3 mm above, never below — and take the bearing "
+                 "height from that (D93, D130).", 10.8, 14,
                  INK, "600")
     o.append(t)
     t, yv = wrap(ex, yv + 8, 340,
@@ -3392,22 +4188,44 @@ def drawing_frontend_c():
                  "rear. If it stalls, add front packing in 10 mm steps, record the figure "
                  "that works and use it on all twelve (D94).", 10.8, 14, INK, "600")
     o.append(t)
-    t, yv = wrap(ex, yv + 10, 340,
-                 "★ CONSEQUENCE FOR THIS SHEET, and it is not written down anywhere "
-                 "yet: the pan surface at the FRONT frame is one packing thickness high, so "
-                 "the IDLER centre is ~11.8 / 34.8 / 57.8\" — 25 mm ABOVE the drive "
-                 "roller's 10.8 / 33.8 / 56.8\". Weld the idler shelves AFTER the pan is "
-                 "in and packed.", 10.8, 14, MECH, "700")
+    t, yv = wrap(ex, yv + 8, 340,
+                 "★ PROTOTYPE DAY, same morning: belt tensioned, look under the FRONT "
+                 "cross-bar at x = 0. Daylight between the return strand and its lower edge "
+                 "→ build as drawn. CONTACT → stop and refer back; the cure is LESS front "
+                 "packing — never more, and never a pipe. Every mm of packing closes that "
+                 "~20 mm. This is G7(b): it gates the front-packing figure and so every idler "
+                 "shelf (D131, D145).", 10.8, 14, MECH,
+                 "700")
+    o.append(t)
+    t, yv = wrap(ex, yv + 8, 340,
+                 "The idler centre is ~%.1f / %.1f / %.1f\" — 25 mm ABOVE the drive roller's "
+                 "~%.1f / %.1f / %.1f\". Weld the idler shelves AFTER the pan is in and packed; "
+                 "on the prototype TACK them only until G7(b) passes."
+                 % (tuple(half(v) for v in IDLE_Y) + tuple(half(v) for v in ROLL_Y)),
+                 10.8, 14, INK, "600")
+    o.append(t)
+    t, yv = wrap(ex, yv + 8, 340,
+                 "★ TENSION BY SAG (D146). Return strand, belt STOPPED, isolator locked off. "
+                 "Pull a string tight from pipe top to pipe top under the belt in the 72–144\" "
+                 "or 144–216\" bay; measure string to belt at mid-bay, mid-width. 12 mm ≈ "
+                 "250 N. Accept 8–20 mm; under 8 mm is too tight. Never the first bay (0–72\"), "
+                 "never the last 48\" bay.", 10.8, 14, MECH, "700")
+    o.append(t)
+    t, yv = wrap(ex, yv + 8, 340,
+                 "A drive roller slips on a normal morning run → MEASURE THE SAG FIRST. Over "
+                 "~20 mm: re-set it to 12 mm. Sag right and still slipping: the lagging is "
+                 "glazed — clean and re-groove it. Never tighten past 12 mm to cure a slip.",
+                 10.8, 14, INK, "600")
     o.append(t)
 
     o.append(txt((ex, yv + 14), "TWO THINGS TO READ BEFORE YOU WELD", 12, INK,
                  "start", "700"))
     t, yv = wrap(ex, yv + 32, 340,
                  "NOT a clash: the idler's 130 mm shaft end reaches z = 36.7\" and the drop "
-                 "stands at z = 32.6\", so they overlap IN PLAN — but the shaft end is at "
+                 "stands at z = %.1f\", so they overlap IN PLAN — but the shaft end is at "
                  "x = −8\" and the drop is at x = 0, EIGHT INCHES apart along the row. "
-                 "Water lives on the cage frame; the shaft lives on the idler post.",
-                 10.8, 14)
+                 "Water lives on the cage frame; the shaft lives on the idler shelf."
+                 % (D["depth"] + W_CHASE), 10.8, 14)
     o.append(t)
     t, yv = wrap(ex, yv + 8, 340,
                  "SHAFTS ARE 1050 mm: D36 and D65 close the shin-height watch-out with 48 "
@@ -3418,144 +4236,607 @@ def drawing_frontend_c():
     o.append(txt((ex, yv + 16), "PER ROW, AT THIS END", 12, INK, "start", "700"))
     yv += 34
     for i, ln in enumerate([
-        "6|idler tensioning shelves — 150 mm of 50 × 50 × 5",
+        "6|idler shelves — 200 mm of 50 × 50 × 5, reaching forward",
         "6|UCP204 on them, collar OUTBOARD · 12 slots, 95 mm ctrs",
-        "6|M10 push-bolts + lock nuts, spring take-up preferred",
+        "6|M10 × 100 push-bolts, full thread + 6 weld nuts + 6 jam nuts",
         "6|FIXED shaft-end shrouds (12 per row all told) · 3 nose guards",
-        "2|idler-station posts, 78\", at −8\"",
-        "1|bucket + holder + 2 ties · 1 T · 1 ball valve",
-        "2|drop pipes, ONE PER SIDE, in the nook of the angle,",
-        " |each with a DRAIN COCK at its foot",
-        "6|tees — 3 per drop, at 28 / 51 / 74\"",
-        "6|inlets + 6 mesh grommets  (3 tiers × 2 sides)",
-        "6|nipple lines, ~22 ft each, 180 mm inboard of the belt edge",
+        "2|idler-station posts, 78\", 103 mm in front of the front leg",
+        "1|40 L bucket + its own small frame + ties · 1 T under it",
+        "2|1\" drops, ONE PER SIDE, in the nook, on 5 mm steel tabs,",
+        " |toe-hook straps, a DRAIN COCK at each foot",
+        "3|x = 0 return-strand pipes, ½\" GI, 813 mm — one per tier",
+        "6|idler-guard end panels, mesh, 20 mm tabs on welded studs",
+        "24|M6 × 25 studs + 24 M6 hex nuts — two each end of a panel",
+        "6|tees + 6 ball valves — 3 per drop, at 28 / 51 / 74\"",
+        "6|flexible hoses (white), valve to drinker line",
+        "6|drinker lines, 1\", ~22 ft, %d nipples each, adjustable" % NIP_PER_LINE,
         "15|packing shims, 25 mm at this frame, tapering aft",
     ]):
         n, lab = ln.split("|")
         o.append(txt((ex, yv + i * 15.5), n, 10.8, WATER, "start", "700"))
         o.append(txt((ex + 24, yv + i * 15.5), lab, 10.8, MUTED))
-    yv += 12 * 15.5 + 8
+    yv += 15 * 15.5 + 8
 
     # ========================================================================
     # E -- THE WATER, PROVED: the section across the row and the pipe chase
     # ========================================================================
-    o.append(panel(40, 1480, 1700, 660,
+    iE = len(o)
+    EY, EH = 1480, 1020
+    o.append(panel(40, EY, 1700, EH,
                    "E · THE WATER, PROVED  —  the section across the row, and the "
-                   "ENLARGED detail of the pipe chase.  This is the panel the plumber "
-                   "works from"))
-    ws = Flat(5.2, 196, 2086)
-    o.append(txt((70, 1548), "E1 · SECTION ACROSS THE ROW at the front frame",
+                   "ENLARGED detail of the 1\" drop in the angle.  This is the panel the "
+                   "plumber works from"))
+    ws = Flat(6.4, 136, EY + 980)
+    o.append(txt((64, EY + 64), "E1 · SECTION ACROSS THE ROW at the front frame, x = 0",
                  11.5, INK, "start", "700"))
     o.append(water_section(ws))
-    o.append(txt(ws.p(D["depth"] / 2, -2.8), "6 INLETS PER ROW  —  3 tiers × 2 sides",
-                 10, WATER, "middle", "700"))
-    # E2: enlarged plan, CROPPED to the upright, so the chase reads at size
-    zc0, zc1 = 28.6, float(D["depth"]) + LEG50 + 0.8
-    zt = float(D["depth"]) + LEG50
-    cs = Flat(62.0, 680, 1640 + zc1 * 62.0)
-    o.append(txt((470, 1548), "E2 · ENLARGED  —  THE PIPE CHASE.  Plan through the "
-                              "aisle-side upright, cut at 51\"", 11.5, INK, "start", "700"))
-    o.append(chase_detail(cs, side=1, zin=zc0 + 0.3, urun=4.4))
-    o.append(txt(cs.p(-1.95, zc1 - 0.06), "THE INSIDE OF THE L", 11.5, WATER,
-                 "start", "700"))
-    o.append(txt(cs.p(-1.95, zc1 - 0.32), "IS THE PIPE CHASE", 11.5, WATER,
-                 "start", "700"))
-    o.append(txt(cs.p(2.25, zt - 0.06), "50 × 50 × 5 upright  (D53)", 9.5, STEEL,
+    o.append(txt(ws.p(D["depth"] / 2, -3.0), "6 Ts + 6 VALVES + 6 HOSES PER ROW  —  "
+                 "3 tiers × 2 sides", 10, WATER, "middle", "700"))
+    # E1 key, under its title
+    for i, (kind, lab) in enumerate([
+            ("pipe", '1" PVC — the T under the bucket, both drops, the drinker lines'),
+            ("hose", "FLEXIBLE HOSE (white) — valve → through the cage face → drinker line"),
+            ("arrow", "drinker line: shown at its TOP setting; lowered toward the cage floor"),
+            ("valve", 'T + BALL VALVE in the nook, at 28 / 51 / 74" — fixed; stem vertical, '
+                      'lever flat along the face = OPEN')]):
+        yk = EY + 88 + i * 18
+        if kind == "pipe":
+            o.append(line((66, yk - 4), (96, yk - 4), WATER, 3.2))
+        elif kind == "hose":
+            o.append(hose_line((66, yk - 4), (96, yk - 4)))
+        elif kind == "arrow":
+            o.append(arrow((81, yk - 4), (81, yk - 12), WATER, 1.2, 4.0)
+                     + arrow((81, yk - 4), (81, yk + 3), WATER, 1.2, 4.0))
+        else:
+            o.append(circ((74, yk - 4), 4.0, fill="#dff1fa", col=WATER, w=1.6))
+            o.append(line((80, yk - 4), (80, yk - 11), MECH, 2.0))
+            o.append(circ((80, yk - 12), 2.0, fill=MECH, col=MECH, w=1))
+        o.append(txt((104, yk), lab, 10, MUTED))
+
+    # E2: enlarged plan through the aisle-side cage-frame upright
+    E2S = 50.0
+    zf = float(D["depth"])
+    cs = Flat(E2S, 556, EY + 92 + (zf + 3.9) * E2S)
+    o.append(txt((520, EY + 64), "E2 · ENLARGED PLAN — the 1\" drop in the nook of the "
+                                 "cage-frame upright, cut at 51\"", 11.5, INK, "start", "700"))
+    o.append(chase_detail(cs, side=1, urun=9.4))
+    lp = lambda u, v: cs.p(u, v)
+    zc_ = zf + W_CHASE
+    o.append(txt(lp(-0.55, zf + 3.55), "AISLE", 10, MECH, "start", "700"))
+    o.append(txt(lp(-0.55, zf - 0.24), "span face = the cage face", 9.5, CAGE_L, "start", "600"))
+    LU = 2.5
+    o.append(lead(lp(W_CHASE + 0.25, zc_ + 0.3), lp(LU, zf + 3.55),
+                  '1" PVC DROP  —  Ø%.1f mm' % W_PIPE_OD_MM, WATER, 10))
+    o.append(lead(lp(W_CHASE, zf + TH50 + mm(2.5)), lp(LU, zf + 3.2),
+                  "welded 5 mm STEEL TAB on each leg  →  pipe 5 mm off BOTH inside faces",
+                  STEEL, 9.5))
+    o.append(lead(lp(W_CHASE - 0.35, zc_ + 0.72), lp(LU, zf + 2.85),
+                  "tee socket ~Ø42 (dashed) — also inside the L", WATER, 9.5, "600"))
+    o.append(lead(lp(1.62, zf + 1.62), lp(LU, zf + 2.5),
+                  "TOE-HOOK STRAP, toe to toe, ≤100 mm from each tee",
+                  MECH, 9.5))
+    o.append(lead(lp(W_VALVE_U + 0.4, zc_ + 0.9), lp(5.3, zf + 2.12),
+                  "BALL VALVE — lever FLAT = OPEN", MECH, 10))
+    # the x = 0 return-strand pipe, BELOW the cut, on the belt-side face (dashed)
+    o.append(rect(lp(LEG50 / 2 - mm(PIPE_OD / 2), zf), mm(PIPE_OD) * E2S, 0.95 * E2S,
+                  fill="none", col=INK, sw=1.4).replace("/>", ' stroke-dasharray="5 3"/>'))
+    o.append(lead(lp(LEG50 / 2, zf - 0.95), lp(-0.45, zf - 2.85),
+                  "x = 0 PIPE below (dashed) — BELT-SIDE face", STEEL, 9.5))
+    o.append(txt(lp(8.0, zf - 2.5), "FLEXIBLE HOSE (white)", 10, MUTED, "end", "700"))
+    o.append(txt(lp(8.0, zf - 2.8), "in through the mesh, on to the drinker line", 9.5,
+                 MUTED, "end"))
+    o.append(txt(lp(0.2, zf - 1.35), "50 × 50 × 5 upright (D53)  —  x = 0", 9.5, STEEL,
                  "start", "600"))
-    o.append(txt(cs.p(2.25, zc1 - 0.06), "AISLE  —  no water reaches it", 9.5, MECH,
-                 "start", "700"))
-    o.append(dim_v(cs.p(-0.75, zt)[0], cs.p(0, D["depth"])[1], cs.p(0, zt)[1],
-                   "50", STEEL, 9.5))
-    o.append(dim_h(cs.p(0, zt)[0], cs.p(W_STEP, zt)[0], cs.p(0, zc0 + 0.45)[1],
-                   "~75 mm down-row", MECH, 9.5))
-    o.append(txt(cs.p(2.25, zt - 1.10), "15 mm off BOTH legs", 9.5, WATER,
-                 "start", "700"))
-    o.append(line(cs.p(2.20, zt - 1.14), cs.p(W_CHASE + 0.24, zt - 1.30), WATER,
-                  0.8, dash="3 2"))
-    o.append(txt(cs.p(-1.95, D["depth"] - 0.30), 'span face  —  z = 32", the cage face',
-                 9.5, CAGE_L, "start", "600"))
-    t, _ = wrap(560, 2062, 430,
-                "IN PLAN the inlet crosses the belt edge, and the nipple line stands over "
-                "the belt.  That is DELIBERATE: both are 15–16\" ABOVE it, inside the cage "
-                "volume, and every drip is meant to land on the belt.  What must never "
-                "cross is a KEEP-OUT BAND, and nothing here does.", 10.5, 14, INK, "600")
+    o.append(dim_h(lp(0, zf)[0], lp(W_VALVE_U, zf)[0], lp(0, zf - 1.95)[1],
+                   "valve ~110 mm down-row", MECH, 9.5))
+    o.append(txt(lp(0, zf - 2.35), "its body clear of the 50 mm toe", 9.5, MECH, "start"))
+
+    # E2 clearance table
+    ty = EY + 470
+    o.append(txt((520, ty), 'THE NOOK AS DRAWN  —  1" PVC, Ø%.1f mm, in 50 × 50 × 5'
+                 % W_PIPE_OD_MM, 11.5, INK, "start", "700"))
+    for i, (a, b) in enumerate([
+            ("pipe to EACH inside face", "%.1f mm  (on the 5 mm tabs)" % W_GAP_MM),
+            ("pipe edge to each leg toe", "%.1f mm of leg left beyond it" % W_TOE_MM),
+            ("tee socket (~Ø42) to the faces", "%.1f mm  —  it fits, only just" % W_TEE_GAP_MM),
+            ("tee socket to each leg toe", "2.3 mm inside the toes"),
+            ("pipe to a 12 mm root fillet", "9 mm clear — the fillet is not the limit"),
+            ("ball valve", "down-row of the toe, outboard of the cage face")]):
+        o.append(txt((520, ty + 22 + i * 17), a, 10.5, INK, "start", "700"))
+        o.append(txt((748, ty + 22 + i * 17), b, 10.5, MUTED))
+    t, yq = wrap(520, ty + 138, 470,
+                 "THE TABS ARE WHAT MAKE IT FIT.  Without them the pipe sits hard in the "
+                 "corner — but a ~42 mm tee then fouls BOTH legs by ~4 mm.  On 5 mm tabs (5–6, "
+                 "never under 5) the "
+                 "pipe and its tees stay inside the L's own 50 mm outline.  Take one real "
+                 "1\" tee to the angle before buying: if its socket is over 43 mm it will "
+                 "not sit in the nook — stop and ask.", 10.5, 14, MECH, "700")
+    o.append(t)
+    t, yq = wrap(520, yq + 8, 470,
+                 "Only the six valves and their hose tails stand proud of the cage face "
+                 "(about 60 mm into the aisle, at 28 / 51 / 74\").  Everything else is "
+                 "inside the steel.", 10.5, 14, INK, "600")
     o.append(t)
 
     # ---- the rules, as a plumber checks them ------------------------------
-    ux2 = 1010
-    o.append(txt((ux2, 1548), "★ THE TAPE CHECK  —  ONE HEIGHT RULE AND THREE BANDS",
+    ux2 = 1030
+    yy2 = EY + 64
+    o.append(txt((ux2, yy2), "★ THE TAPE CHECK  —  THE HEIGHTS AND THE THREE BANDS",
                  12, MECH, "start", "700"))
-    o.append(txt((ux2, 1574), '28 / 51 / 74"', 11.5, WATER, "start", "700"))
-    o.append(txt((ux2 + 104, 1574), "every HORIZONTAL run of water, and nothing else",
-                 11, WATER, "start", "700"))
-    o.append(txt((ux2 + 104, 1590), "— the nipple-line heights, 3\" under each cage roof",
-                 10.5, MUTED, "start"))
-    yy2 = 1612
+    yy2 += 26
+    o.append(txt((ux2, yy2), '28 / 51 / 74"', 11.5, WATER, "start", "700"))
+    o.append(txt((ux2 + 104, yy2), "the FIXED Ts and ball valves on the drops", 11,
+                 WATER, "start", "700"))
+    o.append(txt((ux2 + 104, yy2 + 16), "— and the drinker lines' TOP setting, 3\" under "
+                 "each cage roof", 10.5, MUTED, "start"))
+    yy2 += 38
     for ka, kb in KEEPOUT:
         o.append(rect((ux2, yy2 - 10), 96, 14, fill="#f7d9d5", col="#eec4bd", sw=0.9, r=2))
         o.append(txt((ux2 + 48, yy2), '%d–%d"' % (ka, kb), 10.5, MECH, "middle", "700"))
         o.append(txt((ux2 + 104, yy2), "KEEP OUT — nothing water-related, at any height",
                      10.5, MECH, "start", "700"))
         yy2 += 19
-    t, yy2 = wrap(ux2, yy2 + 10, 690,
-                  "THREE bands, not two: 12–17\" is tier 1's own belt zone and it is a "
-                  "keep-out band exactly like the two dropping gaps above it. Nothing "
-                  "water-related goes in any of them — no pipe, no fitting, no valve, no "
-                  "clip, no hanger.", 11, 15, INK, "600")
+    t, yy2 = wrap(ux2, yy2 + 8, 680,
+                  "THREE bands: 12–17\" is tier 1's own belt zone and it is a keep-out band "
+                  "exactly like the two dropping gaps above it.  No water pipe, fitting, valve, "
+                  "clip, hanger or hose in any of them — only the belt, the pan, its cross-bar "
+                  "and the return-strand pipes (steel, welded across the stands).", 11, 15,
+                  INK, "600")
     o.append(t)
-    o.append(txt((ux2, yy2 + 20), "WHY THIS ROUTE IS SAFE WITHOUT A RULE TO REMEMBER",
-                 12, INK, "start", "700"))
-    yy2 += 38
-    for s4 in [
-        "The only VERTICAL water is the two drops, and both are inside the nook of an "
-        "angle upright — inside the steel's own outline.",
-        "The only HORIZONTAL water below the stack top is at 28 / 51 / 74\", inside a cage "
-        "volume, with a roof over it.",
-        "Above the 77\" top tie there is no cage, no belt and no gap, so the bucket, its T "
-        "and the run across to the far upright all live up there.",
-        "Both nipple lines sit 180 mm inboard of a belt edge, so a drip cannot miss the "
-        "belt — and the belt clears it twice a day.",
-        "Water and drive share no station: all the water is at the FRONT frame, all the "
-        "drive is 278\" away at the REAR.  And because both drops sit in the nook of an "
-        "angle, the pipework takes no aisle width on either side of the row — so neither "
-        "aisle has to be reserved for it.",
-    ]:
-        t, yy2 = wrap(ux2, yy2, 690, "·  " + s4, 11, 15)
-        o.append(t)
-        yy2 += 5
 
-    o.append(txt((ux2, yy2 + 22), "★ WHERE THE CHASE DOES NOT WORK  —  PUT BOTH DROPS "
-                                  "ON THE CAGE FRAME, x = 0", 12, MECH, "start", "700"))
-    t, yy2 = wrap(ux2, yy2 + 42, 690,
-                  "At a CAGE FRAME the nook is clear floor to top and the drop goes "
-                  "straight down it.  It is not clear everywhere: at the IDLER POST "
-                  "(x = −8\") and at the DRIVE-STATION POST (x = 14\") the same nook "
-                  "carries the BEARING-BOLT NUTS — a UCP204 bolts through the outstanding "
-                  "leg and its nuts stand in the corner.  So a drop on either post has "
-                  "nowhere to sit.  BOTH DROPS ARE AT THE CAGE FRAME, x = 0, and nobody "
-                  "may later \"tidy\" one onto a post to shorten a run.", 11, 15, MECH,
+    o.append(txt((ux2, yy2 + 20), "★ THE DRINKER LINES ARE HEIGHT-ADJUSTABLE", 12, MECH,
+                 "start", "700"))
+    t, yy2 = wrap(ux2, yy2 + 40, 680,
+                  "Two per tier, one along the middle of each 16\" cage half, 180 mm inboard "
+                  "of its belt edge.  They start at the TOP setting, 28 / 51 / 74\", and are "
+                  "lowered toward the cage floor (17 / 40 / 63\") to suit the chicks, and "
+                  "raised as they grow.  Always INSIDE the cage: never below its floor, so "
+                  "never in a band.", 11, 15)
+    o.append(t)
+
+    o.append(txt((ux2, yy2 + 20), "★ A HOSE STAYS BETWEEN ITS OWN CAGE'S FLOOR AND ROOF  —  "
+                 "17–31, 40–54, 63–77\".", 11.5, MECH, "start", "700"))
+    t, yy2 = wrap(ux2, yy2 + 40, 680,
+                  "Slack stored INSIDE the cage, both ends clamped.  Cut each hose just long enough to reach its drinker line at the LOWEST "
+                  "setting.  At the top setting its loop then hangs about half the travel.  "
+                  "As drawn the loop drops %.0f\": lowest point %d / %d / %d\", which is %.0f\" "
+                  "above the cage floors and %d\" below the roof, so it stays clear of the "
+                  "band under the tier and the band over it.  Lowered, the hose runs down "
+                  "to the line and no lower."
+                  % (W_SAG, NIPPLE[0] - W_SAG, NIPPLE[1] - W_SAG, NIPPLE[2] - W_SAG,
+                     NIPPLE[0] - W_SAG - FLOOR[0], TOP[0] - NIPPLE[0]), 11, 15)
+    o.append(t)
+
+    o.append(txt((ux2, yy2 + 20), "NIPPLES  —  2 PER CELL ON EACH LINE", 12, INK,
+                 "start", "700"))
+    t, yy2 = wrap(ux2, yy2 + 40, 680,
+                  "11 cells along each cage half → %d NIPPLES PER LINE, 12\" apart, the first "
+                  "6\" from the frame and one either side of each cell's centre.  6 lines a "
+                  "row = %d per row; %d for the house."
+                  % (NIP_PER_LINE, NIP_PER_LINE * 6, NIP_PER_LINE * 24), 11, 15)
+    o.append(t)
+
+    o.append(txt((ux2, yy2 + 20), "THE BUCKET HEIGHT AND THE HEAD", 12, INK,
+                 "start", "700"))
+    t, yy2 = wrap(ux2, yy2 + 40, 680,
+                  "The 40 L bucket, ~Ø%d × %d mm, sits with its base 1 ft above the 77\" "
+                  "stack top (%d\") and its top at ~%.1f\".  The house is 108\" (9 ft) to "
+                  "the ceiling: %.1f\" (~%d mm) clear.  Head, bucket base to drinker line: "
+                  "%d / %d / %d\" (tiers 1 / 2 / 3) with the lines at the top setting, "
+                  "%d / %d / %d\" lowered to the cage floors.  ★ Check the real bucket is "
+                  "about 400–430 mm tall, lid on."
+                  % ((W_BKT_D_MM, W_BKT_H_MM, W_BKT_Y[0], W_BKT_Y[1], W_CLEAR,
+                      round(W_CLEAR_MM)) + tuple(W_HEAD) + tuple(W_HEAD_LO)),
+                  11, 15)
+    o.append(t)
+
+    o.append(txt((ux2, yy2 + 20), "★ WHERE THE CHASE DOES NOT WORK  —  BOTH DROPS ON THE "
+                                  "CAGE FRAME, x = 0", 12, MECH, "start", "700"))
+    t, yy2 = wrap(ux2, yy2 + 40, 680,
+                  "At the cage frame the nook is clear floor to top.  At the IDLER POST "
+                  "(103 mm in front of the front leg) the nook carries the push-bolt heads and "
+                  "the panel studs; at the DRIVE-STATION POST (x = 14\") it carries the UCP204 "
+                  "BEARING-BOLT NUTS.  A drop has nowhere to sit on either.  Nobody may "
+                  "\"tidy\" a drop onto a post.", 11, 15, MECH, "600")
+    o.append(t)
+    o.append(txt((ux2, yy2 + 20), "★ AND THE SPAN LEG IS NEVER DRILLED", 12, MECH,
+                 "start", "700"))
+    t, yy2 = wrap(ux2, yy2 + 40, 680,
+                  "The T's branch runs DOWN-ROW past the span leg's toe to its valve, and "
+                  "the hose goes in through the mesh.  The span leg's outer face is the cage "
+                  "face and a roller-face datum (D53): no hole in it, at any frame, for any "
+                  "pipe or clip.", 11, 15, MECH, "600")
+    o.append(t)
+    o.append(txt((ux2, yy2 + 20), "WATER AT THE FRONT ONLY  ·  chains and propshaft at the "
+                 "REAR, 278\" away.  They share no station.", 11, WATER, "start", "700"))
+    o.append(txt((ux2, yy2 + 50), "★ FRONT-END RULES  —  people work here, beside the idler",
+                 12, MECH, "start", "700"))
+    t, yy2 = wrap(ux2, yy2 + 70, 680,
+                  "Never stand on the idler shelves — a stepladder for the bucket.  Never refill "
+                  "a bucket during a pass.  Thread a belt BY HAND with the isolator PADLOCKED — "
+                  "never by jogging the motor.  No mains-powered water gadget (dosing pump, "
+                  "solenoid, heater, lamp) at the drops unless the electrician wires it.  Daily "
+                  "walk: every valve lever flat, every hose inside its own cage.", 11, 15, MECH,
                   "600")
     o.append(t)
-    o.append(txt((ux2, yy2 + 22), "★ AND THE SPAN LEG IS NEVER DRILLED", 12, MECH,
-                  "start", "700"))
-    t, yy2 = wrap(ux2, yy2 + 42, 690,
-                  "That is the whole reason the inlet steps ~75 mm DOWN-ROW before it "
-                  "turns in (dimensioned on E2): the pipe cannot pass through the angle's "
-                  "SPAN leg, whose outer face is the cage face and one of the module's "
-                  "roller-face datums (D53).  It goes PAST the leg, then in through a "
-                  "grommet in the mesh.  No hole in a span leg, at any frame, for any "
-                  "pipe.", 11, 15, MECH, "600")
-    o.append(t)
+
+    # ========================================================================
+    # F -- THE PUSH-BOLT TAKE-UP AND THE NOSE-GUARD CHEEK, ENLARGED (D144, D146)
+    # ========================================================================
+    FY, FH = EY + EH + 20, 1010
+    o.append(frontend_panel_f(FY, FH))
 
     kx = dx
     for col, lab in ((WATER, "water"), (MECH, "belt mechanism"),
                      (STEEL, "angle frame, bearings, shaft"),
                      ("#f7d9d5", "keep-out band")):
-        o.append(rect((kx, 2160), 20, 10, fill=col, col=INK, sw=0.8, r=2))
-        o.append(txt((kx + 26, 2169), lab, 10.8, MUTED))
+        o.append(rect((kx, FY + FH + 20), 20, 10, fill=col, col=INK, sw=0.8, r=2))
+        o.append(txt((kx + 26, FY + FH + 29), lab, 10.8, MUTED))
         kx += 34 + len(lab) * 5.3
 
+    o[iE:] = ['<g transform="translate(0,%d)">' % S5E] + o[iE:] + ["</g>"]
+    o[iC:] = ['<g transform="translate(0,%d)">' % S5] + o[iC:] + ["</g>"]
+    H = FY + FH + 50 + S5 + S5E
     write("manure-belt-REVC-5-frontend.svg", W, H, "".join(o))
+
+
+def frontend_panel_f(FY, FH):
+    """Sheet 5, panel F: the push-bolt take-up at BOTH travel extremes (plan) and the
+    idler nose-guard cheek at full forward (elevation from the aisle) -- tier 2, near
+    side, all in mm.  u = along the row from the front leg (x = 0), negative toward the
+    wall; w = across the row from the span face, positive OUTBOARD (into the aisle);
+    v = height above the pan seat."""
+    o = [panel(40, FY, 1700, FH,
+               "F · THE PUSH-BOLT TAKE-UP AND THE IDLER NOSE-GUARD CHEEK, ENLARGED  —  tier 2, "
+               "near side, mm, to scale.  The cheek is GATE G9(a): CAD's check, drawn here")]
+    s_mid = -(POST_MM + 100.0)   # -203: the 200 mm shelf centred on the shaft (D146 (5))
+    s_back, s_fwd = s_mid + 30.0, s_mid - 30.0        # shaft backed right off / full forward
+    lag_min = 8.0                                     # the thinnest wrap puts the bolt highest
+    v_ctr = 25 + 1 - LAG_MM - 31.5                    # idler centre, -14.5 (9 mm wrap)
+    v_shelf = v_ctr - 33.0                            # -47.5 as drawn
+    v_bolt = v_shelf + PB_UP                          # -40.5 as drawn
+    v_bolt_hi = 25 + 1 - lag_min - 31.5 - 33.0 + PB_UP  # -39.5 with an 8 mm wrap
+    STUD_W, STUD_LO, STUD_HI, STUD_L = 15.0, -5.0, 56.0, 25.0
+    TAB, WN_T, WN_D = 20.0, 5.0, 11.5                 # 20 mm tab; M6 hex nut 5 thick, 11.5 A/C
+    SP_T, SP_HALF = 7.0, 18.0                         # ASSUMED: 17 mm open spanner
+    CW1 = CHEEK_W * 25.4 + 0.75                       # cheek face toward the span face
+    CW0 = CHEEK_W * 25.4 - 0.75                       # cheek face toward the pan lip
+    STRIP = (D["depth"] - D["pan_w"]) / 2 * 25.4      # 11.4 mm: pan lip to span face
+    SP = D["depth"] * 25.4                            # 812.8 clear span
+    to_lip, to_span = STRIP + CW0, -CW1               # ~5.0 and ~5.0
+
+    def tip(sx):
+        return sx + BASE_HALF
+
+    def head(sx):
+        return tip(sx) + PB_LEN
+
+    # ---------------- F1 / F2: the two plans ----------------
+    S = 2.2
+    ox = 64 + 320 * S
+
+    def plan(oy, sx, title, first):
+        P = Flat(S, ox, oy)
+        q = []
+        q.append(txt((64, oy - 75 * S - 14), title, 11.5, INK, "start", "700"))
+        # pan, lip, belt, roller (inboard of the span face)
+        q.append(rect(P.p(PF_MM, -STRIP), (60 - PF_MM) * S, (30 - STRIP) * S, fill=PAN_F,
+                      col="none", sw=0, op=0.8))
+        q.append(line(P.p(PF_MM, -STRIP - 0.5), P.p(60, -STRIP - 0.5), PAN_L, 2.2))
+        q.append(rect(P.p(sx, -21.4), (60 - sx) * S, 8.6 * S, fill=BELT_F, col="none",
+                      sw=0, op=0.6))
+        q.append(rect(P.p(sx - 40.5, -STRIP), 81 * S, (30 - STRIP) * S, fill="#4a4f55",
+                      col=INK, sw=0.8))
+        # the x = 0 cross-bar end and the pipe, both UNDER the pan (hidden)
+        q.append(rect(P.p(0, 0), 40 * S, 30 * S, fill="none", col=STEEL, sw=1.0)
+                 .replace("/>", ' stroke-dasharray="4 3"/>'))
+        q.append(rect(P.p(25 - PIPE_OD / 2, 0), PIPE_OD * S, 30 * S, fill="none", col=INK,
+                      sw=1.0).replace("/>", ' stroke-dasharray="2 2"/>'))
+        # shelf, slots, base, housing, M12 nuts
+        q.append(rect(P.p(-303.2, 50), 200.2 * S, 50 * S, fill="#dfe4ea", col=STEEL, sw=1.4))
+        for off in (-47.5, 47.5):
+            a_, b_ = s_fwd + off - 7, s_back + off + 7
+            q.append(rect(P.p(a_, 32), (b_ - a_) * S, 14 * S, fill="#f4f6f8", col=STEEL,
+                          sw=0.9, r=7 * S))
+        q.append(rect(P.p(sx - BASE_HALF, 44), 2 * BASE_HALF * S, 38 * S, fill="#eef1f4",
+                      col=STEEL, sw=1.4))
+        q.append(rect(P.p(sx - 32, 41), 64 * S, 32 * S, fill="#e2e6ea", col=STEEL, sw=1.0))
+        for off in (-47.5, 47.5):
+            q.append(circ(P.p(sx + off, 25), 9.5 * S, fill="#c9cfd6", col=STEEL, w=1.0))
+        # shaft, across the row through the cheek, roller end and bearing
+        q.append(rect(P.p(sx - 10, 75), 20 * S, (75 + STRIP) * S, fill="#b9c1cb", col=STEEL,
+                      sw=1.0))
+        # the guard CARRIER (on top of the base, under its M12 nuts) -- dashed
+        q.append(rect(P.p(sx - 56, 44), (56 + BASE_HALF - 8) * S, (44 - CW0) * S,
+                      fill="none", col=MECH, sw=1.2).replace("/>", ' stroke-dasharray="6 3"/>'))
+        # the CHEEK
+        q.append(rect(P.p(sx - CHEEK_FWD, CW1), (CHEEK_FWD + CHEEK_AFT) * S, 1.5 * S,
+                      fill=MECH, col=MECH, sw=0.6))
+        # the two uprights, as Ls, heel at the span face, body OUTBOARD (D53)
+        for hx in (-POST_MM, 0.0):
+            q.append(poly([P.p(hx, 0), P.p(hx + 50, 0), P.p(hx + 50, 5), P.p(hx + 5, 5),
+                           P.p(hx + 5, 50), P.p(hx, 50)], fill="#cfd5dd", col=STEEL, w=1.4))
+        # the END PANEL on the belt side of the nook, and its tabs at the studs
+        q.append(rect(P.p(-POST_MM + 5, 7.5), (POST_MM - 7) * S, 2 * S, fill="#9db4c8",
+                      col=MECH, sw=0.8))
+        for tx in (-POST_MM + 5, -2.0):
+            q.append(rect(P.p(tx, 5.5 + TAB), 2 * S, TAB * S, fill=MECH, col=MECH, sw=0.6))
+        # lower studs + M6 hex nuts (above the bolt, 34 mm up)
+        for sx0, dirn in ((-POST_MM + 5 + 2, 1), (-2.0, -1)):
+            a_ = sx0 if dirn > 0 else sx0 - STUD_L + 2
+            q.append(rect(P.p(a_, STUD_W + 3), (STUD_L - 2) * S, 6 * S, fill="#dfe4ea",
+                          col=STEEL, sw=0.8))
+            b_ = sx0 if dirn > 0 else sx0 - WN_T
+            q.append(rect(P.p(b_, STUD_W + WN_D / 2), WN_T * S, WN_D * S, fill="#f6d8d4",
+                          col=MECH, sw=1.0))
+        # the PUSH-BOLT: shank, welded nut + jam nut on the leg's REAR face, head
+        t_, h_ = tip(sx), head(sx)
+        q.append(rect(P.p(t_, 30), (h_ - t_) * S, 10 * S, fill="#e8b5ae", col=MECH, sw=1.0))
+        q.append(rect(P.p(-POST_MM + PB_LEG, 25 + PB_AF / 2), PB_NUT * S, PB_AF * S,
+                      fill=MECH, col=INK, sw=0.8))
+        q.append(rect(P.p(-POST_MM + PB_LEG + PB_NUT, 25 + PB_AF / 2), PB_NUT * S,
+                      PB_AF * S, fill="#d8675a", col=INK, sw=0.8))
+        q.append(rect(P.p(h_, 25 + PB_AF / 2), PB_HEAD * S, PB_AF * S, fill=INK, col=INK,
+                      sw=0.8))
+        # 17 mm open spanner on the head, from the aisle -- envelope
+        q.append(rect(P.p(h_ + PB_HEAD - SP_T, 75), SP_T * S, (75 - 13) * S, fill="#fff3c4",
+                      col=MUTED, sw=0.9, op=0.7).replace("/>", ' stroke-dasharray="3 2"/>'))
+        # arrow on the base: IN moves the bearing toward the wall
+        q.append(arrow(P.p(sx + 45, 12), P.p(sx - 45, 12), MECH, 1.8, 6.0))
+        # dimensions
+        base_gap = -POST_MM - tip(sx)
+        q.append(dim_h(P.p(tip(sx), 0)[0], P.p(-POST_MM, 0)[0], P.p(0, 60)[1],
+                       "%.1f" % base_gap, MECH, 10))
+        q.append(line(P.p(tip(sx), 25), P.p(tip(sx), 62), MECH, 0.6, dash="2 2"))
+        q.append(dim_h(P.p(-POST_MM, 0)[0], P.p(0, 0)[0], P.p(0, 72)[1], "103", STEEL, 10))
+        cheek_aft = sx + CHEEK_AFT
+        yb = P.p(0, -38)[1]
+        if sx == s_fwd:
+            q.append(dim_h(P.p(-POST_MM, 0)[0], P.p(cheek_aft, 0)[0], yb,
+                           "%.0f  ≥ 25" % (cheek_aft + POST_MM), MECH, 10, off=26))
+            q.append(dim_h(P.p(-82, 0)[0], P.p(h_, 0)[0], P.p(0, 42)[1],
+                           "%.1f" % (h_ + 82), MECH, 9.5))
+            q.append(txt(P.p(-60, 44), "head → x = 0 face %.0f" % (-(h_ + PB_HEAD)), 9.5, INK,
+                         "start", "700"))
+        else:
+            q.append(dim_h(P.p(cheek_aft, 0)[0], P.p(0, 0)[0], yb,
+                           "%.0f" % (-cheek_aft), MECH, 10, off=26))
+            q.append(lead(P.p(h_ + PB_HEAD + 1.5, 25), P.p(12, 60),
+                          "head → x = 0 face %.1f" % (-(h_ + PB_HEAD)), INK, 9.5))
+        for xx in (-POST_MM, cheek_aft, 0.0):
+            q.append(line(P.p(xx, -30), P.p(xx, -40), MUTED, 0.6))
+        if first:
+            q.append(txt(P.p(-316, 55), "SHELF 200 × 50 × 5, welded to the post's FRONT face",
+                         9, STEEL, "start", "700"))
+            q.append(txt(P.p(-316, -27), "pan lip", 9, PAN_L, "start", "700"))
+            q.append(txt(P.p(sx - 36, -27), "IDLER", 9, PAPER, "start", "700"))
+            q.append(txt(P.p(8, -8), "x = 0 cross-bar + pipe, under the pan", 9, STEEL,
+                         "start", "600"))
+            q.append(txt(P.p(8, 40), "x = 0 upright", 9, STEEL, "start", "700"))
+        return "".join(q)
+
+    oy1 = FY + 64 + 75 * S
+    oy2 = oy1 + 300
+    o.append(plan(oy1, s_back, "F1 · PLAN, BACKED RIGHT OFF  —  base 6.5 mm in front of the "
+                  "post, belt slack for threading", True))
+    o.append(plan(oy2, s_fwd, "F2 · PLAN, FULL FORWARD  —  base 66.5 mm in front of the "
+                  "post, all 60 mm used", False))
+    # key for the plans
+    ky = oy2 + 52 * S + 16
+    for k, (col, lab) in enumerate([
+            (MECH, "red bar: the CHEEK, 1.5 mm, in the %.1f mm strip between the pan lip and "
+                   "the span face" % STRIP),
+            ("#9db4c8", "blue-grey bar: the END PANEL on the belt side of the nook, on tabs at "
+                        "the studs"),
+            ("#fff3c4", "yellow: a 17 mm open spanner on the head, put on from the aisle"),
+            (MECH, "dashed red: the guard's CARRIER on top of the base — stops 8 mm short of "
+                   "its rear end face")]):
+        o.append(rect((64, ky + k * 16 - 9), 18, 9, fill=col, col=INK, sw=0.6))
+        o.append(txt((90, ky + k * 16), lab, 10, MUTED))
+    o.append(txt((64, ky + 4 * 16 + 2), "★ Shelf welded to the post UNDERNEATH and on BOTH "
+                 "SIDES only — no top fillet within 15 mm of the push-bolt line.", 10.5, MECH,
+                 "start", "700"))
+
+    # clearance table (worst case: the thinnest wrap, bolt highest)
+    gap = STUD_LO - v_bolt_hi                        # stud centre above bolt axis
+    cy = ky + 96
+    o.append(txt((64, cy), "PUSH-BOLT CLEARANCES — CAD's check at BOTH travel extremes (D146)",
+                 12, MECH, "start", "700"))
+    rows = [
+        ("BACKED RIGHT OFF", None),
+        ("head → x = 0 upright's front face", "%.1f mm" % (-(head(s_back) + PB_HEAD))),
+        ("17 mm spanner on the head → x = 0 face", "≈ %.0f mm" % (-(head(s_back) + PB_HEAD))),
+        ("head corner → lower stud centre, vertically", "%.1f mm" % (gap - PB_AC / 2)),
+        ("head corner → a 20 mm tab's lower edge", "%.1f mm" % (gap - PB_AC / 2 - TAB / 2)),
+        ("spanner jaw → that tab's lower edge", "%.1f mm" % (gap - SP_HALF - TAB / 2)),
+        ("spanner jaw → the stud's hex nut, corner", "%.1f mm" % (gap - SP_HALF - WN_D / 2)),
+        ("head → end-panel mesh, across the row", "%.1f mm" % (25 - PB_AF / 2 - 7.5)),
+        ("FULL FORWARD", None),
+        ("head under-face → jam nut", "%.1f mm" % (head(s_fwd) + 82)),
+        ("head → x = 0 upright's front face", "%.1f mm" % (-(head(s_fwd) + PB_HEAD))),
+        ("head → idler-post stud's hex nut, along the row",
+         "%.1f mm" % (head(s_fwd) - (-POST_MM + 5 + 2 + WN_T))),
+        ("BOTH (the nuts never move)", None),
+        ("jam nut corner → post stud's 20 mm tab, vertically",
+         "%.1f mm" % (gap - PB_AC / 2 - TAB / 2)),
+    ]
+    yy = cy + 20
+    for a_, b_ in rows:
+        if b_ is None:
+            o.append(txt((64, yy + 2), a_, 10.5, INK, "start", "700"))
+            yy += 17
+            continue
+        o.append(txt((80, yy), a_, 10.2, MUTED))
+        o.append(txt((460, yy), b_, 10.2, INK, "end", "700"))
+        yy += 15
+    t, yy = wrap(490, cy + 38, 380,
+                 "Bolt drawn at its HIGHEST — the 8 mm wrap puts it %.1f mm under the lower "
+                 "stud; the design's round figure is 34.  Everything clears at both ends of "
+                 "the travel; the tightest is the spanner's jaw to the tab's lower edge, "
+                 "%.1f mm.  A hex nut has no wing to hang down: its corner is %.2f mm off the "
+                 "stud centre, leaving the jaw %.1f mm.  HARDWARE: M6 × 25 studs, 20 mm tabs, "
+                 "M6 HEX NUTS (10 A/F, 5 thick) — 96 studs in the house, 24 per row.  Spanner "
+                 "taken as a 17 mm open-ender, 7 mm thick, 36 mm across the jaws."
+                 % (gap, gap - SP_HALF - TAB / 2, WN_D / 2, gap - SP_HALF - WN_D / 2),
+                 10, 13.5, MECH, "600")
+    o.append(t)
+    t, yy = wrap(490, yy + 8, 400,
+                 "The panel stays on the belt side of the nook and meets each upright only by "
+                 "its tabs: the bolt, both nuts and the head are OUTSIDE it, where the spanner "
+                 "reaches.", 10, 13.5, INK, "600")
+    o.append(t)
+
+    # ---------------- F3: elevation at full forward, from the aisle ----------------
+    SE = 1.7
+    E = Flat(SE, 1560 - 60 * SE, FY + 110 + 80 * SE)
+    ex0 = 1560 - 380 * SE
+    o.append(txt((ex0, FY + 60), "F3 · ELEVATION FROM THE AISLE, FULL FORWARD  —  the cheek "
+                 "solid, backed off dashed", 11.5, INK, "start", "700"))
+    # seat datum
+    o.append(line(E.p(-320, 0), E.p(60, 0), MUTED, 0.7, dash="6 4"))
+    # roller (behind everything), pan, lip beyond
+    rc = E.p(s_fwd, v_ctr)
+    o.append(circ(rc, 40.5 * SE, fill="#4a4f55", col=INK, w=0.8))
+    o.append(circ(rc, 31.5 * SE, fill="#f2c9c4", col=MECH, w=1.0))
+    o.append(rect(E.p(PF_MM, 26), (60 - PF_MM) * SE, 1.6 * SE, fill=PAN_L, col=PAN_L, sw=0.6))
+    o.append(line(E.p(PF_MM, 66), E.p(60, 66), PAN_L, 1.2, dash="5 3"))
+    # x = 0 cross-bar and pipe, hidden behind the span leg
+    o.append(rect(E.p(0, 0), 40 * SE, 40 * SE, fill="none", col=STEEL, sw=0.9)
+             .replace("/>", ' stroke-dasharray="4 3"/>'))
+    pc = E.p(25, PIPE_TOP - PIPE_OD / 2)
+    o.append(f'<circle cx="{f(pc[0])}" cy="{f(pc[1])}" r="{f(PIPE_OD / 2 * SE)}" '
+             f'fill="none" stroke="{INK}" stroke-width="0.9" stroke-dasharray="2 2"/>')
+
+    # the cheek: backed off dashed, full forward solid (translucent: the roller is behind)
+    def cheek_mm(sx):
+        pts = cheek_outline(sx / 25.4, 0.0, 26 / 25.4)
+        return [E.p(xx * 25.4, yy_ * 25.4) for xx, yy_ in pts]
+    o.append(poly(cheek_mm(s_back), fill="none", col=MECH, w=1.3, dash="6 3"))
+    o.append(poly(cheek_mm(s_fwd), fill="#f6d8d4", col=MECH, w=2.2, op=0.45))
+    o.append(circ(E.p(s_fwd, v_ctr), 10 * SE, fill="#b9c1cb", col=STEEL, w=1.0))
+    # uprights: span-leg faces, outstanding-leg edges
+    for hx in (-POST_MM, 0.0):
+        o.append(rect(E.p(hx, 80), 50 * SE, 180 * SE, fill="#e9ecf0", col=STEEL, sw=0.8,
+                      op=0.55))
+        o.append(rect(E.p(hx, 80), 5 * SE, 180 * SE, fill="#aeb6c1", col=STEEL, sw=1.0))
+    # the end panel, between the uprights
+    o.append(rect(E.p(-POST_MM + 5, 66), (POST_MM - 5) * SE, 151 * SE, fill="#cfe0ee",
+                  col=MECH, sw=1.2, op=0.35))
+    for k in range(1, 6):
+        xx = -POST_MM + 5 + k * (POST_MM - 5) / 6
+        o.append(line(E.p(xx, 66), E.p(xx, -85), "#9db4c8", 0.5))
+    for k in range(1, 7):
+        yy_ = -85 + k * 151 / 7
+        o.append(line(E.p(-POST_MM + 5, yy_), E.p(0, yy_), "#9db4c8", 0.5))
+    # tabs, studs and M6 hex nuts, both uprights
+    for vs in (STUD_HI, STUD_LO):
+        for face, dirn in ((-POST_MM + 5, 1), (0.0, -1)):
+            tx = face if dirn > 0 else face - 2
+            o.append(rect(E.p(tx, vs + TAB / 2), 2 * SE, TAB * SE, fill=MECH, col=MECH,
+                          sw=0.6))
+            sx0 = face + 2 * dirn
+            a_ = sx0 if dirn > 0 else sx0 - (STUD_L - 2)
+            o.append(rect(E.p(a_, vs + 3), (STUD_L - 2) * SE, 6 * SE, fill="#dfe4ea",
+                          col=STEEL, sw=0.8))
+            b_ = sx0 if dirn > 0 else sx0 - WN_T
+            o.append(rect(E.p(b_, vs + WN_D / 2), WN_T * SE, WN_D * SE, fill="#f6d8d4",
+                          col=MECH, sw=0.9))
+    # shelf, base, housing, carrier, M12 nuts
+    o.append(rect(E.p(-303.2, v_shelf), 200.2 * SE, 5 * SE, fill="#dfe4ea", col=STEEL, sw=1.2))
+    o.append(rect(E.p(s_fwd - BASE_HALF, v_shelf + 14), 2 * BASE_HALF * SE, 14 * SE,
+                  fill="#eef1f4", col=STEEL, sw=1.3))
+    o.append(circ(E.p(s_fwd, v_ctr), 30 * SE, fill="#eef1f4", col=STEEL, w=1.0))
+    o.append(circ(E.p(s_fwd, v_ctr), 10 * SE, fill="#b9c1cb", col=STEEL, w=1.0))
+    o.append(rect(E.p(s_fwd - 56, v_shelf + 17), (56 + BASE_HALF - 8) * SE, 3 * SE,
+                  fill=MECH, col=MECH, sw=0.6, op=0.8))
+    for off in (-47.5, 47.5):
+        o.append(rect(E.p(s_fwd + off - 9.5, v_shelf + 28), 19 * SE, 11 * SE,
+                      fill="#c9cfd6", col=STEEL, sw=0.8))
+    # the push-bolt at full forward
+    t_, h_ = tip(s_fwd), head(s_fwd)
+    o.append(rect(E.p(t_, v_bolt + 5), (h_ - t_) * SE, 10 * SE, fill="#e8b5ae", col=MECH,
+                  sw=1.0))
+    o.append(rect(E.p(-POST_MM + PB_LEG, v_bolt + PB_AF / 2), 2 * PB_NUT * SE, PB_AF * SE,
+                  fill=MECH, col=INK, sw=0.8))
+    o.append(rect(E.p(h_, v_bolt + PB_AF / 2), PB_HEAD * SE, PB_AF * SE, fill=INK, col=INK,
+                  sw=0.8))
+    # dimensions on the elevation
+    lap = s_fwd + CHEEK_AFT + POST_MM
+    o.append(dim_h(E.p(-POST_MM, 0)[0], E.p(s_fwd + CHEEK_AFT, 0)[0], E.p(0, -96)[1],
+                   "%.0f" % lap, MECH, 10, off=24))
+    o.append(dim_h(E.p(s_fwd - CHEEK_FWD, 0)[0], E.p(s_fwd, 0)[0], E.p(0, 78)[1], "50",
+                   MECH, 10))
+    o.append(dim_h(E.p(s_fwd, 0)[0], E.p(s_fwd + CHEEK_AFT, 0)[0], E.p(0, 78)[1],
+                   "160 below the pan", MECH, 10))
+    o.append(line(E.p(s_fwd, v_ctr), E.p(s_fwd, 80), MECH, 0.6, dash="2 2"))
+    xdv = E.p(s_fwd - CHEEK_FWD - 12, 0)[0]
+    for va, vb, lab in ((66, 25, "41"), (25, 0, "25"), (0, -85, "85")):
+        o.append(dim_v(xdv, E.p(0, va)[1], E.p(0, vb)[1], lab, MECH, 9.5))
+    o.append(txt((ex0, E.p(0, -85)[1] + 58), "CHEEK: front edge 50 ahead of the shaft; top at "
+                 "the pan lip (seat + 66); upper part back to the pan's front end; step at the "
+                 "pan's UNDERSIDE", 9.5, MECH, "start", "700"))
+    o.append(txt((ex0, E.p(0, -85)[1] + 72), "(seat + 25 at the packed front frame); lower part "
+                 "160 behind the shaft, down to seat − 85.  A plain clearance hole for the shaft "
+                 "— it moves", 9.5, MECH, "start", "700"))
+    o.append(txt((ex0, E.p(0, -85)[1] + 86), "with the bearing, so no slot.  PAN FRONT END: "
+                 "120 mm ahead of x = 0 — nominal, measure the actual pan.",
+                 9.5, MECH, "start", "700"))
+    # heights, out on the right
+    rx = E.p(60, 0)[0] + 6
+    for vv, lab, col, dy in ((66, "pan lip top = panel top, seat + 66", PAN_L, -2),
+                             (STUD_HI, "upper studs, seat + 56 (37.2\")", MECH, 4),
+                             (26, "pan surface, seat + 26", PAN_L, 0),
+                             (0, "pan seat (cross-bar top)", MUTED, 0),
+                             (STUD_LO, "lower studs, seat − 5 (34.8\")", MECH, 4),
+                             (v_bolt, "push-bolt, shelf top + 7", MECH, -2),
+                             (v_shelf, "shelf top, 33 under the idler", STEEL, 7),
+                             (-85, "panel + cheek bottom, seat − 85", MECH, 0)):
+        o.append(line(E.p(52, vv), (rx - 2, E.p(0, vv)[1] + dy), col, 0.6, dash="2 2"))
+        o.append(txt((rx, E.p(0, vv)[1] + 3.5 + dy), lab, 9, col, "start", "700"))
+    o.append(txt(E.p(-POST_MM, 85), "idler post", 9, STEEL, "start", "700"))
+    o.append(txt(E.p(0, 85), "x = 0", 9, STEEL, "start", "700"))
+
+    # ---------------- G9 result ----------------
+    gx, gy = ex0, FY + 110 + 180 * SE + 96
+    o.append(txt((gx, gy), "★ GATE G9(a) — RESULT AS DRAWN: THE CHEEK PASSES", 12.5, MECH,
+                 "start", "700"))
+    t, gy = wrap(gx, gy + 20, 780,
+                 "PAN LIP: the pan and the roller are 790 mm on an %.1f mm span, so an %.1f mm "
+                 "strip runs each side between the lip's outer face and the span face.  The "
+                 "cheek runs IN that strip, ~%.1f mm off the lip and ~%.1f mm off the span "
+                 "face, so it slides BESIDE the lip through all 60 mm and never meets it."
+                 % (SP, STRIP, to_lip, to_span), 10.5, 14, INK, "600")
+    o.append(t)
+    t, gy = wrap(gx, gy + 6, 780,
+                 "FULL FORWARD: the lower part's rear edge is %.0f mm behind the idler post's "
+                 "front face, inside the end panel — the rule is ≥25 mm behind the idler post's "
+                 "FRONT FACE.  BACKED OFF: it stops %.0f mm short of "
+                 "x = 0 — clear of the front cross-bar's end and the x = 0 pipe, which sit in "
+                 "the same strip.  OPENINGS: cheek to post %.1f mm, cheek to lip %.1f mm — "
+                 "under 8.  CARRIER: on top of the base, clamped under its two M12 × 50 nuts, stopping 8 mm "
+                 "short of the base's rear end face, so the push-bolt tip is always clear."
+                 % (lap, -(s_back + CHEEK_AFT), to_span, to_lip), 10.5, 14, INK, "600")
+    o.append(t)
+    t, gy = wrap(gx, gy + 6, 780,
+                 "CONDITIONS, as drawn: (1) the step between the upper and lower parts is at "
+                 "the PAN'S UNDERSIDE (seat + 25 at the packed front frame, or seat + the "
+                 "recorded packing figure) — any lower leaves a 25 mm-high opening under the "
+                 "pan's front end at full forward.  (2) The pan's front end: %.0f mm ahead of "
+                 "x = 0, nominal — measure the actual pan; the upper part reaches it at full "
+                 "forward, so mark it on the row.  "
+                 "(3) The strip is only 11.4 mm: a frame whose clear span is under 812.8 mm "
+                 "closes it mm for mm, so check it at fit-up."
+                 % (-PF_MM), 10.5, 14, MECH, "700")
+    o.append(t)
+    t, gy = wrap(gx, gy + 6, 780,
+                 "G9(a) is this CAD check of the cheek — PASSED as drawn.  It releases ONE "
+                 "row's three idler nose guards for fit-up.  G9(b) is that row's fit-up: no "
+                 "opening over 8 mm at any take-up position, and the cheek clear of the pan lip "
+                 "— it releases the other nine.  Posts, shelves, push-bolts and studs do not "
+                 "wait for G9.",
+                 10.5, 14, INK, "600")
+    o.append(t)
+    return "".join(o)
 
 
 # ============================================================================
@@ -3566,6 +4847,9 @@ DE_X = float(D["post_x"])            # 14" behind the rear cage leg
 DE_H = float(D["post_h"])            # post runs to 90"
 DE_LINE = float(D["line_y"])         # line-shaft axis, 85"
 SPR_R = D["spr_od"] / 2              # 38T 428 plate, ~160 mm OD -> 3.15" radius
+SPR52_R = D["spr52_od"] / 2          # 52T 428 plate, ~218 mm tip -> 4.29" radius
+GB_X = DE_X + D["gb_ctr"]            # gearbox output axis, ASSUMED (see G)
+TRIP_LBL = "TRIP %.1f kgf — with 52T. Never 37.6." % D["trip_kgf"]
 HUB_Z = 2.74                         # 69.5 mm of free shaft outboard of the bearing
 
 # ---- R7(b) / D112: the machinery-side clearance, off this sheet's own geometry
@@ -3601,8 +4885,185 @@ def spring(a, b, n=6, amp=3.0, col=MECH, w=1.4):
     return "".join(line(pts[i], pts[i + 1], col, w) for i in range(len(pts) - 1))
 
 
+def driveend_panel_h(Y0, HP):
+    """Panel H -- the GEARBOX CHAIN at large scale: 38T on the gearbox output
+    driving the 52T on the gearbox-row line-shaft hub, its guard, and the
+    52T's clearance to the gantry top member (owner-approved 2026-09-30)."""
+    o = [panel(40, Y0, 1700, HP,
+               "H · THE GEARBOX CHAIN  —  38T on the gearbox output → 52T on the line-shaft "
+               "hub (gearbox rows only, 2 in the house).  Elevation from the machinery aisle, "
+               "and a plan at the line shaft")]
+    S = 24.0                                     # px per inch
+    cx, cy = 420.0, Y0 + 290.0                   # the line-shaft axis on screen
+
+    def P(u, v):                                 # u rearward, v up, inches off the axis
+        return (cx + u * S, cy - v * S)
+    r52, r38 = SPR52_R, SPR_R
+    C = D["gb_ctr"]
+    TOPF = 5.0                                   # top member's top face above the axis
+    L50 = mm(50)
+    # the post (behind the plates) and the top member END-ON (inboard of them)
+    o.append(rect(P(-L50 / 2, TOPF), L50 * S, (TOPF + 5.2) * S, fill="#eef1f4",
+                  col=STEEL, sw=1.0, op=0.6))
+    o.append(rect(P(-L50 / 2 - 0.9, TOPF), (L50 + 1.8) * S, L50 * S, fill="#cfd5dd",
+                  col=STEEL, sw=1.4))
+    o.append(txt(P(-L50 / 2 - 1.2, TOPF + 1.35), "TOP MEMBER 50 × 50 × 5, end-on,", 9.5,
+                 STEEL, "end", "700"))
+    o.append(txt(P(-L50 / 2 - 1.2, TOPF + 0.75), "INBOARD of the plates (see plan)", 9.5,
+                 STEEL, "end", "700"))
+    o.append(line(P(-L50 / 2 - 1.1, TOPF + 0.9), P(-L50 / 2 - 0.5, TOPF - 0.3), STEEL, 0.8))
+    # the gearbox (behind the chain) and the arm, hidden where the guard covers it
+    o.append(rect(P(C - 1.2, 4.2), 8.6 * S, 8.4 * S, fill="#fbeeec", col=MECH, sw=1.2, r=4))
+    o.append(txt(P(C + 5.2, 2.6), "GEARBOX", 10.5, MECH, "middle", "700"))
+    o.append(txt(P(C + 5.2, 1.9), "behind the chain", 9, MUTED, "middle"))
+    o.append(line(P(-r52 - 1.0, 0), P(C, 0), INK, 1.4, dash="6 4"))
+    o.append(line(P(-r52 - 3.4, 0), P(-r52 - 1.0, 0), INK, 3.4))
+    o.append(txt(P(-r52 - 3.7, 0.5), "450 mm arm, forward (B, D)", 9.5, INK, "end", "700"))
+    # the 38T drop-chain plate on the same hub (the other tooth row) and its chain
+    o.append(circ(P(0, 0), r38 * S, fill="none", col=MECH, w=1.1))
+    ybot = -(HP - 330) / S
+    for sg in (-1, 1):
+        o.append(line(P(sg * r38, 0), P(sg * r38, ybot), MECH, 1.4, dash="7 4"))
+    o.append(txt(P(-r38 - 0.3, -9.0), "140L drop chain on the", 9.5, MECH, "end", "600"))
+    o.append(txt(P(-r38 - 0.3, -9.6), "38T, the hub's other row", 9.5, MECH, "end", "600"))
+    # the gearbox chain
+    th = math.acos((r52 - r38) / C)
+    for sg in (1, -1):
+        o.append(line(P(r52 * math.cos(th), sg * r52 * math.sin(th)),
+                      P(C + r38 * math.cos(th), sg * r38 * math.sin(th)), MECH, 3.0))
+    o.append(circ(P(0, 0), r52 * S, fill="none", col=MECH, w=3.0))
+    for k in range(52):
+        a_ = 2 * math.pi * k / 52
+        o.append(line(P(0.94 * r52 * math.cos(a_), 0.94 * r52 * math.sin(a_)),
+                      P(r52 * math.cos(a_), r52 * math.sin(a_)), MECH, 0.9))
+    o.append(circ(P(C, 0), r38 * S, fill="#fdf1ef", col=MECH, w=2.6))
+    for k in range(38):
+        a_ = 2 * math.pi * k / 38
+        o.append(line(P(C + 0.92 * r38 * math.cos(a_), 0.92 * r38 * math.sin(a_)),
+                      P(C + r38 * math.cos(a_), r38 * math.sin(a_)), MECH, 0.9))
+    for q in (P(0, 0), P(C, 0)):
+        o.append(circ(q, 9, fill=PAPER, col=INK, w=2.2))
+    o.append(spring(P(C / 2 - 1.3, -(r52 + r38) / 2 - 0.1),
+                    P(C / 2 + 1.3, -(r52 + r38) / 2 + 0.1), 5, 4.0, MECH, 1.8))
+    o.append(txt(P(C / 2 + 0.3, -(r52 + r38) / 2 - 0.85), "spring tensioner", 9.5, MECH,
+                 "middle", "700"))
+    # the guard: 25 mm outside both plates
+    g_ = mm(25)
+    R1, R2 = r52 + g_, r38 + g_
+    pts = [P(R1 * math.cos(a_), R1 * math.sin(a_))
+           for a_ in [th + k * (2 * math.pi - 2 * th) / 60 for k in range(61)]]
+    pts += [P(C + R2 * math.cos(a_), R2 * math.sin(a_))
+            for a_ in [-th + k * 2 * th / 40 for k in range(41)]]
+    o.append(poly(pts, fill="none", col=MECH, w=1.6, dash="7 4"))
+    # labels on the plates
+    o.append(lead(P(-r52 * 0.94, -r52 * 0.34), P(-r52 - 1.3, -2.4),
+                  "52T — the DRIVEN plate, tip Ø218", MECH, 11, "700", "end"))
+    o.append(txt(P(-r52 - 1.4, -3.05), "on the line-shaft hub, same hub", 9.5, MUTED, "end"))
+    o.append(txt(P(-r52 - 1.4, -3.6), "as every other", 9.5, MUTED, "end"))
+    o.append(txt(P(C + 1.2, -r38 - 1.85), "GEARBOX-CHAIN GUARD (dashed),", 10, MECH,
+                 "start", "700"))
+    o.append(txt(P(C + 1.2, -r38 - 2.4), "25 mm outside both plates", 9.5, MECH, "start"))
+    o.append(lead(P(C + r38 * 0.5, -r38 * 0.87), P(C + 1.2, -r38 - 3.5),
+                  "38T on the GEARBOX OUTPUT, tip Ø161", MECH, 11))
+    o.append(txt(P(C + 1.45, -r38 - 4.1), "bore and key turned to the real box", 9.5,
+                 MUTED))
+    # dimensions: the vertical check
+    xd_ = P(-r52 - 1.6, 0)[0]
+    o.append(line((xd_ - 6, P(0, r52)[1]), (cx, P(0, r52)[1]), FAINT, 0.7, dash="3 3"))
+    o.append(dim_v(xd_, P(0, 0)[1], P(0, r52)[1], "", MECH))
+    o.append(txt((xd_ - 6, P(0, r52 / 2)[1] + 4), "109", 11, MECH, "end", "700"))
+    xd2 = xd_ - 54
+    o.append(line((xd2 - 6, P(0, TOPF)[1]), (P(-L50 / 2 - 0.9, 0)[0], P(0, TOPF)[1]), FAINT,
+                  0.7, dash="3 3"))
+    o.append(line((xd2 - 6, cy), (xd_, cy), FAINT, 0.7, dash="3 3"))
+    o.append(dim_v(xd2, P(0, 0)[1], P(0, TOPF)[1], "", STEEL))
+    o.append(txt((xd2 - 6, P(0, TOPF / 2)[1] + 4), '127 = 5"', 11, STEEL, "end", "700"))
+    o.append(lead(P(1.0, r52 + 0.36), P(2.6, TOPF + 1.5),
+                  "18 mm: 52T tip to the top face's level", MECH, 10, "700", "start"))
+    o.append(dim_h(P(0, 0)[0], P(C, 0)[0], P(0, -r52 - 2.4)[1],
+                   'centres NOT STATED — drawn %.0f" (%.0f mm)' % (C, C * 25.4), MUTED, 10))
+    o.append(txt(P(C / 2, -r52 - 3.05), "chain CUT TO LENGTH off the real box", 10, MECH,
+                 "middle", "700"))
+
+    # ---- the plan at the line shaft, mm: z outboard from the cage face ------
+    SP = 1.3
+    px0, py0 = 960.0, Y0 + 275.0                 # z = 0 (cage face), x = 0 (shaft axis)
+
+    def Q(z, x):                                 # z outboard (right), x rearward (down)
+        return (px0 + z * SP, py0 + x * SP)
+    o.append(txt((px0 - 90, Y0 + 58), "PLAN AT THE LINE SHAFT, looking down — mm,", 11, INK,
+                 "start", "700"))
+    o.append(txt((px0 - 90, Y0 + 74), "z outboard from the cage face", 10, MUTED, "start"))
+    o.append(rect(Q(-60, -25), 60 * SP, 50 * SP, fill="#cfd5dd", col=STEEL, sw=1.2))
+    o.append(txt(Q(-30, -32), "top member", 9, STEEL, "middle", "700"))
+    o.append(rect(Q(0, -25), 50 * SP, 50 * SP, fill="#eef1f4", col=STEEL, sw=1.4))
+    o.append(txt(Q(25, 40), "post", 9, STEEL, "middle", "700"))
+    for zz in (0, 50):
+        o.append(line(Q(zz, -125), Q(zz, 125), FAINT, 0.8, dash="4 3"))
+    o.append(txt(Q(0, 138), "cage face", 9, MUTED, "middle"))
+    o.append(txt(Q(50, -130), "post toe, 50", 9, MUTED, "middle"))
+    o.append(line(Q(-60, 0), Q(122, 0), STEEL, 3.0))
+    o.append(txt(Q(-64, 4), "line shaft", 9, STEEL, "end", "600"))
+    r38m, r52m = SPR_R * 25.4, SPR52_R * 25.4
+    o.append(rect(Q(66, -r38m), 5 * SP, 2 * r38m * SP, fill="#fdf1ef", col=MECH, sw=1.4))
+    o.append(rect(Q(90, -r52m), 5 * SP, 2 * r52m * SP, fill="#fdf1ef", col=MECH, sw=1.8))
+    o.append(rect(Q(71, -20), 19 * SP, 40 * SP, fill="#f2c9c4", col=MECH, sw=1.0))
+    o.append(txt(Q(64, -r38m + 10), "38T", 9.5, MECH, "end", "700"))
+    o.append(txt(Q(99, -r52m + 12), "52T", 9.5, MECH, "start", "700"))
+    o.append(txt(Q(99, -r52m + 26), "shown outboard;", 8.5, MUTED, "start"))
+    o.append(txt(Q(99, -r52m + 38), "row not stated", 8.5, MUTED, "start"))
+    yq = Q(0, 150)[1]
+    o.append(dim_h(Q(50, 0)[0], Q(66, 0)[0], yq + 20, "16", MECH, 10))
+    o.append(dim_h(Q(50, 0)[0], Q(90, 0)[0], yq + 48, "40", MECH, 10))
+    o.append(txt((px0 - 90, yq + 76), "plate plane off the toe: 16 mm on the", 9.5, MECH,
+                 "start", "700"))
+    o.append(txt((px0 - 90, yq + 90), "inboard row, 40 mm on the outboard", 9.5, MECH,
+                 "start", "700"))
+
+    # ---- the check, in words -------------------------------------------------
+    tx, ty = 1240, Y0 + 58
+    o.append(txt((tx, ty), "★ THE 52T AGAINST THE TOP MEMBER", 11.5, MECH, "start", "700"))
+    t, ty = wrap(tx, ty + 20, 470,
+                 "Tip radius 109 mm. The top member's TOP FACE is 127 mm (5\") above the line "
+                 "shaft, so the tip stops 18 mm below the top face's level.", 10, 13, INK, "600")
+    o.append(t)
+    t, ty = wrap(tx, ty + 6, 470,
+                 "The member is 50 deep: its underside is 77 mm above the axis, so in this view "
+                 "the 52T laps over the member by 32 mm. It clears ONLY because the plate runs "
+                 "OUTBOARD of the member's end — 16 mm off the post toe on the inboard tooth "
+                 "row, 40 mm on the outboard row.", 10, 13, MUTED)
+    o.append(t)
+    t, ty = wrap(tx, ty + 6, 470,
+                 "RULE: on the gearbox side the top member, its brace and the gearmotor pedestal "
+                 "stop at or inboard of the post's toe. Nothing enters the plate plane within "
+                 "134 mm of the line shaft — the 52T plus its guard.", 10, 13, MECH, "700")
+    o.append(t)
+    ty += 16
+    o.append(txt((tx, ty), "THE CHAIN AND ITS GUARD", 11.5, MECH, "start", "700"))
+    t, ty = wrap(tx, ty + 20, 470,
+                 "38T on the gearbox output drives the 52T on the line-shaft hub. The hub is the "
+                 "same turned part as the other fifteen; only this plate is 52T. Two in the "
+                 "house. Every other plate is 38T.", 10, 13, MUTED)
+    o.append(t)
+    t, ty = wrap(tx, ty + 6, 470,
+                 "The centres are not stated. The loop is CUT TO LENGTH off the real box: wrap it "
+                 "on both plates with the spring tensioner at mid-travel, an EVEN number of "
+                 "pitches. The pedestal goes where the real box needs it.", 10, 13, MUTED)
+    o.append(t)
+    t, ty = wrap(tx, ty + 6, 470,
+                 "Guard: mesh, apertures ≤8 mm, wingnut studs, 25 mm outside both plates — sized "
+                 "to the 52T. Its crown stands ~7 mm above the top face's level, so it too sits "
+                 "outboard of the member's end.", 10, 13, MUTED)
+    o.append(t)
+    o.append(rect((tx - 8, ty + 16), 480, 36, fill="#fdf1ef", col=MECH, sw=1.8, r=4))
+    o.append(txt((tx + 232, ty + 40), TRIP_LBL, 14, MECH, "middle", "700"))
+    return "".join(o)
+
+
 def drawing_driveend():
-    W, H = 1780, 2470
+    S6 = 340                                    # extra height for panels A and B
+    HH = 600                                    # panel H: the gearbox chain
+    W, H = 1780, 2470 + S6 + 60 + 40 + HH
     o = [header(W, "6 · DRIVE END  —  drive station, gearmotor, torque limiter, "
                    "drop chain, propshaft, discharge",
                 "The rear 49\" after ruling R1.  One half is drawn; the other half is a "
@@ -3612,7 +5073,7 @@ def drawing_driveend():
     # ========================================================================
     # A -- ISOMETRIC, ONE TIER AT THE DRIVE END
     # ========================================================================
-    o.append(panel(40, 80, 880, 800,
+    o.append(panel(40, 80, 880, 800 + S6,
                    "A · ONE TIER AT THE DRIVE STATION, IN 3-D   (tier 2 shown — tiers 1 "
                    "and 3 repeat it.  Three tiers at once is unreadable)"))
     T = 1
@@ -3625,7 +5086,7 @@ def drawing_driveend():
     ZH = z1 + HUB_Z                                # hub / sprocket plane
     xa = -10.0
     S3 = 8.5
-    iso = Iso(S3, 412, 720)
+    iso = Iso(S3, 440, 830)
 
     o.append(keepout_box(iso, xa, 1.0, ygap0 + 1.0, yf, z0, z1, "fill"))
     o.append(line(iso.p(0, ygap0 - 1, z0), iso.p(0, yt + 3, z0), STEEL, 6.0))
@@ -3648,6 +5109,15 @@ def drawing_driveend():
     xm = (XHOP0 + XHOP1) / 2
     o.append(arrow(iso.p(xm, hy1 + 0.35, pz1 - 2), iso.p(xm, hy1 + 0.35, pz0 + 1.5),
                    MANURE, 2.4, 6.0))
+    # the 264" PIPE across the stand, and the return strand rising onto it (D130)
+    XP6 = -LEG50 / 2                            # centred on the span leg's belt-side face
+    yp6 = yp + mm(PIPE_TOP - PIPE_OD / 2)
+    o.append(line(iso.p(XP6, yp6, z0), iso.p(XP6, yp6, z1), INK, 8.0))
+    o.append(line(iso.p(XP6, yp6, z0), iso.p(XP6, yp6, z1), "#dfe4ea", 5.6))
+    xs6 = [xa + k * (DE_X - xa) / 30 for k in range(31)]
+    pts6 = ([iso.p(xx, yp + mm(strand_mm(264 + xx)), bz0) for xx in xs6]
+            + [iso.p(xx, yp + mm(strand_mm(264 + xx)), bz1) for xx in reversed(xs6)])
+    o.append(poly(pts6, fill=BELT_F, col=BELT_L, w=1.2, op=0.7))
     # drive roller and its shaft
     o.append(roller(iso, DE_X, yr, bz0 - 0.6, bz1 + 0.6))
     for zz, sg in ((z0, -1), (z1, +1)):
@@ -3707,8 +5177,9 @@ def drawing_driveend():
                   MECH, 11))
     o.append(txt((lx + 6, 443), "daisy-chained tier to tier in ONE dead-", 10.5, MUTED))
     o.append(txt((lx + 6, 458), "vertical plane through x = 14\".  Sprocket", 10.5, MUTED))
-    o.append(txt((lx + 6, 473), "centres 10.8 / 33.8 / 56.8\", line shaft 85\".", 10.5, MUTED))
-    o.append(txt((lx + 6, 488), "130L tier-to-tier · 140L to the line shaft,", 10.5, MUTED))
+    o.append(txt((lx + 6, 473), "centres ~%.1f / %.1f / %.1f\"; line shaft = tier 3"
+                 % tuple(half(v) for v in ROLL_Y), 10.5, MUTED))
+    o.append(txt((lx + 6, 488), "+ 25.5\" · 130L tier-to-tier · 140L to it,", 10.5, MUTED))
     o.append(txt((lx + 6, 503), "BOTH UNCUT — so a spring tensioner is", 10.5, MUTED))
     o.append(txt((lx + 6, 518), "mandatory.  NEVER mix 428 with 08B.", 10.5, MECH,
                  "start", "700"))
@@ -3735,9 +5206,14 @@ def drawing_driveend():
                 "NOT part of the machine (D88).",
                 10.5, 14, MECH, "600")
     o.append(t)
-    t, _ = wrap(76, 806, 530,
+    o.append(lead(iso.p(XP6, yp6, z1), (76, 890),
+                  "THE 264\" PIPE — ½\" GI across the stand, top 63 mm below the seat",
+                  STEEL, 11))
+    t, _ = wrap(76, 930, 530,
                 "The dropping gap stays a keep-out volume at the drive end as well as along "
-                "the run: belt, pan, cross-bar and scraper only. The drop chain, the hub and "
+                "the run: belt, pan, cross-bar, the 264\" return-strand pipe and the scraper "
+                "only. The return strand leaves the lagging ~76–82 mm below the seat and rises "
+                "~2–3° onto that pipe, 356 mm ahead. The drop chain, the hub and "
                 "the bearings all sit OUTBOARD of the cage face, in the machinery aisle — "
                 "which is what ruling R1's aisle allocation buys.", 10.5, 14, INK, "600")
     o.append(t)
@@ -3745,7 +5221,7 @@ def drawing_driveend():
     # ========================================================================
     # B -- SIDE ELEVATION, all three tiers
     # ========================================================================
-    o.append(panel(940, 80, 800, 800,
+    o.append(panel(940, 80, 800, 800 + S6,
                    "B · SIDE ELEVATION OF THE DRIVE END  —  from the machinery aisle.  "
                    "x is from the rear cage leg, rearward positive"))
     fl = Flat(7.4, 1064, 810)
@@ -3778,8 +5254,8 @@ def drawing_driveend():
     # the drive-station post, to 90", and its braces
     o.append(line(fl.p(DE_X, 0), fl.p(DE_X, DE_H), MECH, 7.0))
     o.append(line(fl.p(DE_X - 2.4, DE_H), fl.p(DE_X + 2.4, DE_H), MECH, 5.0))
-    o.append(txt(fl.p(DE_X + 3.4, DE_H + 0.6), "gantry top member  90\"", 10, MECH,
-                 "start", "700"))
+    o.append(txt(fl.p(DE_X - 2.8, DE_H - 0.4), "gantry top member  90\"", 10, MECH,
+                 "end", "700"))
     # ★ R7 / D105: the lower brace must stay ABOVE the 150 mm tray rim across
     #   x = 2-26", or be taken down to the post's own foot instead.
     o.append(line(fl.p(DE_X, D["brace_at"]), fl.p(0.4, 23), MECH, 3.0))
@@ -3792,10 +5268,16 @@ def drawing_driveend():
     for tt in range(3):
         o.append(line(fl.p(xl, PAN[tt]), fl.p(XSCR0, PAN[tt]), PAN_L, 2.6))
         o.append(line(fl.p(xl, PAN[tt] + 1.0), fl.p(DE_X, PAN[tt] + 1.0), BELT_L, 3.0))
-        o.append(line(fl.p(xl, PAN[tt] - 2.6), fl.p(DE_X, PAN[tt] - 2.6), BELT_L, 2.2))
+        # return strand: off the lagging, rising ~2-3 deg onto the 264" pipe (D130)
+        xs6 = [xl + k * (DE_X - xl) / 46 for k in range(47)]
+        o.append(path("M " + " L ".join("%s %s" % tuple(f(c) for c in fl.p(
+            xx, PAN[tt] + mm(strand_mm(264 + xx)))) for xx in xs6), col=BELT_L, w=2.2))
+        o.append(circ(fl.p(-LEG50 / 2, PAN[tt] + mm(PIPE_TOP - PIPE_OD / 2)),
+                      mm(PIPE_OD) / 2 * fl.s + 0.5, fill="#b9c1cb", col=INK, w=1.6))
         rc = fl.p(DE_X, ROLL_Y[tt])
         o.append(circ(rc, SPR_R * fl.s, fill="none", col=MECH, w=1.0))
-        o.append(circ(rc, D["roller_d"] / 2 * fl.s, fill="#f2c9c4", col=MECH, w=1.8))
+        o.append(circ(rc, (D["roller_d"] / 2 + LAG) * fl.s, fill="#4a4f55", col=INK, w=1.0))
+        o.append(circ(rc, D["roller_d"] / 2 * fl.s, fill="#f2c9c4", col=MECH, w=1.6))
         o.append(line(fl.p(XSCR0, PAN[tt] + 1.9), fl.p(XSCR1, PAN[tt] + 0.6), INK, 2.2))
     # drop chain: two runs per span, at +/- the sprocket radius
     chain_y = list(ROLL_Y) + [DE_LINE]
@@ -3808,34 +5290,64 @@ def drawing_driveend():
                         5, 3.2))
     o.append(lead(fl.p(DE_X + SPR_R, 72), fl.p(19.5, 77),
                   "spring tensioner on each loop", MECH, 9.5, "700", "start"))
-    # line shaft + its sprocket
+    o.append(lead(fl.p(DE_X + SPR52_R * 0.72, DE_LINE - SPR52_R * 0.69), fl.p(19.5, 75.2),
+                  "gearbox chain, 38T → 52T — see H", MECH, 9.5, "700",
+                  "start"))
+    # ---- the line shaft: its 38T drop-chain plate AND, on this gearbox row,
+    #      the 52T GEARBOX-CHAIN plate on the same hub (owner, 2026-09-30)
     ls = fl.p(DE_X, DE_LINE)
     o.append(circ(ls, SPR_R * fl.s, fill="none", col=MECH, w=1.0))
-    o.append(circ(ls, 0.40 * fl.s, fill="#dfe4ea", col=STEEL, w=2.0))
-    # gearmotor, pedestal, pivot, arm, rubber block, limit switch
-    o.append(line(fl.p(DE_X - 1.8, 89.2), fl.p(DE_X + 9.6, 89.2), MECH, 3.4))
-    o.append(line(fl.p(DE_X + 9.6, 89.2), fl.p(DE_X + 9.6, 80.4), MECH, 3.0))
-    gb = fl.p(DE_X + 1.6, DE_LINE)
-    o.append(rect((gb[0], gb[1] - 4.6 * fl.s), 8.0 * fl.s, 9.2 * fl.s,
-                  fill="#f6d8d4", col=MECH, sw=1.8, r=3))
-    o.append(txt((gb[0] + 4.0 * fl.s, gb[1] - 0.8 * fl.s), "GEARBOX", 9.5, MECH,
+    # gearmotor behind the chain (it hangs under the pedestal, inboard of the
+    # chain plane) -- body, motor, pivot lugs, pedestal plate on the top member
+    o.append(line(fl.p(DE_X - 2.4, DE_H + 0.35), fl.p(GB_X + 8.6, DE_H + 0.35), MECH, 3.4))
+    for lx_ in (GB_X - 0.7, GB_X + 0.7):
+        o.append(line(fl.p(lx_, DE_H + 0.35), fl.p(lx_, DE_LINE), MECH, 2.0))
+    gb = fl.p(GB_X - 1.2, DE_LINE + 4.2)
+    o.append(rect(gb, 8.0 * fl.s, 8.4 * fl.s, fill="#fbeeec", col=MECH, sw=1.4, r=3))
+    o.append(txt(fl.p(GB_X + 3.6, DE_LINE - 5.5), "GEARBOX · worm 300:1", 9.5, MECH,
                  "middle", "700"))
-    o.append(txt((gb[0] + 4.0 * fl.s, gb[1] + 8), "worm 300:1", 9, MUTED, "middle"))
-    mo = fl.p(DE_X + 9.9, DE_LINE + 2.8)
-    o.append(rect((mo[0], mo[1]), 6.8 * fl.s, 5.6 * fl.s,
+    mo = fl.p(GB_X + 7.1, DE_LINE + 2.8)
+    o.append(rect((mo[0], mo[1]), 6.4 * fl.s, 5.6 * fl.s,
                   fill="#dfe4ea", col=STEEL, sw=1.6, r=4))
-    o.append(txt((mo[0] + 3.4 * fl.s, mo[1] + 3.2 * fl.s), "0.37 kW", 9.5, STEEL,
+    o.append(txt((mo[0] + 3.2 * fl.s, mo[1] + 3.2 * fl.s), "0.37 kW", 9.5, STEEL,
                  "middle", "700"))
-    o.append(circ(ls, 5.0, fill=PAPER, col=INK, w=2.0))
-    o.append(line(fl.p(DE_X, DE_LINE), fl.p(DE_X - ARM, DE_LINE), INK, 3.4))
-    bl = fl.p(DE_X - ARM, DE_LINE - 1.7)
+    # the reaction arm, forward from the output: HIDDEN behind the chain guard
+    xg0, xg1 = DE_X - SPR52_R - 1.0, GB_X + SPR_R + 1.0
+    xarm = GB_X - ARM
+    o.append(line(fl.p(xarm, DE_LINE), fl.p(xg0, DE_LINE), INK, 3.4))
+    o.append(line(fl.p(xg0, DE_LINE), fl.p(GB_X, DE_LINE), INK, 1.6, dash="6 4"))
+    bl = fl.p(xarm, DE_LINE - 1.7)
     o.append(spring((bl[0], bl[1]), (bl[0], bl[1] + 2.1 * fl.s), 5, 4.0, "#3a3f46", 2.0))
-    o.append(line(fl.p(DE_X - ARM - 2.2, DE_LINE - 4.0),
-                  fl.p(DE_X - ARM + 2.2, DE_LINE - 4.0), INK, 3.0))
-    sw = fl.p(DE_X - ARM + 2.9, DE_LINE - 2.6)
+    o.append(line(fl.p(xarm - 2.2, DE_LINE - 4.0), fl.p(xarm + 2.2, DE_LINE - 4.0), INK, 3.0))
+    sw = fl.p(xarm - 2.9 - 12 / fl.s, DE_LINE - 2.6)
     o.append(rect((sw[0], sw[1]), 12, 16, fill="#ffe9a8", col=INK, sw=1.5, r=2))
-    o.append(dim_h(fl.p(DE_X - ARM, 0)[0], fl.p(DE_X, 0)[0], fl.p(0, DE_LINE + 3.6)[1],
-                   "450 mm REACTION ARM  —  see D", MECH, 10))
+    o.append(dim_h(fl.p(xarm, 0)[0], fl.p(GB_X, 0)[0], fl.p(0, DE_H + 2.3)[1],
+                   "450 mm REACTION ARM, off the gearbox output  —  see D", MECH, 10))
+    # the GEARBOX CHAIN: 38T on the output -> 52T on the line-shaft hub
+    dct = GB_X - DE_X
+    th = math.acos((SPR52_R - SPR_R) / dct)
+    for sg in (1, -1):
+        pa_ = (DE_X + SPR52_R * math.cos(th), DE_LINE + sg * SPR52_R * math.sin(th))
+        pb_ = (GB_X + SPR_R * math.cos(th), DE_LINE + sg * SPR_R * math.sin(th))
+        o.append(line(fl.p(*pa_), fl.p(*pb_), MECH, 2.4))
+    o.append(circ(ls, SPR52_R * fl.s, fill="none", col=MECH, w=2.4))
+    go = fl.p(GB_X, DE_LINE)
+    o.append(circ(go, SPR_R * fl.s, fill="#fdf1ef", col=MECH, w=2.2))
+    o.append(circ(go, 4.6, fill=PAPER, col=INK, w=2.0))
+    o.append(circ(ls, 0.40 * fl.s, fill="#dfe4ea", col=STEEL, w=2.0))
+    o.append(circ(ls, 5.0, fill=PAPER, col=INK, w=2.0))
+    # spring tensioner on the lower strand
+    ym_ = DE_LINE - (SPR52_R + SPR_R) / 2 - 0.1
+    xm_ = (DE_X + GB_X) / 2
+    o.append(spring(fl.p(xm_ - 1.4, ym_), fl.p(xm_ + 1.4, ym_ + 0.2), 5, 2.6))
+    # the GEARBOX-CHAIN GUARD, sized to the 52T: 25 mm outside both plates
+    g_ = 1.0
+    R1, R2 = SPR52_R + g_, SPR_R + g_
+    pts = [(DE_X + R1 * math.cos(a_), DE_LINE + R1 * math.sin(a_))
+           for a_ in [th + k * (2 * math.pi - 2 * th) / 40 for k in range(41)]]
+    pts += [(GB_X + R2 * math.cos(a_), DE_LINE + R2 * math.sin(a_))
+            for a_ in [-th + k * (2 * th) / 30 for k in range(31)]]
+    o.append(poly([fl.p(*q) for q in pts], fill="none", col=MECH, w=1.3, dash="5 3"))
     # ★ TIER 1's OWN TRAY, IN THIS PLANE: x = 2-26", 150 mm deep (R7 / D105).
     #   The tiers 2-3 tray is in the aisle, out of this plane -- see F.
     o.append(rect(fl.p(D["t1_x0"], D["tray_d"]),
@@ -3855,11 +5367,12 @@ def drawing_driveend():
     for yy in (ROLL_Y[0], ROLL_Y[1], ROLL_Y[2], DE_LINE, DE_H):
         o.append(line((dx, fl.p(0, yy)[1]), fl.p(DE_X - SPR_R - 0.4, yy), FAINT, 0.7,
                       dash="3 3"))
-    o.append(dim_v(dx, fl.p(0, 0)[1], fl.p(0, ROLL_Y[0])[1], '10.8"', MECH, 10))
+    o.append(dim_v(dx, fl.p(0, 0)[1], fl.p(0, ROLL_Y[0])[1], '~%.1f"' % half(ROLL_Y[0]),
+                   MECH, 10))
     o.append(dim_v(dx, fl.p(0, ROLL_Y[0])[1], fl.p(0, ROLL_Y[1])[1], '23"', MECH, 10))
     o.append(dim_v(dx, fl.p(0, ROLL_Y[1])[1], fl.p(0, ROLL_Y[2])[1], '23"', MECH, 10))
     o.append(dim_v(dx, fl.p(0, ROLL_Y[2])[1], fl.p(0, DE_LINE)[1],
-                   '%.1f"  ★' % (DE_LINE - ROLL_Y[2]), MECH, 10))
+                   '~%.1f"  ★' % (DE_LINE - half(ROLL_Y[2])), MECH, 10))
     o.append(dim_v(dx, fl.p(0, DE_LINE)[1], fl.p(0, DE_H)[1], '5"', MECH, 10))
     # the rear elevation budget, along the bottom
     yb = fl.p(0, 0)[1] + 30
@@ -3875,18 +5388,19 @@ def drawing_driveend():
     o.append(txt((bx2, 160), "ONE MEMBER, THREE JOBS  (R1a)", 11.5, MECH, "start", "700"))
     t, _ = wrap(bx2, 180, 320,
                 "The post at x = 14\" carries the three drive-roller pillow blocks, the "
-                "gantry top member at 90\" and the line shaft at 85\" — one member on one "
+                "gantry top member at 90\" and the line shaft at tier 3 + 25.5\" — one member on one "
                 "footing. That is what makes the drop chain dead vertical in a single plane "
                 "and keeps both chain loops on stock lengths.", 10.5, 14, MUTED)
     o.append(t)
     o.append(txt((bx2, 262), "★ CHECK THE LINE-SHAFT HEIGHT BEFORE YOU DRILL IT",
                  11, MECH, "start", "700"))
-    o.append(txt((bx2, 278), 'The doc gives the line shaft as 85" AND as 25.5" above tier 3. '
-                             'With tier 3 at', 9.5, MUTED))
-    o.append(txt((bx2, 290), '56.8" those cannot both hold — 85" is 28.2" up. Set the shaft '
-                             'off the AS-BUILT', 9.5, MUTED))
-    o.append(txt((bx2, 302), 'tier-3 centre and record what you used; the 130L tier loops are '
-                             'unaffected.', 9.5, MUTED))
+    o.append(txt((bx2, 278), 'Set it 25.5" above tier 3\'s AS-BUILT roller centre — ~%.0f" '
+                             'as drawn, with tier 3' % LINE_Y_C, 9.5, MUTED))
+    o.append(txt((bx2, 290), 'at ~%.1f". 85" would be ~%.1f" up, so do not work to 85". '
+                             'Record the height' % (half(ROLL_Y[2]), 85 - half(ROLL_Y[2])),
+                 9.5, MUTED))
+    o.append(txt((bx2, 302), 'you used; the 130L tier loops are unaffected either way.',
+                 9.5, MUTED))
     o.append(txt((bx2, 334), "AND THE RESERVATION AGAINST IT", 11.5, MECH, "start", "700"))
     t, _ = wrap(bx2, 354, 320,
                 "It also puts the motor reaction and the roller-parallelism datum on the same "
@@ -3906,8 +5420,8 @@ def drawing_driveend():
     t, _ = wrap(bx2, 606, 320,
                 "Behind x = 26\" the floor is ACCESS FLOOR for a man with a rod — keep it "
                 "empty, nothing parked and nothing turning. The gearmotor overhangs to about "
-                "x = 34\" but at 82–90\", above head height, so it takes none of it. In "
-                "FRONT of it, x = 2–26\" is the tier-1 tray's floor.",
+                "x = %.0f\" but at 80–90\", above head height, so it takes none of it. In "
+                "FRONT of it, x = 2–26\" is the tier-1 tray's floor." % (GB_X + 13.5),
                 10.5, 14, MUTED)
     o.append(t)
     o.append(txt((bx2, 700), "★ THE LOWER BRACE MUST CLEAR THE TRAY  (R7)", 11.5, MECH,
@@ -3922,9 +5436,96 @@ def drawing_driveend():
                 10.5, 14, MECH, "600")
     o.append(t)
 
+
+    # ---- B2: the TIER-1 SHROUD's cage-side face and its return-strand slot (D132)
+    #      section on the row centreline, tier 1, mm: u from the rear cage leg
+    #      (rearward +), v above the floor
+    o.append(line((960, 902), (1720, 902), FAINT, 1.0))
+    o.append(txt((962, 926), "B2 · TIER 1: THE SHROUD's CAGE-SIDE FACE AND ITS RETURN-STRAND SLOT  "
+                 "(D132)  —  section on the row centreline, mm, to scale", 11, INK, "start", "700"))
+    SB = 1.05
+    fb = Flat(SB, 1060, 1180)                   # (u, v - 140)
+    def bp(u, v):
+        return fb.p(u, v - 140)
+    seat1 = PAN[0] * 25.4                       # 304.8
+    xl_mm = -70
+    # the rear cage leg and its span leg (drawn pointing into the row)
+    o.append(rect(bp(-50, 358), 50 * SB, 218 * SB, fill="#eef1f4", col=STEEL, sw=1.0))
+    o.append(line(bp(0, 140), bp(0, 358), STEEL, 3.6))
+    o.append(txt(bp(-25, 364), "rear cage leg", 9, STEEL, "middle", "700"))
+    # the cross-bar end-on, the pan and the carry strand
+    o.append(rect(bp(-45, seat1), 40 * SB, 3 * SB, fill="#b9c1cb", col=STEEL, sw=1.2))
+    o.append(rect(bp(-8, seat1), 3 * SB, 40 * SB, fill="#b9c1cb", col=STEEL, sw=1.2))
+    o.append(line(bp(xl_mm, seat1 + 1), bp(XSCR0 * 25.4, seat1 + 1), PAN_L, 2.4))
+    o.append(line(bp(xl_mm, seat1 + 2.5), bp(DE_X * 25.4, seat1 + 2.5), BELT_L, 2.8))
+    o.append(line(bp(xl_mm, seat1 + 41), bp(XSCR0 * 25.4, seat1 + 41), PAN_L, 1.0, dash="5 3"))
+    o.append(txt(bp(70, seat1 + 45), "pan lip (the side lips, beyond) — the face's top",
+                 9, PAN_L, "start", "600"))
+    # the 264" pipe, end-on
+    pcu, pcv = -LEG50 / 2 * 25.4, seat1 + PIPE_TOP - PIPE_OD / 2
+    o.append(circ(bp(pcu, pcv), PIPE_OD / 2 * SB, fill="#dfe4ea", col=INK, w=2.0))
+    o.append(circ(bp(pcu, pcv), (PIPE_OD / 2 - 2.6) * SB, fill=PAPER, col=STEEL, w=0.8))
+    # the drive roller: tube + 9 mm lagging, rubber top flush with the pan
+    rcu, rcv = DE_X * 25.4, ROLL_Y[0] * 25.4
+    o.append(circ(bp(rcu, rcv), (31.5 + LAG_MM) * SB, fill="#4a4f55", col=INK, w=1.0))
+    o.append(circ(bp(rcu, rcv), 31.5 * SB, fill="#f2c9c4", col=MECH, w=1.4))
+    o.append(txt(bp(rcu, rcv + 50), "DRIVE ROLLER, x = 14\"", 9, MECH, "middle", "700"))
+    # the return strand
+    us = [xl_mm + k * (rcu - xl_mm) / 80 for k in range(81)]
+    o.append(path("M " + " L ".join("%s %s" % tuple(f(c) for c in bp(
+        uu, seat1 + strand_mm(264 + uu / 25.4))) for uu in us), col=BELT_L, w=2.6))
+    # the tier-1 tray's front rim at x = 2"
+    FU = D["t1_x0"] * 25.4                      # 50.8 mm: the shroud face, over the rim
+    TR = D["tray_d"] * 25.4                     # 150 mm
+    o.append(line(bp(FU, 140), bp(FU, TR), STEEL, 2.6))
+    o.append(line(bp(FU, TR), bp(rcu + 60, TR), STEEL, 1.4, dash="6 3"))
+    o.append(txt(bp(FU + 110, TR + 5), "tier-1 tray rim, 150 mm (x = 2–26\")", 9, STEEL,
+                 "start", "600"))
+    # the FACE with its slot: lips 6 mm above and below the 1 mm belt, hemmed
+    vs = seat1 + strand_mm(264 + FU / 25.4)     # ~239 mm
+    lo_, hi_ = vs - 0.5 - 6, vs + 0.5 + 6
+    ftop = seat1 + 41
+    o.append(line(bp(FU, TR), bp(FU, lo_), MECH, 3.4))
+    o.append(line(bp(FU, hi_), bp(FU, ftop), MECH, 3.4))
+    for vv, sg in ((lo_, 1), (hi_, -1)):        # the hems, folded back rearward
+        o.append(path("M %s %s Q %s %s %s %s" % (
+            f(bp(FU, vv)[0]), f(bp(FU, vv)[1]), f(bp(FU + 7, vv)[0]), f(bp(FU + 7, vv)[1]),
+            f(bp(FU + 7, vv - sg * 4)[0]), f(bp(FU + 7, vv - sg * 4)[1])), col=MECH, w=2.2))
+    # dimensions
+    yd6 = bp(0, 132)[1]
+    o.append(dim_h(bp(0, 0)[0], bp(FU, 0)[0], yd6, "51 (2\")", MECH, 10))
+    o.append(dim_h(bp(pcu + PIPE_OD / 2, 0)[0], bp(FU, 0)[0], yd6 + 22,
+                   "~%.0f mm clear" % (FU - pcu - PIPE_OD / 2), STEEL, 9.5))
+    # D142: the rear frame's span leg points INTO the row, so the pipe centres
+    # 25 mm inside the leg line
+    o.append(dim_h(bp(pcu, 0)[0], bp(0, 0)[0], bp(0, pcv - 26)[1], "25", STEEL, 9.5))
+    o.append(line(bp(pcu, pcv - PIPE_OD / 2), bp(pcu, pcv - 30), STEEL, 0.7, dash="2 2"))
+    o.append(txt(bp(8, 364), "span leg points INTO the row (D142) — the pipe centres 25 mm "
+                 "inside the leg line", 9, STEEL, "start", "700"))
+    o.append(dim_h(bp(FU, 0)[0], bp(rcu - 31.5 - LAG_MM, 0)[0], yd6,
+                   "%.0f to the lagging" % (rcu - 31.5 - LAG_MM - FU), MECH, 10))
+    o.append(dim_v(bp(FU - 36, 0)[0], bp(0, TR)[1], bp(0, vs)[1], "", BELT_L, 9.5))
+    o.append(txt((bp(FU - 31, 0)[0], bp(0, (TR + vs) / 2)[1] + 4), "%.0f" % vs, 10, BELT_L,
+                 "start", "700"))
+    # labels
+    o.append(lead(bp(FU + 3, vs + 10), bp(120, 214),
+                  "SLOT — full width between the shroud ends; lips ≤6 mm above and below",
+                  MECH, 9.5))
+    o.append(txt(bp(126, 202), "the belt, HEMMED (folded back, no raw edge at the belt), set off",
+                 9, MUTED, "start"))
+    o.append(txt(bp(126, 190), "the TENSIONED belt with 6 mm packers — not off this drawing.",
+                 9, MUTED, "start"))
+    o.append(lead(bp(FU, 170), bp(120, 172), "CAGE-SIDE FACE over the tray's front rim, "
+                  "x = 2\" — pan lip down to 150 mm", MECH, 9.5))
+    o.append(lead(bp(pcu + 8, pcv + 6), bp(130, 272), "264\" PIPE, top 63 below the seat",
+                  STEEL, 9.5))
+    o.append(txt(bp(136, 259), "strand ~%.0f off the floor at the face" % vs, 9,
+                 BELT_L, "start", "600"))
+
     # ========================================================================
     # C -- PLAN AT 85": the line shafts, the propshaft, the 15 mm offset
     # ========================================================================
+    iC = len(o)                                 # panels C onward move down by S6
     o.append(panel(40, 900, 880, 540,
                    "C · PLAN AT 85\"  —  the cross-aisle propshaft.  "
                    "DO NOT INSTALL IT STRAIGHT"))
@@ -3971,7 +5572,7 @@ def drawing_driveend():
     o.append(rect((sy[0] - 17, sy[1] - 7), 34, 14, fill="#dfe4ea", col=STEEL, sw=1.6, r=2))
     o.append(txt((sy[0], sy[1] - 13), "SLIP YOKE — KEEP IT", 9.5, STEEL, "middle", "700"))
     o.append(dim_h(pa[0], pb2[0], pl.p(0, DE_X + 6.2)[1],
-                   'JOINT TO JOINT  602 mm = 23.7"  (D81)', MECH, 10))
+                   'JOINT TO JOINT  602 mm = 23.7"', MECH, 10))
     o.append(txt(pl.p((depth + r2z) / 2, DE_X + 8.4), "trough: bolted lid, independently",
                  9, MECH, "middle", "600"))
     o.append(txt(pl.p((depth + r2z) / 2, DE_X + 9.9), "bracketed, end shrouds, yoke pinned,",
@@ -3979,11 +5580,19 @@ def drawing_driveend():
     o.append(txt(pl.p((depth + r2z) / 2, DE_X + 11.4), "6 mm safety loop at EACH joint",
                  9, MECH, "middle", "600"))
     # gearmotor on row 2's post
-    gq = pl.p(r2z + 9.0, DE_X + off + 7.5)
+    # the gearbox chain, in row 2's hub plane: 52T on the line-shaft hub,
+    # 38T on the gearbox output D["gb_ctr"] rearward (ASSUMED centres)
+    hz2 = r2z - HUB_Z
+    vgo = DE_X + off + D["gb_ctr"]
+    o.append(line(pl.p(hz2, DE_X + off), pl.p(hz2, vgo), MECH, 3.0))
+    gq = pl.p(r2z + 9.0, vgo + 1.6)
+    o.append(line(pl.p(hz2, vgo), (gq[0] - 33, pl.p(0, vgo)[1]), STEEL, 2.4))
+    o.append(circ(pl.p(hz2, vgo), 4.2, fill="#f6d8d4", col=MECH, w=1.5))
     o.append(rect((gq[0] - 33, gq[1] - 11), 66, 22, fill="#f6d8d4", col=MECH, sw=1.7, r=3))
     o.append(txt((gq[0], gq[1] + 4), "GEARMOTOR", 9.5, MECH, "middle", "700"))
-    o.append(txt((gq[0] + 40, gq[1] - 1), "on row 2's post;", 9.5, MUTED))
-    o.append(txt((gq[0] + 40, gq[1] + 12), "row 3's in the other half", 9.5, MUTED))
+    o.append(txt((gq[0] + 40, gq[1] - 1), "row 2's; 38T → 52T chain", 9.5, MUTED))
+    o.append(txt((gq[0] + 40, gq[1] + 12), "to its hub (H) · row 3's in the", 9.5, MUTED))
+    o.append(txt((gq[0] + 40, gq[1] + 25), "other half", 9.5, MUTED))
     # dimensions
     o.append(dim_h(pl.p(r1z - 1.0, 0)[0], pl.p(r1z + depth + 4.8, 0)[0],
                    pl.p(0, -17)[1], 'line shaft ~950 mm — UNCHANGED (D81)', STEEL, 10))
@@ -4058,10 +5667,12 @@ def drawing_driveend():
     o.append(rect((cp[0] - 9, cp[1] - 12), 18, 24, fill="#dfe4ea", col=STEEL, sw=1.8, r=2))
     o.append(circ(gz, 11.0, fill=PAPER, col=INK, w=2.4))
     o.append(circ(gz, 3.4, fill=INK, col=INK, w=1))
-    o.append(lead(gz, (975, 1000), "PIVOT — on the output axis", INK, 10, "700", "start"))
-    o.append(lead((cp[0], cp[1] - 12), (975, 1024),
-                  "removable two-bolt coupling (D29)", STEEL, 10, "700", "start"))
-    o.append(txt((981, 1042), "to the 20 mm line shaft", 9.5, MUTED))
+    o.append(txt((975, 1000), "PIVOT — on the output axis", 10, INK, "start", "700"))
+    o.append(line((1128, 996), gz, INK, 0.8, dash="3 3"))
+    o.append(txt((975, 1024), "removable two-bolt coupling (D29)", 10, STEEL, "start", "700"))
+    o.append(line((1150, 1028), (cp[0], cp[1] - 12), STEEL, 0.8, dash="3 3"))
+    o.append(txt((981, 1040), "on the output, with the 38T of", 9.5, MUTED))
+    o.append(txt((981, 1053), "the gearbox chain — see H", 9.5, MUTED))
     # the 450 mm arm, the rubber block, the switch
     o.append(line(dl.p(0.0, DE_LINE), dl.p(-9.0, DE_LINE), INK, 5.0))
     o.append(txt(dl.p(-5.0, 85.6), "REACTION ARM  450 mm", 10, INK, "middle", "700"))
@@ -4085,8 +5696,9 @@ def drawing_driveend():
     o.append(txt((975, 1226), "HOW TO SET IT", 11.5, MECH, "start", "700"))
     t, _ = wrap(975, 1246, 430,
                 "Hook the luggage scale to the arm 450 mm from the output axis and pull until "
-                "the switch trips. It must trip at 37.6 kgf. Adjust with the nut behind the "
-                "rubber stack, then PAINT A MARK on the nut and confirm that mark monthly.",
+                "the switch trips. It must trip at %.1f kgf. Adjust with the nut behind the "
+                "rubber stack, then PAINT A MARK on the nut and confirm that mark monthly."
+                % D["trip_kgf"],
                 10.5, 14, MUTED)
     o.append(t)
     # the numbers
@@ -4094,13 +5706,14 @@ def drawing_driveend():
     o.append(txt((nx, 960), "THE ONE NUMBER TO SET", 12, MECH, "start", "700"))
     yy = 986
     for a, b in [
-        ("TRIP", "165.8 N·m = 37.6 kgf at the arm"),
+        ("TRIP", "%.1f N·m = %.1f kgf at the 450 mm arm — with the 52T"
+                 % (D["trip_nm"], D["trip_kgf"])),
         ("Set with", "a nut, checked on the luggage scale"),
         ("Behaviour", "LATCHING, into the contactor coil"),
         ("Why latching", "clearing a jam must not restart the belt"),
-        ("Gearbox peak", "127.6 N·m — the trip is 92% of nominal, so the box cannot "
-                         "reach its own rating"),
-        ("Unprotected stall", "~852 N·m · 23.9 kN into a 27.7 kN belt = 86% of ultimate"),
+        ("Gearbox peak", "~119 N·m on a missed-run morning with the 52T, just under the 121.2 N·m trip (the tray test decides)"),
+        ("Unprotected stall", "through the 52T, past the belt's 27.7 kN ultimate"),
+        ("Belt speed", "~%.2f m/min — one pass ~%.1f min" % (D["belt_mpm"], D["pass_min"])),
         ("Weakest link", "the 20 mm shaft at ~170 N·m, and the frame — NOT the belt"),
         ("Why that matters", "a twisted shaft is permanently out of square, and THAT BELT "
                              "NEVER TRACKS AGAIN"),
@@ -4108,7 +5721,9 @@ def drawing_driveend():
         o.append(txt((nx, yy), a, 10.5, INK, "start", "700"))
         t, yy = wrap(nx, yy + 14, 272, b, 10, 13)
         o.append(t)
-        yy += 8
+        yy += 5
+    o.append(rect((975, 1282), 360, 30, fill="#fdf1ef", col=MECH, sw=1.8, r=4))
+    o.append(txt((1155, 1302), TRIP_LBL, 13, MECH, "middle", "700"))
     o.append(rect((960, 1320), 760, 108, fill="#fdf1ef", col="#eec4bd", sw=1, r=6))
     o.append(txt((982, 1344), "★ DO NOT SUBSTITUTE ANY OF THESE FOR THE TORQUE LIMITER",
                  11.5, MECH, "start", "700"))
@@ -4236,7 +5851,7 @@ def drawing_driveend():
         "leg width ≥ 46 mm — at 44 the nut lands on the fillet",
         "thickness ≥ 3.5 mm · fillet ≤ 12 mm · bow ≤ 5 mm / 6 m",
         "50 × 50 is the MINIMUM wherever a pillow block lands",
-        "M12 × 40 grade 8.8, nyloc or double nut, no doubler",
+        "M12 × 40 gr 8.8 here (idler: M12 × 50), nyloc, no doubler",
         "drive end FIXED; the idler end is the slotted shelf",
     ]):
         o.append(txt((e2, yy + 44 + i * 15), "·  " + s2, 10, MUTED))
@@ -4332,7 +5947,7 @@ def drawing_driveend():
                    f'1.0 m ACROSS the row  ·  x = 2–26"  ·  '
                    f'{D["t1_tray_cap"]} L = 5 × a run',
                    STEEL, 9.5))
-    # the curtain: 790 mm wide, essentially vertical -- 3 mm of carry at 16 mm/s
+    # the curtain: 790 mm wide, essentially vertical -- 3 mm of carry at 15 mm/s
     o.append(rect(dc.p(bz0d, T1Y - 0.5), (bz1d - bz0d) * dc.s, (T1Y - 0.5 - T1TR) * dc.s,
                   fill="#efe6da", col="none", sw=0, op=0.8))
     for i3 in range(6):
@@ -4346,6 +5961,11 @@ def drawing_driveend():
             a = dc.p(zq, T1TR + 0.5 + i3 * 1.4)
             o.append(line((a[0], a[1]), (a[0] + (5 if zq > 16 else -5), a[1] - 5),
                           STEEL, 0.8))
+    # the cage-side face is behind the curtain: its return-strand SLOT, dashed (D132)
+    vsl = (PAN[0] * 25.4 + strand_mm(266)) / 25.4
+    for dv in (-mm(6.5), mm(6.5)):
+        o.append(line(dc.p(pz0d, vsl + dv), dc.p(pz1d, vsl + dv), MECH, 1.0, dash="5 3"))
+    o.append(txt(dc.p(pz0d - 0.6, vsl - 0.25), "slot", 8.5, MECH, "end", "700"))
     o.append(txt(dc.p(zc1 / 2 - 3, T1Y + 1.1), "TIER 1 FALLS FREE — 305 mm", 9.0,
                  MECH, "middle", "700"))
     # ---- the catch tray in the aisle: TIERS 2 AND 3, set just clear of the
@@ -4389,7 +6009,7 @@ def drawing_driveend():
                  "start", "700"))
     t, _ = wrap(1218, 1770, 244,
                 f'It falls FREE over its drive roller at {PAN[0] * 25.4:.0f} mm, '
-                f'essentially vertical: at 16 mm/s the carry is {D["t1_carry_mm"]} mm, so '
+                f'essentially vertical: at 15 mm/s the carry is {D["t1_carry_mm"]} mm, so '
                 f'it lands where the roller is. 790 mm of curtain into a 1000 mm tray = '
                 f'{D["t1_margin_mm"]} mm of rim outboard of it each side. NO channel, NO '
                 f'flush. The 3-SIDED SHROUD runs from the pan lip down to '
@@ -4413,7 +6033,8 @@ def drawing_driveend():
                  "Both ends and the cage-side face, pan lip down to 150 mm, OPEN REARWARD "
                  "ONLY — the tray draws out onto the access floor and a hand in it has no "
                  "upward path to the tier-1 nip. Four of the twelve nose guards are simply "
-                 "taller.", 10, 13, MUTED)
+                 "taller. The face carries the full-width return-strand SLOT at ~239 mm "
+                 "(dashed here; detail in B2).", 10, 13, MUTED)
     o.append(t)
     o.append(txt((fx, yy + 18), "★ ISOLATE — LOCK — TRY IS PRIMARY HERE", 10.5, MECH,
                  "start", "700"))
@@ -4444,7 +6065,7 @@ def drawing_driveend():
     # ========================================================================
     # G -- guards, clearance checks, queries
     # ========================================================================
-    o.append(panel(40, 2010, 1700, 440,
+    o.append(panel(40, 2010, 1700, 540,
                    "G · GUARDS, CLEARANCE CHECKS, AND WHAT THIS SHEET HAD TO ASSUME"))
     gx = 70
     o.append(txt((gx, 2058), "GUARDS  —  mesh, apertures ≤8 mm, WINGNUT STUDS NOT BOLTS",
@@ -4457,16 +6078,20 @@ def drawing_driveend():
          "top-hinged"),
         ("At the TIER-1 station",
          "CLOSED BOTTOM — no upward-facing opening at ankle height, because the plate bottom "
-         "sits at ~7.7\"; drain through a 6 mm slot in the OUTBOARD face; lower outboard "
+         "sits at ~7.3\" (~185 mm); drain through a 6 mm slot in the OUTBOARD face; lower outboard "
          "corner a sloped deflector; its own short hinged panel. ★ EXTENDED BY D78: no "
          "upward-facing opening anywhere within 600 mm of the tray — the man scooping "
          "crouches with hands, knees and face at that height"),
         ("Discharge nose ×12  —  ★ tier 1's FOUR are the 3-SIDED SHROUD",
          "full 790 mm, ≤6 mm gap to the belt, ≥200 mm back along the incoming run.  ★ At "
          "tier 1 it runs on DOWN to 150 mm and wraps both ends and the cage-side face, open "
-         "REARWARD only (R7 / D105): a hand in the tray then has no upward path to the "
+         "REARWARD only (R7 / D105), the face slotted full width for the return strand, lips "
+         "≤6 mm, hemmed (D132, panel B2): a hand in the tray then has no upward path to the "
          "tier-1 nip, and there is no upward-facing opening within 600 mm of the tray.  "
          "Not a new BOM line — four of the twelve are simply taller"),
+        ("Gearbox-chain guard ×2  —  sized to the 52T",
+         "mesh, ≤8 mm, 25 mm outside both plates (52T tip Ø218, 38T tip Ø161), wingnut "
+         "studs; it sits OUTBOARD of the top member's end, like the plate (panel H)"),
         ("Shaft-end shrouds ×48  ·  propshaft trough ×2",
          "shrouds FIXED and non-rotating; trough with a bolted lid, independently bracketed, "
          "rated for 2× shaft weight, end shrouds, yoke pinned, 6 mm safety loop each joint"),
@@ -4498,21 +6123,25 @@ def drawing_driveend():
         ("33.5 mm", "sprocket overhang — RULED ≤35 here, 2.4× at the trip load"),
         ("69.5 / 66 mm", "free shaft outboard of the toe: available / needed"),
         ("1 mm / 790 mm", "roller parallelism; square to the run within 2 mm"),
-        ("10 mm", "belt to pan lip — 1 mm parallelism = 10 mm ÷ 7.42 m of run"),
+        ("10 mm", "belt to pan lip — 1 mm parallelism = 10 mm ÷ 7.26 m of run"),
         ("15 mm", "propshaft offset over 602 mm = 1.43°.  NEVER zero."),
         ("250 mm", "chute spout above the tray floor, over its 150 mm lip"),
-        ("305 mm", "★ tier 1's FREE discharge — 3 mm of carry at 16 mm/s (R7)"),
+        ("305 mm", "★ tier 1's FREE discharge — 3 mm of carry at 15 mm/s (R7)"),
         ("1000 mm", "★ tier 1's tray across the row — 68 mm outboard each side"),
         ("1100 mm", "★ CLEAR between the post feet — tray passes, 50 each side"),
         (f"{T1_SKIRT_MM:.0f} mm", f"★ tray rim {T1_RIM_MM:.0f} to the skirt line "
                                   f"{SKIRT_Z_MM:.0f}, off the row centre"),
         ("188 mm", "★ R1(a)'s brace crossing x = 2–26\" — over the 150 mm rim"),
+        ("185 mm", "★ lowest sprocket bottom, ~7.3\" (R4)"),
+        ("51 mm", "★ tier-1 shroud face behind the rear leg (B2)"),
+        ("17.3 mm", "264\" pipe to the cage roof · GATE ≥8"),
+        ("18 mm", "★ 52T tip to the top-face level — clears in PLAN (H)"),
         ("250 N", "slack-side tension — the fuse is gone if it is too tight"),
     ]):
         o.append(txt((cx2, 2072 + i * 17), a, 10.5, MECH, "start", "700"))
         t, _ = wrap(cx2 + 96, 2072 + i * 17, 292, b, 10, 11)
         o.append(t)
-    lg, _ = legend(cx2, 2348, [
+    lg, _ = legend(cx2, 2439, [
         (MECH, "drive — rollers, chain, sprockets, posts, gearmotor"),
         (MANURE, "hopper, 100 mm cross-channel, TWO-TIER chute, tier 1's free fall"),
         ("#eef4f8", "the TWO catch trays per row  ·  light blue = where liquid pools"),
@@ -4522,7 +6151,7 @@ def drawing_driveend():
     o.append(lg)
 
     qx = 1092
-    o.append(rect((qx - 18, 2036), 630, 396, fill="#fffbe9", col="#e8d9a0", sw=1, r=6))
+    o.append(rect((qx - 18, 2036), 630, 436, fill="#fffbe9", col="#e8d9a0", sw=1, r=6))
     o.append(txt((qx, 2062), "★ WHAT IS CHECKED IN THE FIELD, AND WHAT THIS SHEET "
                               "ASSUMES", 11.5, "#8a6a00", "start", "700"))
     yy = 2086
@@ -4551,10 +6180,12 @@ def drawing_driveend():
          "the 23\" access floor starts. It gates THE FOUR APRONS AND FOLDING THE FOUR "
          "SHROUDS only. Chalk the across-row spread as well and write it down."),
         ("The gearmotor mounting",
-         "§15.11 puts the pedestal on the 90\" top member; §15.5 says foot-mount on a pivot; "
-         "D29 wants a removable coupling at the output. Drawn with the pivot concentric with "
-         "the output at 85\" so the coupling sees no arc. Output centre height, pedestal "
-         "geometry and pivot position are all assumed."),
+         "§15.11 puts the pedestal on the 90\" top member; §15.5 says foot-mount on a pivot "
+         "concentric with the output; D29 wants a removable coupling at the output. Drawn "
+         "with the output %.0f\" rearward of the line shaft at its height, its 38T driving "
+         "the 52T on the line-shaft hub. Those centres, the pedestal geometry and which "
+         "tooth row carries the 52T are all assumed — the gearbox chain is cut to length "
+         "off the real box." % D["gb_ctr"]),
         ("The reaction arm's direction",
          "Drawn FORWARD over the stack, reacting down onto the 63\" brace, because rearward "
          "would need structure behind x = 26\". Not stated."),
@@ -4568,6 +6199,8 @@ def drawing_driveend():
         o.append(t)
         yy += 5
 
+    o.append(driveend_panel_h(2570, HH))
+    o[iC:] = ['<g transform="translate(0,%d)">' % S6] + o[iC:] + ["</g>"]
     write("manure-belt-REVC-6-driveend.svg", W, H, "".join(o))
 
 
