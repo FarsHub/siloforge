@@ -137,7 +137,7 @@ function feedDailySeries(validPenIds,penId){
   const mine=r=>!penId||(r.pen_id||legacy)===penId;
   const pen=penId?(farm.pens||[]).find(p=>p.id===penId):null;
   const sortedBirds=DB.getBirds().filter(b=>(b.closing_birds||0)>0&&mine(b)).sort((a,b)=>a.date.localeCompare(b.date));
-  const totalNow=(pen?getPenTotalBirds(pen):getFarmTotalBirds(farm))||0;
+  const totalNow=(pen?penLiveBirds(pen):farmLiveBirds(farm))||0;
   const map={};
   const touch=d=>(map[d]=map[d]||{date:d,kg:0,req:0,eggs:0,rate:0,rateN:0,age:null,types:{}});
   DB.getFeed().filter(mine).forEach(r=>{
@@ -300,7 +300,7 @@ function renderReports(){
   const scopePen=_activePenId?(farm.pens||[]).find(p=>p.id===_activePenId):null;
   const legacyPen=legacyPenId();
   const inScope=id=>!_activePenId||id===_activePenId;
-  const farmBirds=scopePen?getPenTotalBirds(scopePen):getFarmTotalBirds(farm);
+  const farmBirds=scopePen?penLiveBirds(scopePen):farmLiveBirds(farm);
   const validPenIds=new Set((farm.pens||[]).filter(p=>inScope(p.id)).map(p=>p.id));
   const cols=filterColsByDate(allCols).filter(c=>validPenIds.has(c.penId));
   // Flock and feed records predate pen tagging, so an untagged one belongs to
@@ -369,7 +369,7 @@ function renderReports(){
       tabContent=`
         <div class="kpi-row-5">
           <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g2)">${totalEggs}</div><div class="kpi-lbl-sm">Eggs</div></div>
-          <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(overallRate)}">${overallRate!==null?overallRate.toFixed(0)+'%':'—'}</div><div class="kpi-lbl-sm">Prod Rate</div></div>
+          <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(overallRate)}">${fmtRate(overallRate)}</div><div class="kpi-lbl-sm">Prod Rate</div></div>
           <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g1)">${farmBirds}</div><div class="kpi-lbl-sm">Birds</div></div>
           <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--red)">${totalBroken}</div><div class="kpi-lbl-sm">Broken</div></div>
           <div class="kpi-sm" style="${crackRate>3?'border:2px solid var(--red)':crackRate>=2?'border:2px solid var(--amber)':''}">
@@ -469,7 +469,7 @@ function renderReports(){
           <div class="kpi-row-3" style="margin:0">
             <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${peak?peak.hdp.toFixed(0)+'%':'—'}</div><div class="kpi-lbl">Peak${peak?' ('+peak.label+')':''}</div></div>
             <div class="kpi"><div class="kpi-val">${above}</div><div class="kpi-lbl">${isWeekly?'Weeks':'Months'} ≥80%</div></div>
-            <div class="kpi"><div class="kpi-val" style="color:${col}">${arrow} ${last?last.hdp.toFixed(0)+'%':'—'}</div><div class="kpi-lbl">Latest</div></div>
+            <div class="kpi"><div class="kpi-val" style="color:${col}">${arrow} ${last?fmtRate(last.hdp):'—'}</div><div class="kpi-lbl">Latest</div></div>
           </div></div>`;
       }).join('');
 
@@ -710,7 +710,7 @@ function renderReports(){
               <td>${fmtMonth(r.m)}${r.days<20?' *':''}</td>
               <td style="font-weight:700;color:${fcrColour(r.fcr)}">${r.fcr!=null?r.fcr.toFixed(2):'—'}</td>
               <td style="color:${col};font-weight:700">${arrow}${d==null?'':' '+(d>0?'+':'')+d.toFixed(2)}</td>
-              <td>${r.age??'—'}</td><td>${r.lay!=null?r.lay.toFixed(0)+'%':'—'}</td>
+              <td>${r.age??'—'}</td><td>${fmtRate(r.lay)}</td>
               <td>${r.gpb!=null?r.gpb.toFixed(0):'—'}</td><td>${r.gpe!=null?r.gpe.toFixed(0):'—'}</td>
               <td>${r.kg.toFixed(0)}</td><td>${r.eggs.toLocaleString()}</td></tr>`;
           }).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--gray);padding:18px">No feed records yet.</td></tr>'}</tbody>

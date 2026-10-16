@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.09.20-b21';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.09.29-b22';  // bump on each deploy; shown on login screen + console
 const BREEDS_BY_TYPE={
   broiler:['Arbor Acres','Marshall','Other'],
   pullet:['Isa Brown','Lohmann Brown','Hy-Line Brown','Black Pullet','Other'],
@@ -126,13 +126,13 @@ const LAYER_VACC_SCHEDULE=[
   {dayMin:42, dayMax:42, name:"Coccidiostat 2",               route:"Drinking Water"},
   {dayMin:49, dayMax:49, name:"Coryza 1 (Pullet)",            route:"Intramuscular / Subcutaneous"},
   {dayMin:49, dayMax:49, name:"Antibiotics 2",                route:"Drinking Water",optional:true,
-   why:"Only if birds show illness — routine dosing breeds resistance. Skip if the flock is healthy."},
+   why:"Only if birds show illness. Skip if the flock is healthy."},
   {dayMin:56, dayMax:56, name:"Fowl Pox",                     route:"Wing Web"},
   {dayMin:63, dayMax:63, name:"Fowl Typhoid 9R 1 (prime)",    route:"Subcutaneous / IM"},
   {dayMin:70, dayMax:70, name:"ND Lasota 2 + IB",             route:"Drinking Water"},
   {dayMin:77, dayMax:77, name:"Dewormer 1",                   route:"Drinking Water"},
   {dayMin:84, dayMax:84, name:"Fowl Cholera (Pullet)",        route:"Subcutaneous",optional:true,
-   why:"Only if this site has had cholera before, or birds go on deep litter / range. Cage-reared with rodent control can skip. Selling at 12 weeks? Leave it to the buyer."},
+   why:"Only if this site has had cholera before, or birds go on deep litter. Selling at 12 weeks? Leave it to the buyer."},
   {dayMin:91, dayMax:91, name:"Coryza 2 (Pullet, booster)",   route:"Intramuscular / Subcutaneous"},
   {dayMin:98, dayMax:98, name:"Dewormer 2",                   route:"Drinking Water"},
   {dayMin:105,dayMax:105,name:"Fowl Typhoid 9R 2 (booster)",  route:"Subcutaneous / IM"},

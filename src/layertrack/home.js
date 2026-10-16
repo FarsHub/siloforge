@@ -39,7 +39,7 @@ function farmHomeHtml(farm,pens){
   const rows=pens.map(pen=>{
     const eggs=todayCols.filter(c=>c.penId===pen.id)
       .reduce((s,c)=>(c.entries||[]).reduce((ss,e)=>ss+(e.eggs||0),s),0);
-    const birds=getPenTotalBirds(pen);
+    const birds=penLiveBirds(pen);
     const deaths=todayBirds.filter(r=>ownedByPen(r,pen.id)).reduce((s,r)=>s+(r.deaths||0),0);
     const pending=allPass.filter(p=>p.penId===pen.id&&!p.complete).length;
     return{pen,eggs,birds,deaths,pending,stage:getPenStage(pen),
@@ -68,7 +68,7 @@ function farmHomeHtml(farm,pens){
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
         <div class="kpi-sm"><div class="kpi-val-sm">${r.eggs.toLocaleString()}</div><div class="kpi-lbl-sm">Eggs Today</div></div>
-        <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(r.rate,r.stage)}">${r.rate!==null?r.rate.toFixed(0)+'%':'—'}</div><div class="kpi-lbl-sm">Lay Rate</div></div>
+        <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(r.rate,r.stage)}">${fmtRate(r.rate)}</div><div class="kpi-lbl-sm">Lay Rate</div></div>
         <div class="kpi-sm"><div class="kpi-val-sm" style="color:${r.deaths>0?'var(--red)':'var(--g1)'}">${r.deaths}</div><div class="kpi-lbl-sm">Deaths</div></div>
       </div>
       ${r.pending>0?`<div style="font-size:12px;color:var(--amber);font-weight:700;margin-bottom:8px">${r.pending} collection pass${r.pending>1?'es':''} still to do</div>`:''}
@@ -114,7 +114,7 @@ function penDailySummary(penId,days){
 function penHomeHtml(farm,pen,pens){
   const today=DB.today();
   const todayCols=DB.todayCols().filter(c=>c.penId===pen.id);
-  const birds=getPenTotalBirds(pen), stage=getPenStage(pen);
+  const birds=penLiveBirds(pen), stage=getPenStage(pen);
   let totalEggs=0,totalBroken=0;
   todayCols.forEach(c=>(c.entries||[]).forEach(e=>{ totalEggs+=(e.eggs||0); totalBroken+=(e.broken||0); }));
   const todayRate=birds>0?totalEggs/birds*100:null;
@@ -181,7 +181,7 @@ function penHomeHtml(farm,pen,pens){
     </div>`:''}
     <div class="kpi-row-4">
       <div class="kpi-sm"><div class="kpi-val-sm">${totalEggs.toLocaleString()}</div><div class="kpi-lbl-sm">Eggs Today</div></div>
-      <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(todayRate,stage)}">${todayRate!==null?todayRate.toFixed(0)+'%':'—'}</div><div class="kpi-lbl-sm">Lay Rate</div></div>
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(todayRate,stage)}">${fmtRate(todayRate)}</div><div class="kpi-lbl-sm">Lay Rate</div></div>
       <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g1)">${birds.toLocaleString()}</div><div class="kpi-lbl-sm">Birds</div></div>
       <div class="kpi-sm" style="${todayCrack>3?'border:2px solid var(--red)':todayCrack>=2?'border:2px solid var(--amber)':''}">
         <div class="kpi-val-sm" style="color:${crackColor}">${todayCrack!==null?todayCrack.toFixed(1)+'%'+crackAlert:'—'}</div>
@@ -236,7 +236,7 @@ function getAllPassStatus(farm,todayCols){
 }
 // Still farm-wide: the reports' 14-day mortality strip reads it across pens.
 function getDailySummary(days){
-  const farm=DB.getFarm(), birds=farm?getFarmTotalBirds(farm):0;
+  const farm=DB.getFarm(), birds=farm?farmLiveBirds(farm):0;
   const validIds=new Set((farm?.pens||[]).map(p=>p.id));
   const cols=DB.getCols().filter(c=>validIds.has(c.penId));
   const birdRecs=DB.getBirds();

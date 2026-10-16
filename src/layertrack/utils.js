@@ -58,11 +58,18 @@ function rateBand(rate,stage){
   if(warn<=0)return null;
   return rate>=warn?'ok':'poor';
 }
+// A first egg from a pullet flock is a tiny rate, and rounding it to "0%" says
+// nothing happened. Under 1% keep two significant figures so it still shows.
+function fmtRate(rate,dp=0){
+  if(rate===null||rate===undefined)return '—';
+  return rate>0&&rate<1?`${+rate.toPrecision(2)}%`:`${rate.toFixed(dp)}%`;
+}
 function rateBadge(rate,stage){
+  if(rate===null||rate===undefined)return '<span class="badge badge-gray">—</span>';
   const b=rateBand(rate,stage);
-  if(!b)return '<span class="badge badge-gray">—</span>';
-  const cls=b==='good'?'badge-green':b==='ok'?'badge-amber':'badge-red';
-  return `<span class="badge ${cls}">${rate.toFixed(1)}%</span>`;
+  // No verdict (not yet expected to lay) still shows the number, in grey.
+  const cls=!b?'badge-gray':b==='good'?'badge-green':b==='ok'?'badge-amber':'badge-red';
+  return `<span class="badge ${cls}">${fmtRate(rate,1)}</span>`;
 }
 function rateColor(r,stage){
   const b=rateBand(r,stage);

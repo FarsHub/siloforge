@@ -150,7 +150,7 @@ const FEED_HORIZON_DAYS=365;
 // guesswork, and erring towards slightly more feed is the safe direction.
 function feedDemandSchedule(){
   const pens=((DB.getFarm()||{}).pens||[])
-    .map(p=>({pen:p,birds:getPenTotalBirds(p),week0:(getPenStage(p)||{weeks:0}).weeks||0}))
+    .map(p=>({pen:p,birds:penLiveBirds(p),week0:(getPenStage(p)||{weeks:0}).weeks||0}))
     .filter(p=>p.birds>0);
   const out={};
   for(let day=0;day<FEED_HORIZON_DAYS;day++){

@@ -19,9 +19,7 @@ function feedUsageBody(){
   const recs=DB.getFeed().filter(ownedByActivePen).sort((a,b)=>b.date.localeCompare(a.date));
   const todayRec=recs.find(r=>r.date===today);
   const totalUsed7=recs.filter(r=>{const d=new Date(today);d.setDate(d.getDate()-7);return r.date>d.toISOString().slice(0,10);}).reduce((s,r)=>s+(r.feed_kg_used||0),0);
-  const farmBirds=activePenBirds();
-  const lastBird=DB.getBirds().sort((a,b)=>b.date.localeCompare(a.date))[0];
-  const closingBirds=lastBird?.closing_birds||farmBirds;
+  const closingBirds=activePenBirds();
   const logHtml=`<div class="card">
     <div class="card-title">${todayRec?'Today\'s Feed Log ✓':'Log Feed Usage'}</div>
     ${todayRec?`

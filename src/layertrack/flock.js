@@ -10,7 +10,7 @@ function renderFlock(){
   // ages in different pens, a farm total under a pen heading is a wrong answer
   // to the question the heading asks.
   const pen=((farm||{}).pens||[]).find(p=>p.id===_activePenId);
-  const penBirds=pen?getPenTotalBirds(pen):0;
+  const penBirds=pen?penLiveBirds(pen):0;
   const penStage=pen?getPenStage(pen):null;
   const ageWeeks=penStage?penStage.weeks:null;
   const logFormHtml=`
@@ -62,16 +62,15 @@ function renderFlock(){
 function openBirdForm(editId){
   const farm=DB.getFarm(), today=DB.today();
   const rec=editId?DB.getBirds().find(r=>r.id===editId):null;
-  const lastRec=DB.getBirds().filter(ownedByActivePen)
-    .sort((a,b)=>b.date.localeCompare(a.date)).find(r=>!editId||r.id!==editId);
   const pen=((farm||{}).pens||[]).find(p=>p.id===_activePenId);
-  const defOpen=rec?rec.opening_birds:((pen?getPenTotalBirds(pen):0)||lastRec?.closing_birds||0);
+  // Today's opening is yesterday's closing, not the cage layout.
+  const defOpen=rec?rec.opening_birds:penLiveBirds(pen,today);
   const ageWeeks=(pen?(getPenStage(pen)||{}).weeks:null)||0;
   openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Bird Status <button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
       📅 Change the date to log records for <b>yesterday or any past day</b>. Feed and water are often measured the next morning — just set the date to when the consumption actually happened.
     </div>
-    <div class="field"><label>Date</label><input type="date" id="bf_date" value="${rec?rec.date:today}" max="${today}"></div>
+    <div class="field"><label>Date</label><input type="date" id="bf_date" value="${rec?rec.date:today}" max="${today}"${rec?'':' onchange="birdFormDateChanged()"'}></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Opening Birds</label><input type="number" id="bf_open" value="${defOpen}" min="0" oninput="calcClosing()"></div>
       <div class="field"><label>Age (weeks)</label><input type="number" id="bf_age" value="${rec?.age_weeks??ageWeeks}" min="0"></div>
@@ -85,6 +84,13 @@ function openBirdForm(editId){
       <div id="bf_cull_note" style="font-size:11px;color:var(--amber);margin-top:4px;display:${(rec?.culls||0)>0?'block':'none'}">⚠ ${rec?.culls||0} culled bird${(rec?.culls||1)>1?'s':''} in isolation — not deducted from closing count. Log their fate (death or return) in a future daily entry.</div></div>
     <div class="field"><label>Notes</label><textarea id="bf_notes" placeholder="e.g. Birds are stable. Found dead bird in T2·C3.">${rec?.notes||''}</textarea></div>
     <button class="btn btn-primary" onclick="saveBirdLog('${editId||''}')">Save</button>`);
+}
+// Backdating a new record: the opening count is the closing of the day before
+// the chosen date, not the latest one.
+function birdFormDateChanged(){
+  const d=document.getElementById('bf_date')?.value, o=document.getElementById('bf_open');
+  if(!d||!o)return;
+  o.value=penLiveBirds(activePen(),d);calcClosing();
 }
 function calcClosing(){
   const o=parseInt(document.getElementById('bf_open')?.value)||0;

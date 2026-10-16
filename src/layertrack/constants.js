@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.09.24-b29';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.10.16-b31';  // bump on each deploy; shown on login screen + console
 const ROUNDS = [
   {id:1,label:'1st Pick',sub:'Morning',  cls:'round-1'},
   {id:2,label:'2nd Pick',sub:'Afternoon',cls:'round-2'},
@@ -22,17 +22,28 @@ const FLOCK_STAGES = [
   {maxWeek:76, label:'Declining',  emoji:'🔻',expected:65,warn:48,bg:'#fef3cd',color:'#7d4e00'},
   {maxWeek:999,label:'Late Lay',   emoji:'⏳',expected:50,warn:35,bg:'#fde8ea',color:'#d62839'},
 ];
-// Pullet feed requirement table: index 0 = week 1, index 21 = week 22; week 23+ = full laying (120g)
+// Pullet feed requirement table, same programme book as BroodTrack's
+// PULLET_FEED_BY_WEEK: index 0 = book week 1, index 21 = book week 22; week 23+ = full laying (120g)
 const LAYER_FEED_TABLE = [15,25,30,35,37,40,45,50,55,58,60,65,68,70,80,90,100,110,115,115,115,115];
+// Pen age (getPenStage) is completed weeks: a bird 12 weeks and 3 days old is
+// "Wk 12". The book counts the week the bird is in — that same bird is in week
+// 13. BroodTrack reads it as floor(days/7)+1; do the same here, or every rate
+// runs a week behind the brooder that raised the flock.
+function layerBookWeek(ageWeeks){ return Math.max(0,Math.floor(ageWeeks||0))+1; }
 function getLayerFeedRate(ageWeeks){
-  if(!ageWeeks||ageWeeks<1||ageWeeks>=23) return 120;
-  return LAYER_FEED_TABLE[ageWeeks-1];
+  const wk=layerBookWeek(ageWeeks);
+  return wk>LAYER_FEED_TABLE.length?120:LAYER_FEED_TABLE[wk-1];
 }
-// Pullet water requirement table: index 0 = week 1, index 21 = week 22; week 23+ = full laying (250ml)
-const LAYER_WATER_TABLE = [30,50,60,70,75,80,90,100,110,115,120,130,135,140,160,180,200,220,230,230,230,230];
+// Water follows feed rather than a table of its own, so the two can never
+// drift apart: ml/bird/day = feed g × ratio. 2.5 while growing (BroodTrack's
+// DEFAULT_WATER_RATIO), 3 once the pen is on Layer Mash — laying birds drink
+// more, and more again in the heat. Keyed to the feed programme so water steps
+// up the same week the feed changes.
+const WATER_RATIO_GROWING = 2.5;
+const WATER_RATIO_LAYING  = 3;
 function getLayerWaterRate(ageWeeks){
-  if(!ageWeeks||ageWeeks<1||ageWeeks>=23) return 250;
-  return LAYER_WATER_TABLE[ageWeeks-1];
+  const laying=feedTypeForWeek(ageWeeks)==='Layer Mash';
+  return Math.round(getLayerFeedRate(ageWeeks)*(laying?WATER_RATIO_LAYING:WATER_RATIO_GROWING));
 }
 const FEED_TYPES = ['Grower','Pre-Layer Mash','Layer Mash','Concentrate','Other'];
 // Feed names drift. 'Grower Pellets' was on this list first, 'grower' gets typed

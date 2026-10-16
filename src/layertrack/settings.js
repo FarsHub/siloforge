@@ -41,7 +41,7 @@ function renderSettings(){
     <div class="card">
       <div class="card-title">Farm Details</div>
       <div class="field"><label>Farm Name</label><input type="text" id="s_name" value="${farm.name||''}" placeholder="e.g. Green Valley Farms"></div>
-      ${(()=>{const aw=getFarmAgeWeeks(farm)||0;const fr=getLayerFeedRate(aw);const wr=getLayerWaterRate(aw);const ph=aw>=23?'Laying phase':`Week ${aw} pullet`;return`
+      ${(()=>{const aw=getFarmAgeWeeks(farm)||0;const fr=getLayerFeedRate(aw);const wr=getLayerWaterRate(aw);const ph=layerBookWeek(aw)>LAYER_FEED_TABLE.length?'Laying phase':`Week ${aw} pullet`;return`
       <div style="background:var(--g5);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--g1);margin-bottom:8px">
         🌾 Feed: <b>${fr} g/bird/day</b> &nbsp;·&nbsp; 💧 Water: <b>${wr} ml/bird/day</b><br><span style="font-weight:500;opacity:.75">${ph} — auto-calculated by flock age</span>
       </div>`;})()}

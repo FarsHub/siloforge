@@ -59,10 +59,22 @@ function activePen(){
 // pre-lay flock ends up being fed a laying ration.
 function activePenBirds(){
   const pen=activePen();
+  return pen?penLiveBirds(pen):0;
+}
+// Birds alive in a pen now. getPenTotalBirds() only counts the cage layout —
+// what was placed — and never moves when a death is logged. The flock log is
+// the running count, so its latest closing figure wins; the layout is only the
+// starting point before the first log exists. Optional beforeDate/excludeId
+// give the opening count for a given day: the closing of the last day before it.
+function penLiveBirds(pen,beforeDate,excludeId){
   if(!pen)return 0;
-  const last=DB.getBirds().filter(r=>ownedByPen(r,pen.id)&&(r.closing_birds||0)>0)
+  const last=DB.getBirds().filter(r=>ownedByPen(r,pen.id)&&(r.closing_birds||0)>0
+      &&(!beforeDate||r.date<beforeDate)&&r.id!==excludeId)
     .sort((a,b)=>b.date.localeCompare(a.date))[0];
   return last?last.closing_birds:getPenTotalBirds(pen);
+}
+function farmLiveBirds(farm){
+  return (farm?.pens||[]).reduce((s,pen)=>s+penLiveBirds(pen),0);
 }
 function activePenAgeWeeks(){
   const st=activePen()?getPenStage(activePen()):null;
@@ -308,7 +320,7 @@ function penEconomics(range){
 
   const rows=pens.map(pen=>{
     const eggs=eggsBy[pen.id]||0, broken=brokenBy[pen.id]||0;
-    const birdsNow=getPenTotalBirds(pen);
+    const birdsNow=penLiveBirds(pen);
     const birdsOn=penBirdsOnDateFn(pen.id,birdsNow);
 
     // Feed — kg from the pen's own usage records, naira from the store price
@@ -544,7 +556,7 @@ function renderPensReport(){
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:10px">
         <div class="kpi-sm"><div class="kpi-val-sm">${p.birdsNow.toLocaleString()}</div><div class="kpi-lbl">Birds</div></div>
         <div class="kpi-sm"><div class="kpi-val-sm">${p.eggs.toLocaleString()}</div><div class="kpi-lbl">Eggs</div></div>
-        <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(p.hdp,p.stage)}">${p.hdp!==null?p.hdp.toFixed(0)+'%':'—'}</div><div class="kpi-lbl">Lay Rate</div></div>
+        <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(p.hdp,p.stage)}">${fmtRate(p.hdp)}</div><div class="kpi-lbl">Lay Rate</div></div>
         <div class="kpi-sm"><div class="kpi-val-sm" style="color:${p.mortalityPct===null?'var(--gray)':p.mortalityPct>3?'var(--red)':p.mortalityPct>1?'var(--amber)':'var(--g2)'}">${p.mortalityPct!==null?p.mortalityPct.toFixed(1)+'%':'—'}</div><div class="kpi-lbl">Mortality</div></div>
       </div>
 
