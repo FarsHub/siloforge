@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.10.16-b31';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.10.16-b32';  // bump on each deploy; shown on login screen + console
 const ROUNDS = [
   {id:1,label:'1st Pick',sub:'Morning',  cls:'round-1'},
   {id:2,label:'2nd Pick',sub:'Afternoon',cls:'round-2'},
@@ -41,8 +41,10 @@ function getLayerFeedRate(ageWeeks){
 // up the same week the feed changes.
 const WATER_RATIO_GROWING = 2.5;
 const WATER_RATIO_LAYING  = 3;
-function getLayerWaterRate(ageWeeks){
-  const laying=feedTypeForWeek(ageWeeks)==='Layer Mash';
+// Pass the pen's actual feed where it is known (penFeedType) — a flock that
+// came into lay early is on Layer Mash before the age says so.
+function getLayerWaterRate(ageWeeks,feedType){
+  const laying=(feedType||feedTypeForWeek(ageWeeks))==='Layer Mash';
   return Math.round(getLayerFeedRate(ageWeeks)*(laying?WATER_RATIO_LAYING:WATER_RATIO_GROWING));
 }
 const FEED_TYPES = ['Grower','Pre-Layer Mash','Layer Mash','Concentrate','Other'];
@@ -86,6 +88,13 @@ const DEFAULT_FEED_PROGRAMME = [
   {type:'Pre-Layer Mash', toWeek:18},
   {type:'Layer Mash',     toWeek:null},
 ];
+// Age is the fallback, not the rule: a flock that starts laying early moves on
+// as soon as its eggs say so. Lay %, averaged over the last few recorded days,
+// at which the pen goes to Pre-Layer Mash and then Layer Mash the next day.
+// Editable in Settings; 0 turns that egg-led step off and leaves it to age.
+const DEFAULT_LAY_PRELAY_PCT = 1;
+const DEFAULT_LAY_LAYER_PCT  = 5;
+const LAY_SWITCH_AVG_DAYS    = 3;
 const EXPENSE_CATS = ['Feed Purchase','Medication','Transport','Generator Fuel','Labour','Litter/Bedding','Chick Purchase','Equipment','Water Purchase','Other'];
 const PRODUCT_TYPES = ['Eggs — Crates','Culled Birds','Cockerels','Manure','Other'];
 // The one product every pen contributes to, so the one whose revenue can be

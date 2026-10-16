@@ -162,6 +162,17 @@ function renderSettings(){
                   <input type="number" id="fp_wk_${i}" value="${st&&st.toWeek!=null?st.toWeek:''}" min="1" max="120" step="1" style="width:64px;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px">
                 </div>`}
           </div>`;}).join('');})()}
+      ${(()=>{const lp=getLaySwitchPolicy();return `
+      <div style="font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px">Switch early on eggs</div>
+      <p style="font-size:12px;color:var(--gray);margin-bottom:10px">
+        A flock that starts laying before its age moves on as soon as its eggs say so: the day after the lay rate (${LAY_SWITCH_AVG_DAYS}-day average) reaches these levels. The weeks above still apply to a flock that is late. 0 leaves that step to age alone.
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label>Pre-Layer Mash from (% lay)</label>
+          <input type="number" id="ls_prelay" value="${lp.preLayPct}" min="0" max="50" step="0.5"></div>
+        <div class="field"><label>Layer Mash from (% lay)</label>
+          <input type="number" id="ls_layer" value="${lp.layerPct}" min="0" max="50" step="0.5"></div>
+      </div>`;})()}
       <div style="font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">kg per bag</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         ${FEED_TYPES.map(t=>`<div class="field" style="margin-bottom:0"><label>${t}</label>
@@ -236,6 +247,13 @@ function saveFeedStoreSettings(){
     if(!ok){ toast('Programme weeks must increase down the list'); return; }
     farm.feedProgramme=prog;
   }
+  const lsPre=parseFloat(document.getElementById('ls_prelay').value);
+  const lsLay=parseFloat(document.getElementById('ls_layer').value);
+  const pre=Number.isFinite(lsPre)&&lsPre>=0?lsPre:DEFAULT_LAY_PRELAY_PCT;
+  const lay=Number.isFinite(lsLay)&&lsLay>=0?lsLay:DEFAULT_LAY_LAYER_PCT;
+  // Pre-Layer comes before Layer Mash, so its trigger has to be the lower one.
+  if(pre>0&&lay>0&&pre>=lay){ toast('Pre-Layer % must be below Layer Mash %'); return; }
+  farm.layPreLayPct=pre; farm.layLayerPct=lay;
   DB.saveFarm(farm);confirmSave('Feed store settings saved');renderSettings();renderFeed();renderHome();renderFeedTicker();
 }
 function toggleAcc(id){document.getElementById('acc_'+id)?.classList.toggle('open')}

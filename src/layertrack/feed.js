@@ -51,7 +51,9 @@ function feedUsageBody(){
   const _ageW=activePenAgeWeeks();
   const _dynRate=getLayerFeedRate(_ageW);
   const _phaseHint=_ageW>=21?'Laying':'Wk '+_ageW;
+  const _layNote=penLayNote(activePen());
   return `${getPenCtxBar()}
+    ${_layNote?`<div class="alert-item alert-amber" style="margin:12px 16px 0">${_layNote}</div>`:''}
     <div class="kpi-row-3">
       <div class="kpi"><div class="kpi-val">${totalUsed7.toFixed(0)}</div><div class="kpi-lbl">kg Used (7d)</div></div>
       <div class="kpi"><div class="kpi-val">${_dynRate}</div><div class="kpi-lbl">g/Bird/Day<br><span style="font-weight:500;font-size:9px;color:var(--g3)">${_phaseHint}</span></div></div>
@@ -97,7 +99,11 @@ function feedStoreBody(){
       </div>${actions}`;
   }
   const banners=rows.filter(r=>r.state==='urgent'||r.state==='soon').map(r=>
-    `<div class="alert-item ${r.state==='urgent'?'alert-red':'alert-amber'}">🌾 ${r.tickerText}</div>`).join('');
+    `<div class="alert-item ${r.state==='urgent'?'alert-red':'alert-amber'}">🌾 ${r.tickerText}</div>`).join('')
+    // The store is farm-wide, so every pen whose eggs are driving its feed
+    // says so here: an early switch is why a stage starts sooner than its age.
+    +((DB.getFarm()||{}).pens||[]).map(penLayNote).filter(Boolean)
+      .map(n=>`<div class="alert-item alert-amber">${n}</div>`).join('');
 
   // What is coming, in the order it is coming. This is the answer to "what am I
   // buying next" without reading a single card.
@@ -478,14 +484,21 @@ function openFeedForm(editId){
   const feedRate=feedRateG/1000;
   const defReq=(closingBirds*feedRate).toFixed(1);
   const _phLabel=_fw>=21?'Laying phase':`Week ${_fw} pullet`;
+  // New entries open on the feed the pen should be on today — by its eggs if
+  // they have moved it on early, else by age. An edit keeps what was saved.
+  const recType=penFeedType(activePen(),today,_fw);
+  const recStage=activePen()?penFeedStageAt(activePen(),today,_fw):null;
+  const recLine=recStage?.early
+    ?`<span style="margin-top:4px;display:block">🥚 Recommended: <b>${recType}</b> — lay reached ${fmtRate(recStage.trigger.avg,1)} (${LAY_SWITCH_AVG_DAYS}-day avg) on ${fmtDate(recStage.trigger.reachedOn)}</span>`
+    :`<span style="margin-top:4px;display:block">🌾 Recommended: <b>${recType}</b> (week ${_fw})</span>`;
   const rateLabel=rec?.feed_rate_g?`Rate locked at <b>${rec.feed_rate_g} g/bird/day</b> (current: ${feedRateG}g)`:`Auto rate: <b>${feedRateG} g/bird/day</b> (${_phLabel})`;
   openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Feed Entry <button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
-      📅 Logging yesterday's feed? Change the date — e.g. weigh leftover feed in the morning, then record it as <b>yesterday's</b> consumption.<br><span style="margin-top:4px;display:block">⚖️ ${rateLabel}</span>
+      📅 Logging yesterday's feed? Change the date — e.g. weigh leftover feed in the morning, then record it as <b>yesterday's</b> consumption.<br><span style="margin-top:4px;display:block">⚖️ ${rateLabel}</span>${recLine}
     </div>
     <div class="field"><label>Date</label><input type="date" id="ff_date" value="${rec?rec.date:today}" min="${lockMinDate()}" max="${today}"></div>
     <div class="field"><label>Feed Type</label>
-      <select id="ff_type">${feedTypeOptions(rec?.feed_type)}</select></div>
+      <select id="ff_type">${feedTypeOptions(rec?rec.feed_type:recType)}</select></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>kg Used</label><input type="number" id="ff_used" value="${rec?.feed_kg_used||''}" min="0" step="0.5" placeholder="e.g. 73"></div>
       <div class="field"><label>kg Required</label><input type="number" id="ff_req" value="${rec?.feed_req_kg||defReq}" min="0" step="0.1" placeholder="${defReq}"></div>

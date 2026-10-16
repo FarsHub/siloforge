@@ -53,9 +53,9 @@ function openHealthForm(editId){
   const farm=DB.getFarm();
   const closingBirds=activePenBirds();
   const _hw=activePenAgeWeeks();
-  const waterRateMl=getLayerWaterRate(_hw);
+  const waterRateMl=getLayerWaterRate(_hw,penFeedType(activePen(),today,_hw));
   const defWaterReq=(closingBirds*waterRateMl/1000).toFixed(1);
-  const _wPhLabel=_hw>=23?'Laying phase':`Week ${_hw} pullet`;
+  const _wPhLabel=penFeedType(activePen(),today,_hw)==='Layer Mash'?'Laying phase':`Week ${_hw} pullet`;
   const medOpts=MED_SUGGESTIONS.map(m=>`<option value="${m}">${m}</option>`).join('');
   openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Health Record <button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
@@ -79,9 +79,9 @@ function openHealthForm(editId){
 function saveHealthLog(editId){
   const farm=DB.getFarm();
   const existing=editId?DB.getHealth().find(r=>r.id===editId):null;
-  // Snapshot the age-based water rate at time of save; preserve existing snapshot on edit
+  // Snapshot the water rate at time of save; preserve existing snapshot on edit
   const _saveAgeW=activePenAgeWeeks();
-  const water_rate_ml=existing?.water_rate_ml||getLayerWaterRate(_saveAgeW);
+  const water_rate_ml=existing?.water_rate_ml||getLayerWaterRate(_saveAgeW,penFeedType(activePen(),DB.today(),_saveAgeW));
   const rec={id:editId||uid(),date:document.getElementById('hf_date').value,
     pen_id:_activePenId||undefined,
     water_consumed_liters:parseFloat(document.getElementById('hf_water').value)||0,

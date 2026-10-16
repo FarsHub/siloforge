@@ -40,6 +40,7 @@ function stageForWeek(weeks){
 // One phrase for the target, so a grower never reads as a 0% expectation.
 function stageTargetText(stage){
   if(!stage)return '';
+  if(stage.early)return `Laying early — expect ~${stage.expected}%`;
   if(stage.expected<=0)return 'Not laying yet';
   // No floor means lay has not been demanded yet, so there is no warn to show.
   return stage.warn>0
@@ -108,7 +109,21 @@ function getPenStage(pen){
   const weeksSince=Math.floor((Date.now()-placed.getTime())/(7*24*60*60*1000));
   const ageAtArrival=pen.flockAgeAtArrival||0;
   const weeks=weeksSince+ageAtArrival;
-  return{weeks,weeksSince,ageAtArrival,...stageForWeek(weeks)};
+  return{weeks,weeksSince,ageAtArrival,...penStageWithLay(pen,stageForWeek(weeks))};
+}
+// The stage label follows the feed: a flock its eggs have moved to Pre-Layer is
+// shown as Pre-Lay, one moved to Layer Mash as Early Lay. Its warn floor is
+// dropped while age would still call it a pullet, so a flock that is ahead of
+// the book is never marked down for not yet being further ahead.
+function penStageWithLay(pen,byAge){
+  const sw=penLaySwitches(pen), today=DB.today();
+  const want=sw.layer&&today>=sw.layer.from?'Early Lay'
+    :sw.preLay&&today>=sw.preLay.from?'Pre-Lay':null;
+  if(!want)return byAge;
+  const iAge=FLOCK_STAGES.findIndex(s=>s.label===byAge.label);
+  const iWant=FLOCK_STAGES.findIndex(s=>s.label===want);
+  if(iWant<=iAge)return byAge;
+  return {...FLOCK_STAGES[iWant],warn:0,early:true};
 }
 function getFarmAgeWeeks(farm){
   const pen=(farm.pens||[])[0];

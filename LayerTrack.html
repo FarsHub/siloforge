@@ -710,7 +710,7 @@ function initApp(){
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.10.16-b31';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.10.16-b32';  // bump on each deploy; shown on login screen + console
 const ROUNDS = [
   {id:1,label:'1st Pick',sub:'Morning',  cls:'round-1'},
   {id:2,label:'2nd Pick',sub:'Afternoon',cls:'round-2'},
@@ -750,8 +750,10 @@ function getLayerFeedRate(ageWeeks){
 // up the same week the feed changes.
 const WATER_RATIO_GROWING = 2.5;
 const WATER_RATIO_LAYING  = 3;
-function getLayerWaterRate(ageWeeks){
-  const laying=feedTypeForWeek(ageWeeks)==='Layer Mash';
+// Pass the pen's actual feed where it is known (penFeedType) — a flock that
+// came into lay early is on Layer Mash before the age says so.
+function getLayerWaterRate(ageWeeks,feedType){
+  const laying=(feedType||feedTypeForWeek(ageWeeks))==='Layer Mash';
   return Math.round(getLayerFeedRate(ageWeeks)*(laying?WATER_RATIO_LAYING:WATER_RATIO_GROWING));
 }
 const FEED_TYPES = ['Grower','Pre-Layer Mash','Layer Mash','Concentrate','Other'];
@@ -795,6 +797,13 @@ const DEFAULT_FEED_PROGRAMME = [
   {type:'Pre-Layer Mash', toWeek:18},
   {type:'Layer Mash',     toWeek:null},
 ];
+// Age is the fallback, not the rule: a flock that starts laying early moves on
+// as soon as its eggs say so. Lay %, averaged over the last few recorded days,
+// at which the pen goes to Pre-Layer Mash and then Layer Mash the next day.
+// Editable in Settings; 0 turns that egg-led step off and leaves it to age.
+const DEFAULT_LAY_PRELAY_PCT = 1;
+const DEFAULT_LAY_LAYER_PCT  = 5;
+const LAY_SWITCH_AVG_DAYS    = 3;
 const EXPENSE_CATS = ['Feed Purchase','Medication','Transport','Generator Fuel','Labour','Litter/Bedding','Chick Purchase','Equipment','Water Purchase','Other'];
 const PRODUCT_TYPES = ['Eggs — Crates','Culled Birds','Cockerels','Manure','Other'];
 // The one product every pen contributes to, so the one whose revenue can be
@@ -1058,6 +1067,86 @@ function feedStageForWeek(weeks){
   }
   return {...prog[prog.length-1],index:prog.length-1,next:null};
 }
+
+// ── Egg-led switching ───────────────────────────────────────────────────
+// Age says when a flock should come into lay; the eggs say when it did. A flock
+// laying at week 15 on Grower is short of calcium, so the eggs win whenever they
+// are early: Pre-Layer the day after the lay rate reaches the first threshold,
+// Layer Mash the day after it reaches the second. Age still moves a late flock
+// on. A step, once taken, is never undone — a few slow days do not send a
+// laying flock back to Pre-Layer.
+//
+// The rate is averaged over the last LAY_SWITCH_AVG_DAYS days that have a
+// collection, so one good day cannot trigger a switch. Only this flock's
+// collections count — a pen restocked after an old flock keeps that flock's
+// records, and they must not switch the new pullets on day one.
+function getLaySwitchPolicy(){
+  const f=DB.getFarm()||{};
+  const pct=(v,d)=>v===0||v==='0'?0:(Number(v)>0?Number(v):d);
+  return {preLayPct:pct(f.layPreLayPct,DEFAULT_LAY_PRELAY_PCT),
+          layerPct:pct(f.layLayerPct,DEFAULT_LAY_LAYER_PCT)};
+}
+let _LAY_MEMO={stamp:-1,map:{}};
+function penLaySwitches(pen){
+  const none={preLay:null,layer:null,latestAvg:null,latestDate:null};
+  if(!pen||!pen.flockStartDate)return none;
+  if(_LAY_MEMO.stamp!==_FS_STAMP)_LAY_MEMO={stamp:_FS_STAMP,map:{}};
+  if(_LAY_MEMO.map[pen.id])return _LAY_MEMO.map[pen.id];
+  const eggs={};
+  DB.getCols().forEach(c=>{
+    if(c.penId!==pen.id||c.date<pen.flockStartDate)return;
+    eggs[c.date]=(eggs[c.date]||0)+(c.entries||[]).reduce((s,e)=>s+(e.eggs||0),0);
+  });
+  const birdsOn=penBirdsOnDateFn(pen.id,getPenTotalBirds(pen));
+  const days=Object.keys(eggs).sort()
+    .map(d=>{ const n=birdsOn(d); return {date:d,rate:n>0?eggs[d]/n*100:null}; })
+    .filter(x=>x.rate!==null);
+  const {preLayPct,layerPct}=getLaySwitchPolicy();
+  const out={...none};
+  for(let i=LAY_SWITCH_AVG_DAYS-1;i<days.length;i++){
+    const win=days.slice(i-LAY_SWITCH_AVG_DAYS+1,i+1);
+    const avg=win.reduce((s,x)=>s+x.rate,0)/win.length;
+    const hit={reachedOn:days[i].date,from:addDays(days[i].date,1),avg,
+      weeks:penAgeWeekOn(pen,days[i].date)};
+    out.latestAvg=avg; out.latestDate=days[i].date;
+    if(!out.preLay&&preLayPct>0&&avg>=preLayPct)out.preLay=hit;
+    if(!out.layer&&layerPct>0&&avg>=layerPct)out.layer=hit;
+  }
+  return (_LAY_MEMO.map[pen.id]=out);
+}
+// Index into the feed programme for a pen on a date: the later of what its age
+// calls for and what its eggs have already moved it to.
+function penFeedStageAt(pen,date,weeks){
+  const prog=getFeedProgramme(), last=prog.length-1;
+  const byAge=feedStageForWeek(weeks);
+  const sw=penLaySwitches(pen);
+  const preIdx=prog.findIndex(s=>s.type==='Pre-Layer Mash');
+  let floor=-1, trigger=null;
+  if(sw.layer&&date>=sw.layer.from){ floor=last; trigger=sw.layer; }
+  else if(sw.preLay&&preIdx>=0&&date>=sw.preLay.from){ floor=preIdx; trigger=sw.preLay; }
+  const index=Math.max(byAge.index,floor);
+  return {...prog[index],index,next:prog[index+1]||null,
+    early:floor>byAge.index,trigger:floor>byAge.index?trigger:null};
+}
+function penFeedType(pen,date,weeks){
+  if(!pen)return feedTypeForWeek(weeks);
+  if(weeks===undefined||weeks===null)weeks=(getPenStage(pen)||{}).weeks||0;
+  return penFeedStageAt(pen,date||DB.today(),weeks).type;
+}
+// A short notice that the eggs have just moved a pen on ahead of its age. Only
+// the switch in force is named, and only for LAY_NOTE_DAYS from the day it took
+// effect — after that the pen's stage label and feed already say it.
+const LAY_NOTE_DAYS=5;
+function penLayNote(pen){
+  if(!pen)return '';
+  const st=getPenStage(pen); if(!st)return '';
+  const today=DB.today();
+  const fs=penFeedStageAt(pen,today,st.weeks);
+  if(!fs.early||daysBetween(fs.trigger.from,today)>=LAY_NOTE_DAYS)return '';
+  const sw=penLaySwitches(pen);
+  return `🥚 <b>${pen.name}</b> on <b>${fs.type}</b> early, since ${new Date(fs.trigger.from+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'})}`
+    +(sw.latestAvg!==null?` · now ${fmtRate(sw.latestAvg,1)}`:'');
+}
 function kgToBags(kg,feedType){
   const bagKg=getBagKg(feedType), safe=Math.max(0,kg);
   const bags=Math.floor(safe/bagKg);
@@ -1144,15 +1233,20 @@ const FEED_HORIZON_DAYS=365;
 // programme for the feed that age calls for, and read the intake table for how
 // much it eats. Bird counts are held flat — modelling future mortality would be
 // guesswork, and erring towards slightly more feed is the safe direction.
+// A pen its eggs have already moved on stays moved on for every day ahead; a
+// switch the eggs have not triggered yet cannot be foreseen, so the days ahead
+// fall back to age.
 function feedDemandSchedule(){
+  const today=DB.today();
   const pens=((DB.getFarm()||{}).pens||[])
     .map(p=>({pen:p,birds:penLiveBirds(p),week0:(getPenStage(p)||{weeks:0}).weeks||0}))
     .filter(p=>p.birds>0);
   const out={};
   for(let day=0;day<FEED_HORIZON_DAYS;day++){
+    const date=addDays(today,day);
     for(const p of pens){
       const weeks=p.week0+Math.floor(day/7);
-      const type=feedTypeForWeek(weeks);
+      const type=penFeedStageAt(p.pen,date,weeks).type;
       if(!type)continue;
       const kg=p.birds*getLayerFeedRate(weeks)/1000;
       if(kg<=0)continue;
@@ -1508,6 +1602,7 @@ function stageForWeek(weeks){
 // One phrase for the target, so a grower never reads as a 0% expectation.
 function stageTargetText(stage){
   if(!stage)return '';
+  if(stage.early)return `Laying early — expect ~${stage.expected}%`;
   if(stage.expected<=0)return 'Not laying yet';
   // No floor means lay has not been demanded yet, so there is no warn to show.
   return stage.warn>0
@@ -1576,7 +1671,21 @@ function getPenStage(pen){
   const weeksSince=Math.floor((Date.now()-placed.getTime())/(7*24*60*60*1000));
   const ageAtArrival=pen.flockAgeAtArrival||0;
   const weeks=weeksSince+ageAtArrival;
-  return{weeks,weeksSince,ageAtArrival,...stageForWeek(weeks)};
+  return{weeks,weeksSince,ageAtArrival,...penStageWithLay(pen,stageForWeek(weeks))};
+}
+// The stage label follows the feed: a flock its eggs have moved to Pre-Layer is
+// shown as Pre-Lay, one moved to Layer Mash as Early Lay. Its warn floor is
+// dropped while age would still call it a pullet, so a flock that is ahead of
+// the book is never marked down for not yet being further ahead.
+function penStageWithLay(pen,byAge){
+  const sw=penLaySwitches(pen), today=DB.today();
+  const want=sw.layer&&today>=sw.layer.from?'Early Lay'
+    :sw.preLay&&today>=sw.preLay.from?'Pre-Lay':null;
+  if(!want)return byAge;
+  const iAge=FLOCK_STAGES.findIndex(s=>s.label===byAge.label);
+  const iWant=FLOCK_STAGES.findIndex(s=>s.label===want);
+  if(iWant<=iAge)return byAge;
+  return {...FLOCK_STAGES[iWant],warn:0,early:true};
 }
 function getFarmAgeWeeks(farm){
   const pen=(farm.pens||[])[0];
@@ -2858,7 +2967,9 @@ function feedUsageBody(){
   const _ageW=activePenAgeWeeks();
   const _dynRate=getLayerFeedRate(_ageW);
   const _phaseHint=_ageW>=21?'Laying':'Wk '+_ageW;
+  const _layNote=penLayNote(activePen());
   return `${getPenCtxBar()}
+    ${_layNote?`<div class="alert-item alert-amber" style="margin:12px 16px 0">${_layNote}</div>`:''}
     <div class="kpi-row-3">
       <div class="kpi"><div class="kpi-val">${totalUsed7.toFixed(0)}</div><div class="kpi-lbl">kg Used (7d)</div></div>
       <div class="kpi"><div class="kpi-val">${_dynRate}</div><div class="kpi-lbl">g/Bird/Day<br><span style="font-weight:500;font-size:9px;color:var(--g3)">${_phaseHint}</span></div></div>
@@ -2904,7 +3015,11 @@ function feedStoreBody(){
       </div>${actions}`;
   }
   const banners=rows.filter(r=>r.state==='urgent'||r.state==='soon').map(r=>
-    `<div class="alert-item ${r.state==='urgent'?'alert-red':'alert-amber'}">🌾 ${r.tickerText}</div>`).join('');
+    `<div class="alert-item ${r.state==='urgent'?'alert-red':'alert-amber'}">🌾 ${r.tickerText}</div>`).join('')
+    // The store is farm-wide, so every pen whose eggs are driving its feed
+    // says so here: an early switch is why a stage starts sooner than its age.
+    +((DB.getFarm()||{}).pens||[]).map(penLayNote).filter(Boolean)
+      .map(n=>`<div class="alert-item alert-amber">${n}</div>`).join('');
 
   // What is coming, in the order it is coming. This is the answer to "what am I
   // buying next" without reading a single card.
@@ -3285,14 +3400,21 @@ function openFeedForm(editId){
   const feedRate=feedRateG/1000;
   const defReq=(closingBirds*feedRate).toFixed(1);
   const _phLabel=_fw>=21?'Laying phase':`Week ${_fw} pullet`;
+  // New entries open on the feed the pen should be on today — by its eggs if
+  // they have moved it on early, else by age. An edit keeps what was saved.
+  const recType=penFeedType(activePen(),today,_fw);
+  const recStage=activePen()?penFeedStageAt(activePen(),today,_fw):null;
+  const recLine=recStage?.early
+    ?`<span style="margin-top:4px;display:block">🥚 Recommended: <b>${recType}</b> — lay reached ${fmtRate(recStage.trigger.avg,1)} (${LAY_SWITCH_AVG_DAYS}-day avg) on ${fmtDate(recStage.trigger.reachedOn)}</span>`
+    :`<span style="margin-top:4px;display:block">🌾 Recommended: <b>${recType}</b> (week ${_fw})</span>`;
   const rateLabel=rec?.feed_rate_g?`Rate locked at <b>${rec.feed_rate_g} g/bird/day</b> (current: ${feedRateG}g)`:`Auto rate: <b>${feedRateG} g/bird/day</b> (${_phLabel})`;
   openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Feed Entry <button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
-      📅 Logging yesterday's feed? Change the date — e.g. weigh leftover feed in the morning, then record it as <b>yesterday's</b> consumption.<br><span style="margin-top:4px;display:block">⚖️ ${rateLabel}</span>
+      📅 Logging yesterday's feed? Change the date — e.g. weigh leftover feed in the morning, then record it as <b>yesterday's</b> consumption.<br><span style="margin-top:4px;display:block">⚖️ ${rateLabel}</span>${recLine}
     </div>
     <div class="field"><label>Date</label><input type="date" id="ff_date" value="${rec?rec.date:today}" min="${lockMinDate()}" max="${today}"></div>
     <div class="field"><label>Feed Type</label>
-      <select id="ff_type">${feedTypeOptions(rec?.feed_type)}</select></div>
+      <select id="ff_type">${feedTypeOptions(rec?rec.feed_type:recType)}</select></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>kg Used</label><input type="number" id="ff_used" value="${rec?.feed_kg_used||''}" min="0" step="0.5" placeholder="e.g. 73"></div>
       <div class="field"><label>kg Required</label><input type="number" id="ff_req" value="${rec?.feed_req_kg||defReq}" min="0" step="0.1" placeholder="${defReq}"></div>
@@ -3385,9 +3507,9 @@ function openHealthForm(editId){
   const farm=DB.getFarm();
   const closingBirds=activePenBirds();
   const _hw=activePenAgeWeeks();
-  const waterRateMl=getLayerWaterRate(_hw);
+  const waterRateMl=getLayerWaterRate(_hw,penFeedType(activePen(),today,_hw));
   const defWaterReq=(closingBirds*waterRateMl/1000).toFixed(1);
-  const _wPhLabel=_hw>=23?'Laying phase':`Week ${_hw} pullet`;
+  const _wPhLabel=penFeedType(activePen(),today,_hw)==='Layer Mash'?'Laying phase':`Week ${_hw} pullet`;
   const medOpts=MED_SUGGESTIONS.map(m=>`<option value="${m}">${m}</option>`).join('');
   openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Health Record <button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="background:var(--blueBg);border-left:3px solid var(--blue);padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
@@ -3411,9 +3533,9 @@ function openHealthForm(editId){
 function saveHealthLog(editId){
   const farm=DB.getFarm();
   const existing=editId?DB.getHealth().find(r=>r.id===editId):null;
-  // Snapshot the age-based water rate at time of save; preserve existing snapshot on edit
+  // Snapshot the water rate at time of save; preserve existing snapshot on edit
   const _saveAgeW=activePenAgeWeeks();
-  const water_rate_ml=existing?.water_rate_ml||getLayerWaterRate(_saveAgeW);
+  const water_rate_ml=existing?.water_rate_ml||getLayerWaterRate(_saveAgeW,penFeedType(activePen(),DB.today(),_saveAgeW));
   const rec={id:editId||uid(),date:document.getElementById('hf_date').value,
     pen_id:_activePenId||undefined,
     water_consumed_liters:parseFloat(document.getElementById('hf_water').value)||0,
@@ -5924,6 +6046,17 @@ function renderSettings(){
                   <input type="number" id="fp_wk_${i}" value="${st&&st.toWeek!=null?st.toWeek:''}" min="1" max="120" step="1" style="width:64px;padding:8px;border:1.5px solid #ddd;border-radius:8px;font-size:14px">
                 </div>`}
           </div>`;}).join('');})()}
+      ${(()=>{const lp=getLaySwitchPolicy();return `
+      <div style="font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px">Switch early on eggs</div>
+      <p style="font-size:12px;color:var(--gray);margin-bottom:10px">
+        A flock that starts laying before its age moves on as soon as its eggs say so: the day after the lay rate (${LAY_SWITCH_AVG_DAYS}-day average) reaches these levels. The weeks above still apply to a flock that is late. 0 leaves that step to age alone.
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label>Pre-Layer Mash from (% lay)</label>
+          <input type="number" id="ls_prelay" value="${lp.preLayPct}" min="0" max="50" step="0.5"></div>
+        <div class="field"><label>Layer Mash from (% lay)</label>
+          <input type="number" id="ls_layer" value="${lp.layerPct}" min="0" max="50" step="0.5"></div>
+      </div>`;})()}
       <div style="font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 8px">kg per bag</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         ${FEED_TYPES.map(t=>`<div class="field" style="margin-bottom:0"><label>${t}</label>
@@ -5998,6 +6131,13 @@ function saveFeedStoreSettings(){
     if(!ok){ toast('Programme weeks must increase down the list'); return; }
     farm.feedProgramme=prog;
   }
+  const lsPre=parseFloat(document.getElementById('ls_prelay').value);
+  const lsLay=parseFloat(document.getElementById('ls_layer').value);
+  const pre=Number.isFinite(lsPre)&&lsPre>=0?lsPre:DEFAULT_LAY_PRELAY_PCT;
+  const lay=Number.isFinite(lsLay)&&lsLay>=0?lsLay:DEFAULT_LAY_LAYER_PCT;
+  // Pre-Layer comes before Layer Mash, so its trigger has to be the lower one.
+  if(pre>0&&lay>0&&pre>=lay){ toast('Pre-Layer % must be below Layer Mash %'); return; }
+  farm.layPreLayPct=pre; farm.layLayerPct=lay;
   DB.saveFarm(farm);confirmSave('Feed store settings saved');renderSettings();renderFeed();renderHome();renderFeedTicker();
 }
 function toggleAcc(id){document.getElementById('acc_'+id)?.classList.toggle('open')}
