@@ -710,7 +710,7 @@ function initApp(){
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.09.25-b30';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.10.16-b31';  // bump on each deploy; shown on login screen + console
 const ROUNDS = [
   {id:1,label:'1st Pick',sub:'Morning',  cls:'round-1'},
   {id:2,label:'2nd Pick',sub:'Afternoon',cls:'round-2'},
@@ -1526,11 +1526,18 @@ function rateBand(rate,stage){
   if(warn<=0)return null;
   return rate>=warn?'ok':'poor';
 }
+// A first egg from a pullet flock is a tiny rate, and rounding it to "0%" says
+// nothing happened. Under 1% keep two significant figures so it still shows.
+function fmtRate(rate,dp=0){
+  if(rate===null||rate===undefined)return '—';
+  return rate>0&&rate<1?`${+rate.toPrecision(2)}%`:`${rate.toFixed(dp)}%`;
+}
 function rateBadge(rate,stage){
+  if(rate===null||rate===undefined)return '<span class="badge badge-gray">—</span>';
   const b=rateBand(rate,stage);
-  if(!b)return '<span class="badge badge-gray">—</span>';
-  const cls=b==='good'?'badge-green':b==='ok'?'badge-amber':'badge-red';
-  return `<span class="badge ${cls}">${rate.toFixed(1)}%</span>`;
+  // No verdict (not yet expected to lay) still shows the number, in grey.
+  const cls=!b?'badge-gray':b==='good'?'badge-green':b==='ok'?'badge-amber':'badge-red';
+  return `<span class="badge ${cls}">${fmtRate(rate,1)}</span>`;
 }
 function rateColor(r,stage){
   const b=rateBand(r,stage);
@@ -2135,7 +2142,7 @@ function renderPensReport(){
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:10px">
         <div class="kpi-sm"><div class="kpi-val-sm">${p.birdsNow.toLocaleString()}</div><div class="kpi-lbl">Birds</div></div>
         <div class="kpi-sm"><div class="kpi-val-sm">${p.eggs.toLocaleString()}</div><div class="kpi-lbl">Eggs</div></div>
-        <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(p.hdp,p.stage)}">${p.hdp!==null?p.hdp.toFixed(0)+'%':'—'}</div><div class="kpi-lbl">Lay Rate</div></div>
+        <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(p.hdp,p.stage)}">${fmtRate(p.hdp)}</div><div class="kpi-lbl">Lay Rate</div></div>
         <div class="kpi-sm"><div class="kpi-val-sm" style="color:${p.mortalityPct===null?'var(--gray)':p.mortalityPct>3?'var(--red)':p.mortalityPct>1?'var(--amber)':'var(--g2)'}">${p.mortalityPct!==null?p.mortalityPct.toFixed(1)+'%':'—'}</div><div class="kpi-lbl">Mortality</div></div>
       </div>
 
@@ -2247,7 +2254,7 @@ function farmHomeHtml(farm,pens){
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
         <div class="kpi-sm"><div class="kpi-val-sm">${r.eggs.toLocaleString()}</div><div class="kpi-lbl-sm">Eggs Today</div></div>
-        <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(r.rate,r.stage)}">${r.rate!==null?r.rate.toFixed(0)+'%':'—'}</div><div class="kpi-lbl-sm">Lay Rate</div></div>
+        <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(r.rate,r.stage)}">${fmtRate(r.rate)}</div><div class="kpi-lbl-sm">Lay Rate</div></div>
         <div class="kpi-sm"><div class="kpi-val-sm" style="color:${r.deaths>0?'var(--red)':'var(--g1)'}">${r.deaths}</div><div class="kpi-lbl-sm">Deaths</div></div>
       </div>
       ${r.pending>0?`<div style="font-size:12px;color:var(--amber);font-weight:700;margin-bottom:8px">${r.pending} collection pass${r.pending>1?'es':''} still to do</div>`:''}
@@ -2360,7 +2367,7 @@ function penHomeHtml(farm,pen,pens){
     </div>`:''}
     <div class="kpi-row-4">
       <div class="kpi-sm"><div class="kpi-val-sm">${totalEggs.toLocaleString()}</div><div class="kpi-lbl-sm">Eggs Today</div></div>
-      <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(todayRate,stage)}">${todayRate!==null?todayRate.toFixed(0)+'%':'—'}</div><div class="kpi-lbl-sm">Lay Rate</div></div>
+      <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(todayRate,stage)}">${fmtRate(todayRate)}</div><div class="kpi-lbl-sm">Lay Rate</div></div>
       <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g1)">${birds.toLocaleString()}</div><div class="kpi-lbl-sm">Birds</div></div>
       <div class="kpi-sm" style="${todayCrack>3?'border:2px solid var(--red)':todayCrack>=2?'border:2px solid var(--amber)':''}">
         <div class="kpi-val-sm" style="color:${crackColor}">${todayCrack!==null?todayCrack.toFixed(1)+'%'+crackAlert:'—'}</div>
@@ -5287,7 +5294,7 @@ function renderReports(){
       tabContent=`
         <div class="kpi-row-5">
           <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g2)">${totalEggs}</div><div class="kpi-lbl-sm">Eggs</div></div>
-          <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(overallRate)}">${overallRate!==null?overallRate.toFixed(0)+'%':'—'}</div><div class="kpi-lbl-sm">Prod Rate</div></div>
+          <div class="kpi-sm"><div class="kpi-val-sm" style="color:${rateColor(overallRate)}">${fmtRate(overallRate)}</div><div class="kpi-lbl-sm">Prod Rate</div></div>
           <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g1)">${farmBirds}</div><div class="kpi-lbl-sm">Birds</div></div>
           <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--red)">${totalBroken}</div><div class="kpi-lbl-sm">Broken</div></div>
           <div class="kpi-sm" style="${crackRate>3?'border:2px solid var(--red)':crackRate>=2?'border:2px solid var(--amber)':''}">
@@ -5387,7 +5394,7 @@ function renderReports(){
           <div class="kpi-row-3" style="margin:0">
             <div class="kpi"><div class="kpi-val" style="color:var(--g2)">${peak?peak.hdp.toFixed(0)+'%':'—'}</div><div class="kpi-lbl">Peak${peak?' ('+peak.label+')':''}</div></div>
             <div class="kpi"><div class="kpi-val">${above}</div><div class="kpi-lbl">${isWeekly?'Weeks':'Months'} ≥80%</div></div>
-            <div class="kpi"><div class="kpi-val" style="color:${col}">${arrow} ${last?last.hdp.toFixed(0)+'%':'—'}</div><div class="kpi-lbl">Latest</div></div>
+            <div class="kpi"><div class="kpi-val" style="color:${col}">${arrow} ${last?fmtRate(last.hdp):'—'}</div><div class="kpi-lbl">Latest</div></div>
           </div></div>`;
       }).join('');
 
@@ -5628,7 +5635,7 @@ function renderReports(){
               <td>${fmtMonth(r.m)}${r.days<20?' *':''}</td>
               <td style="font-weight:700;color:${fcrColour(r.fcr)}">${r.fcr!=null?r.fcr.toFixed(2):'—'}</td>
               <td style="color:${col};font-weight:700">${arrow}${d==null?'':' '+(d>0?'+':'')+d.toFixed(2)}</td>
-              <td>${r.age??'—'}</td><td>${r.lay!=null?r.lay.toFixed(0)+'%':'—'}</td>
+              <td>${r.age??'—'}</td><td>${fmtRate(r.lay)}</td>
               <td>${r.gpb!=null?r.gpb.toFixed(0):'—'}</td><td>${r.gpe!=null?r.gpe.toFixed(0):'—'}</td>
               <td>${r.kg.toFixed(0)}</td><td>${r.eggs.toLocaleString()}</td></tr>`;
           }).join('')||'<tr><td colspan="9" style="text-align:center;color:var(--gray);padding:18px">No feed records yet.</td></tr>'}</tbody>
