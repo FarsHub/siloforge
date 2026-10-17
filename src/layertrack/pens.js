@@ -8,8 +8,9 @@
 //   2. Feed is bought farm-wide but eaten per pen, so a feed purchase is
 //      treated as stock, not cost, and the kg a pen eats are valued at the
 //      moving average price of the store on the day they were eaten.
-//   3. Eggs pool before sale, so egg revenue is split by the share of eggs
-//      each pen actually laid in the period.
+//   3. An egg sale tagged to a pen is that pen's money — pens come into lay at
+//      different times and their eggs sell at different prices. Only untagged
+//      egg sales are split, by the share of eggs each pen laid in the period.
 //
 // Anything left untagged stays untagged. It is reported in its own bucket
 // rather than spread across pens, so a pen's cost is only ever money you said
@@ -300,8 +301,13 @@ function penEconomics(range){
   // the kg that pen eats, so counting the purchase as well would charge twice.
   const expenses=DB.getExpenses().filter(x=>inRange(x.date,r)&&!x.feed_stock_id);
   const sales=DB.getSales().filter(x=>inRange(x.date,r));
-  const eggRevenue=sales.filter(s=>s.product===EGG_PRODUCT)
-    .reduce((s,e)=>s+Number(e.total_amount_ngn||0),0);
+  const penIds=new Set(pens.map(p=>p.id));
+  const eggTaggedBy={}; let eggPool=0;
+  sales.filter(s=>s.product===EGG_PRODUCT).forEach(s=>{
+    const amt=Number(s.total_amount_ngn||0);
+    if(penIds.has(s.pen_id))eggTaggedBy[s.pen_id]=(eggTaggedBy[s.pen_id]||0)+amt;
+    else eggPool+=amt;
+  });
   // Birds, manure and the rest come off one identifiable flock — cockerels sold
   // out of a pen are that pen's money. Untagged ones follow the same rule as
   // every other legacy record and go to the oldest pen.
@@ -353,7 +359,10 @@ function penEconomics(range){
     pExp.forEach(x=>{cats[x.category]=(cats[x.category]||0)+Number(x.amount_ngn||0);});
     if(feedCost>0)cats['Feed (eaten)']=(cats['Feed (eaten)']||0)+feedCost;
     const cost=tagged+feedCost;
-    const eggRev=totalEggs>0?eggRevenue*eggs/totalEggs:0;
+    const eggRevShared=totalEggs>0?eggPool*eggs/totalEggs:0;
+    const eggRev=(eggTaggedBy[pen.id]||0)+eggRevShared;
+    // Under a crate, per-egg figures are one cost divided by a handful of eggs.
+    const perEgg=eggs>=EGGS_PER_CRATE;
     const otherRev=otherSales.filter(x=>(x.pen_id||legacy)===pen.id)
       .reduce((s,e)=>s+Number(e.total_amount_ngn||0),0);
     const revenue=eggRev+otherRev;
@@ -363,15 +372,15 @@ function penEconomics(range){
       hdp:eggBirdDays>0?eggs/eggBirdDays*100:null,
       feedKg,feedCost,feedDays:feedDates.length,
       gPerBirdDay:feedBirdDays>0?feedKg*1000/feedBirdDays:null,
-      fcr:eggs>0&&feedKg>0?feedKg/(eggs*EGG_KG):null,
-      gPerEgg:eggs>0&&feedKg>0?feedKg*1000/eggs:null,
+      fcr:perEgg&&feedKg>0?feedKg/(eggs*EGG_KG):null,
+      gPerEgg:perEgg&&feedKg>0?feedKg*1000/eggs:null,
       deaths,culls,
       mortalityPct:opening>0?deaths/opening*100:null,
-      tagged,cats,cost,revenue,eggRev,otherRev,
+      tagged,cats,cost,revenue,eggRev,eggRevShared,otherRev,
       sharePct:totalEggs>0?eggs/totalEggs*100:null,
       margin:revenue-cost,
-      costPerEgg:eggs>0?cost/eggs:null,
-      costPerCrate:eggs>0?cost/eggs*EGGS_PER_CRATE:null};
+      costPerEgg:perEgg?cost/eggs:null,
+      costPerCrate:perEgg?cost/eggs*EGGS_PER_CRATE:null};
   });
 
   // Everything that was not charged to a pen, kept visible instead of spread.
@@ -390,16 +399,18 @@ function penEconomics(range){
 // Built in one pass rather than by calling penEconomics twelve times, because
 // each of those calls re-walks the whole feed ledger.
 //
-// The egg share is worked out inside each month: a pen earns the portion of
-// that month's egg revenue matching the eggs it laid that month. Sharing on
-// all-time eggs would credit a new pen for crates sold before it existed.
+// Egg sales tagged to a pen go to that pen. The untagged ones are shared inside
+// each month: a pen earns the portion matching the eggs it laid that month.
+// Sharing on all-time eggs would credit a new pen for crates sold before it
+// existed.
 function penMonthlyPL(){
   const farm=DB.getFarm()||{pens:[]}, pens=farm.pens||[];
+  const penIds=new Set(pens.map(p=>p.id));
   const legacy=legacyPenId(), usage=feedValuation();
   const M={};
-  const month=m=>M[m]||(M[m]={eggRev:0,byPen:{}});
+  const month=m=>M[m]||(M[m]={eggPool:0,byPen:{}});
   const cell=(m,id)=>{ const o=month(m);
-    return o.byPen[id]||(o.byPen[id]={tagged:0,feedCost:0,eggs:0,otherRev:0}); };
+    return o.byPen[id]||(o.byPen[id]={tagged:0,feedCost:0,eggs:0,eggTagged:0,otherRev:0}); };
 
   DB.getCols().forEach(c=>{
     if(!c.penId||!c.date)return;
@@ -418,7 +429,10 @@ function penMonthlyPL(){
   DB.getSales().forEach(sl=>{
     if(!sl.date)return;
     const m=sl.date.slice(0,7);
-    if(sl.product===EGG_PRODUCT)month(m).eggRev+=Number(sl.total_amount_ngn||0);
+    if(sl.product===EGG_PRODUCT){
+      if(penIds.has(sl.pen_id))cell(m,sl.pen_id).eggTagged+=Number(sl.total_amount_ngn||0);
+      else month(m).eggPool+=Number(sl.total_amount_ngn||0);
+    }
     else cell(m,sl.pen_id||legacy).otherRev+=Number(sl.total_amount_ngn||0);
   });
 
@@ -426,12 +440,13 @@ function penMonthlyPL(){
   const byPen={};
   pens.forEach(pen=>{
     byPen[pen.id]=months.map(m=>{
-      const o=M[m], c=o.byPen[pen.id]||{tagged:0,feedCost:0,eggs:0,otherRev:0};
+      const o=M[m], c=o.byPen[pen.id]||{tagged:0,feedCost:0,eggs:0,eggTagged:0,otherRev:0};
       const totalEggs=Object.values(o.byPen).reduce((s,x)=>s+x.eggs,0);
-      const eggRev=totalEggs>0?o.eggRev*c.eggs/totalEggs:0;
+      const eggRevShared=totalEggs>0?o.eggPool*c.eggs/totalEggs:0;
+      const eggRev=c.eggTagged+eggRevShared;
       const cost=c.tagged+c.feedCost, revenue=eggRev+c.otherRev;
       return{month:m,eggs:c.eggs,cost,tagged:c.tagged,feedCost:c.feedCost,
-        eggRev,otherRev:c.otherRev,revenue,margin:revenue-cost,
+        eggRev,eggRevShared,otherRev:c.otherRev,revenue,margin:revenue-cost,
         sharePct:totalEggs>0?c.eggs/totalEggs*100:null};
     }).filter(r=>r.cost>0||r.revenue>0||r.eggs>0);
   });
@@ -450,7 +465,7 @@ function penMonthlyTable(penId){
     <tr><th>Month</th><th>Revenue</th><th>Cost</th><th>Margin</th></tr>
     ${rows.map(r=>`<tr>
       <td><b>${fmtMonthLabel(r.month)}</b>${r.eggs>0?`<br><small style="color:var(--gray)">${r.eggs.toLocaleString()} eggs</small>`:''}</td>
-      <td style="color:var(--g2);font-weight:700">${fmtMoney(Math.round(r.revenue))}${multiPen()&&r.sharePct!==null&&r.eggRev>0?`<br><small style="color:var(--gray);font-weight:500">${r.sharePct.toFixed(0)}% egg share</small>`:''}</td>
+      <td style="color:var(--g2);font-weight:700">${fmtMoney(Math.round(r.revenue))}${multiPen()&&r.sharePct!==null&&r.eggRevShared>0?`<br><small style="color:var(--gray);font-weight:500">incl. ${r.sharePct.toFixed(0)}% of unassigned egg sales</small>`:''}</td>
       <td style="color:var(--red)">${fmtMoney(Math.round(r.cost))}</td>
       <td style="font-weight:800;color:${r.margin>=0?'var(--g2)':'var(--red)'}">${r.margin>=0?'+':''}${fmtMoney(Math.round(r.margin))}</td></tr>`).join('')}
     <tr style="background:var(--g5)">
@@ -514,9 +529,12 @@ function renderPenPL(penId){
       ${open?`<div style="padding:4px 0 8px 10px;border-bottom:1px solid #f5f5f5">${penCatRows(p.cats)}</div>`:''}
       ${penMoneyRow('Revenue',fmtMoney(Math.round(p.revenue)),'var(--g2)')}
       ${p.revenue>0?`<div style="padding:2px 0 8px 10px;border-bottom:1px solid #f5f5f5">
-        ${p.eggRev>0?`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--gray)">
-          <span>Eggs${multiPen()&&p.sharePct!==null?` — ${p.sharePct.toFixed(0)}% share`:''}</span>
-          <span style="font-weight:700;color:var(--g1)">${fmtMoney(Math.round(p.eggRev))}</span></div>`:''}
+        ${p.eggRev-p.eggRevShared>0?`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--gray)">
+          <span>Eggs${multiPen()?' — sold from this pen':''}</span>
+          <span style="font-weight:700;color:var(--g1)">${fmtMoney(Math.round(p.eggRev-p.eggRevShared))}</span></div>`:''}
+        ${p.eggRevShared>0?`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--gray)">
+          <span>Eggs${multiPen()&&p.sharePct!==null?` — ${p.sharePct.toFixed(0)}% of unassigned sales`:''}</span>
+          <span style="font-weight:700;color:var(--g1)">${fmtMoney(Math.round(p.eggRevShared))}</span></div>`:''}
         ${p.otherRev>0?`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;color:var(--gray)">
           <span>Birds, manure and other</span>
           <span style="font-weight:700;color:var(--g1)">${fmtMoney(Math.round(p.otherRev))}</span></div>`:''}
@@ -573,7 +591,7 @@ function renderPensReport(){
       </div>
       ${penMoneyRow('Direct cost',fmtMoney(Math.round(p.cost)),'var(--red)')}
       ${open?`<div style="padding:4px 0 8px 10px;border-bottom:1px solid #f5f5f5">${penCatRows(p.cats)}</div>`:''}
-      ${penMoneyRow(multiPen()&&p.sharePct!==null?`Revenue · ${p.sharePct.toFixed(0)}% of eggs`:'Revenue',fmtMoney(Math.round(p.revenue)),'var(--g2)')}
+      ${penMoneyRow(multiPen()&&p.sharePct!==null&&p.eggRevShared>0?`Revenue · incl. ${p.sharePct.toFixed(0)}% of unassigned eggs`:'Revenue',fmtMoney(Math.round(p.revenue)),'var(--g2)')}
       <div style="display:flex;justify-content:space-between;padding:9px 0;font-size:15px">
         <span style="font-weight:800">Margin</span>
         <span style="font-weight:800;color:${p.margin>=0?'var(--g2)':'var(--red)'}">${p.margin>=0?'+':''}${fmtMoney(Math.round(p.margin))}</span></div>

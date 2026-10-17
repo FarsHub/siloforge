@@ -197,7 +197,7 @@ function openSaleForm(editId){
           <option value="">— not pen-specific —</option>
           ${pens.map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${p.name}</option>`).join('')}
         </select>
-        <div style="font-size:11px;color:var(--gray);margin-top:5px">Egg sales are split across pens by eggs laid, whatever is picked here. Birds, manure and other products go to the pen chosen.</div></div>`;})()}
+        <div style="font-size:11px;color:var(--gray);margin-top:5px">The sale counts as revenue for the pen chosen. Egg sales left "not pen-specific" are split across pens by eggs laid.</div></div>`;})()}
     <div class="field"><label>Payment</label>
       <select id="sf_pay" onchange="toggleSalePayFields()">
         <option value="cash" ${!isCredit?'selected':''}>Cash — full payment now</option>
