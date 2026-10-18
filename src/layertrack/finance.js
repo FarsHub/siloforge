@@ -215,7 +215,7 @@ let _activePenId=null;
 let _finAllPens=false;
 // Set by the bulk tagger so the assignment can be taken back without hunting
 // through the list. Session-only — a reload clears it.
-let _bulkTagUndo=null;
+let _bulkTagUndo=null, _bulkTagSalesUndo=null;
 function renderFinance(){
   const el=document.getElementById('v-finance');
   const allExpenses=DB.getExpenses().sort((a,b)=>b.date.localeCompare(a.date));
@@ -274,8 +274,17 @@ function renderFinance(){
       :`<div class="empty" style="padding:24px"><p>Open a pen from Home to see its profit and loss.</p></div>`;
 
   } else if(FIN_TAB==='sales'){
+    const untaggedEggs=multiPen()?bulkTagSaleTargets(null):[];
     tabContent=`
       <div style="margin:12px 16px"><button class="btn btn-primary" onclick="openSaleForm()">+ Record Sale</button></div>
+      ${_bulkTagSalesUndo?`<div style="margin:0 16px 8px;background:var(--amberBg);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:10px">
+        <span style="flex:1;font-size:12px;color:#7d4e00">✓ ${_bulkTagSalesUndo.ids.length} egg sale${_bulkTagSalesUndo.ids.length>1?'s':''} credited to <b>${penName(_bulkTagSalesUndo.penId)||'a pen'}</b>.</span>
+        <button class="btn btn-secondary btn-sm" style="flex-shrink:0" onclick="undoBulkTagSales()">Undo</button>
+      </div>`:''}
+      ${untaggedEggs.length>0?`<div style="margin:0 16px 8px;background:var(--amberBg);border-radius:8px;padding:10px 12px">
+        <div style="font-size:12px;color:#7d4e00;margin-bottom:8px"><b>${untaggedEggs.length}</b> egg sale${untaggedEggs.length>1?'s':''} (${fmtMoney(Math.round(untaggedEggs.reduce((s,x)=>s+Number(x.total_amount_ngn||0),0)))}) not on a pen. Until assigned, they are split across pens by eggs laid.</div>
+        <button class="btn btn-primary btn-sm" style="width:100%" onclick="openBulkTagSales()">Assign to a Pen</button>
+      </div>`:''}
       <div style="margin:0 16px 8px;background:var(--g5);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--g1)">
         💡 Choose <b>Cash</b> if payment was collected on the spot, or <b>Credit</b> if the customer takes goods and pays later — credit sales automatically appear in Receivables.
       </div>
@@ -301,7 +310,7 @@ function renderFinance(){
             const custDisplay=s.customer_id?(DB.getCustomer(s.customer_id)?.name||s.customer):s.customer;
             return`<div class="list-item">
               <div style="flex:1">
-                <div style="font-weight:700;font-size:14px">${s.product}</div>
+                <div style="font-weight:700;font-size:14px">${s.product}${multiPen()&&s.pen_id&&penName(s.pen_id)?` <span class="badge badge-green" style="vertical-align:middle">${penName(s.pen_id)}</span>`:''}</div>
                 <div style="font-size:12px;color:var(--gray);margin-top:2px">${fmtDate(s.date)} · ${s.quantity} × ${fmtMoney(s.unit_price_ngn)}${custDisplay?' · '+custDisplay:''}</div>
                 <div style="margin-top:4px">${payBadge}${isCredit&&s.due_date?`<span style="font-size:11px;color:var(--gray);margin-left:6px">Due ${fmtDate(s.due_date)}</span>`:''}</div>
                 ${partial?`<div style="font-size:11px;color:var(--g1);margin-top:3px">Paid ${fmtMoney(paid)} · Owing <b style="color:var(--amber)">${fmtMoney(bal)}</b></div>`:''}
@@ -556,6 +565,68 @@ function undoBulkTagExpenses(){
   ids.forEach(id=>DB.updExpense(id,{pen_id:null}));
   _bulkTagUndo=null;
   confirmSave(`${ids.length} expense${ids.length>1?'s':''} back to farm-wide`);
+  renderFinance();
+}
+
+// The same backlog problem for egg sales. Old ones were recorded before a sale
+// could name a pen, so they sit in the pool that is split across pens by eggs
+// laid — which credits a pen just coming into lay with crates it never laid.
+// A pen that no longer exists counts as no pen, matching penEconomics.
+function bulkTagSaleTargets(before){
+  const penIds=new Set((((DB.getFarm()||{}).pens)||[]).map(p=>p.id));
+  return DB.getSales()
+    .filter(s=>s.product===EGG_PRODUCT&&!penIds.has(s.pen_id)&&(!before||s.date<=before))
+    .sort((a,b)=>a.date.localeCompare(b.date));
+}
+function openBulkTagSales(){
+  const pens=((DB.getFarm()||{}).pens)||[];
+  if(!pens.length){toast('Add a pen in Settings first');return;}
+  const today=DB.today(), def=legacyPenId();
+  openModal(`<div class="modal-ttl">Assign Egg Sales to a Pen <button class="modal-x" onclick="closeModal()">×</button></div>
+    <p style="font-size:13px;color:var(--gray);margin:0 0 14px">Credits every egg sale not yet on a pen to the pen you pick. Only the pen changes; locked records are included.</p>
+    <div class="field"><label>Credit them to</label>
+      <select id="bts_pen">${pens.map(p=>`<option value="${p.id}" ${p.id===def?'selected':''}>${p.name}</option>`).join('')}</select></div>
+    <div class="field"><label>Only sales dated on or before</label>
+      <input type="date" id="bts_before" value="${today}" onchange="previewBulkTagSales()" oninput="previewBulkTagSales()">
+      <div style="font-size:11px;color:var(--gray);margin-top:5px">Leave as today to take the whole backlog.</div></div>
+    <div id="bts_preview"></div>
+    <button class="btn btn-primary" id="bts_go" onclick="doBulkTagSales()">Assign</button>`);
+  previewBulkTagSales();
+}
+function previewBulkTagSales(){
+  const box=document.getElementById('bts_preview'); if(!box)return;
+  const rows=bulkTagSaleTargets(document.getElementById('bts_before')?.value||null);
+  const go=document.getElementById('bts_go');
+  if(go){go.disabled=rows.length===0;go.style.opacity=rows.length===0?'.5':'';}
+  if(rows.length===0){
+    box.innerHTML=`<div style="background:#f5f5f5;border-radius:8px;padding:12px;font-size:13px;color:var(--gray);margin-bottom:14px">Nothing to assign in that date range.</div>`;
+    return;
+  }
+  const total=rows.reduce((s,x)=>s+Number(x.total_amount_ngn||0),0);
+  const crates=rows.reduce((s,x)=>s+Number(x.quantity||0),0);
+  box.innerHTML=`<div style="background:var(--g5);border-radius:8px;padding:12px;margin-bottom:14px">
+    <div style="font-size:13px;font-weight:800;color:var(--g1);margin-bottom:4px">${rows.length} sale${rows.length>1?'s':''} · ${crates.toLocaleString()} crates · ${fmtMoney(Math.round(total))}</div>
+    <div style="font-size:11px;color:var(--gray)">${fmtDate(rows[0].date)} – ${fmtDate(rows[rows.length-1].date)}</div>
+  </div>`;
+}
+function doBulkTagSales(){
+  const penId=document.getElementById('bts_pen').value;
+  const rows=bulkTagSaleTargets(document.getElementById('bts_before')?.value||null);
+  if(!rows.length){toast('Nothing to assign');return;}
+  // Keep each sale's previous pen_id, so undo restores a deleted pen's id
+  // rather than blanking it.
+  _bulkTagSalesUndo={ids:rows.map(s=>s.id),prev:rows.map(s=>s.pen_id??null),penId};
+  rows.forEach(s=>DB.updSale(s.id,{pen_id:penId}));
+  closeModal();
+  confirmSave(`${rows.length} egg sale${rows.length>1?'s':''} credited to ${penName(penId)||'pen'}`);
+  renderFinance();
+}
+function undoBulkTagSales(){
+  if(!_bulkTagSalesUndo)return;
+  const {ids,prev}=_bulkTagSalesUndo;
+  ids.forEach((id,i)=>DB.updSale(id,{pen_id:prev[i]}));
+  _bulkTagSalesUndo=null;
+  confirmSave(`${ids.length} egg sale${ids.length>1?'s':''} back to not pen-specific`);
   renderFinance();
 }
 function penName(id){
