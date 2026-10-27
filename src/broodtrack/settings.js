@@ -203,12 +203,18 @@ function saveFeedRates(){
 function exportData(){
   const bundle={exported_at:new Date().toISOString(),source:'BroodTrack',version:'1.0',
     farm:DB.getFarm(),batches:DB.getBatches(),
+    // Every record carries its id: import merges by id and skips any record
+    // without one, so an id-less backup restores as nothing.
     brooding_daily_log:DB.getDaily().map(r=>({
-      date:r.date,batch_id:r.batch_id,batch_name:r.batch_name,age_days:r.age_days,
+      id:r.id,date:r.date,batch_id:r.batch_id,batch_name:r.batch_name,age_days:r.age_days,
       opening_birds:r.opening_birds,deaths:r.deaths,culls:r.culls,closing_birds:r.closing_birds,
       feed_kg_used:r.feed_kg_used,feed_req_kg:r.feed_req_kg,water_liters:r.water_liters,
       temperature_c:r.temperature_c,humidity_pct:r.humidity_pct,notes:r.notes
     })),
+    // Feed usage is its own collection, not part of the daily log. Without it a
+    // restored farm has purchases but no consumption, and every batch's feed
+    // cost reads as nothing.
+    feed_log:DB.getFeed(),
     brooding_weight_log:DB.getWeight().map(r=>({
       id:r.id,date:r.date,batch_id:r.batch_id,batch_name:r.batch_name,breed:r.breed,
       week_num:r.week_num,sample_size:r.sample_size,avg_weight_g:r.avg_weight_g,
@@ -247,7 +253,7 @@ function exportData(){
       o[bt]=getBroodFeedProgramme(bt).map(p=>({phase:p.key,label:p.label,to_day:p.maxDay,feed_type:p.type}));
       return o;},{}),
     expenses:DB.getExpenses().map(e=>({
-      date:e.date,batch_id:e.batch_id,batch_name:e.batch_name,
+      id:e.id,date:e.date,batch_id:e.batch_id,batch_name:e.batch_name,
       category:e.category,amount_ngn:e.amount_ngn,amount_usd:e.amount_usd,notes:e.notes,
       feed_stock_id:e.feed_stock_id
     })),
@@ -297,6 +303,7 @@ function importData(input){
     if(data.brooding_daily_log?.length){const m=_mergeById(DB._arr(KEYS.daily),data.brooding_daily_log);DB._set(KEYS.daily,m);counts.daily=data.brooding_daily_log.length+' daily logs merged';}
     if(data.brooding_weight_log?.length){const m=_mergeById(DB._arr(KEYS.weight),data.brooding_weight_log);DB._set(KEYS.weight,m);counts.weight=data.brooding_weight_log.length+' weight records merged';}
     if(data.brooding_health_log?.length){const m=_mergeById(DB._arr(KEYS.health),data.brooding_health_log);DB._set(KEYS.health,m);counts.health=data.brooding_health_log.length+' health records merged';}
+    if(data.feed_log?.length){const m=_mergeById(DB._arr(KEYS.feed),data.feed_log);DB._set(KEYS.feed,m);counts.feed=data.feed_log.length+' feed logs merged';}
     if(data.feed_store?.length){const m=_mergeById(DB._arr(KEYS.feedstock),data.feed_store);DB._set(KEYS.feedstock,m);counts.feedstock=data.feed_store.length+' feed store entries merged';}
     if(data.expenses?.length){const m=_mergeById(DB._arr(KEYS.expenses),data.expenses);DB._set(KEYS.expenses,m);counts.expenses=data.expenses.length+' expenses merged';}
     if(data.customers?.length){const m=_mergeById(DB._arr(KEYS.customers),data.customers);DB._set(KEYS.customers,m);counts.customers=data.customers.length+' customer(s) merged';}

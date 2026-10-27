@@ -259,18 +259,16 @@ function feedStoreBody(){
 
 // ── Feed purchase ───────────────────────────────────────────────────────
 // Entered once, in bags, and it writes the matching Feed expense so the store
-// and the books cannot drift apart through double entry.
+// and the books cannot drift apart through double entry. No batch is picked:
+// a batch is charged for what it eats, not for what was bought.
 function openFeedPurchase(editId,presetType){
   const today=DB.today();
   const rec=editId?DB.getFeedStock().find(r=>r.id===editId):null;
-  const active=getActiveBatches();
   const type=canonFeedType(rec?.feed_type||presetType||getFeedStockByType()[0]?.feed_type)||BROOD_FEED_TYPES[1];
   openModal(`<div class="modal-ttl">${rec?'Edit':'Record'} Feed Purchase <button class="modal-x" onclick="closeModal()">×</button></div>
     <div class="field"><label>Date</label><input type="date" id="fp_date" value="${rec?rec.date:today}" min="${lockMinDate()}" max="${today}"></div>
     <div class="field"><label>Feed Type</label>
       <select id="fp_type" onchange="calcFeedPurchase()">${BROOD_FEED_TYPES.map(t=>`<option value="${t}" ${t===type?'selected':''}>${t}</option>`).join('')}</select></div>
-    ${active.length?`<div class="field"><label>Batch <span style="color:var(--gray);font-weight:400">— optional, for the expense</span></label>
-      <select id="fp_batch"><option value="">Not batch-specific</option>${active.map(b=>`<option value="${b.id}" ${rec?.batch_id===b.id?'selected':''}>${b.name}</option>`).join('')}</select></div>`:'<input type="hidden" id="fp_batch" value="">'}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Bags</label><input type="number" id="fp_bags" value="${rec?.bags??''}" min="0" step="1" inputmode="numeric" placeholder="e.g. 20" oninput="calcFeedPurchase()"></div>
       <div class="field"><label>Loose kg <span style="color:var(--gray);font-weight:400">opt</span></label><input type="number" id="fp_loose" value="${rec?.loose_kg||''}" min="0" step="0.5" placeholder="0" oninput="calcFeedPurchase()"></div>
@@ -307,7 +305,6 @@ function saveFeedPurchase(editId){
   const bags=parseFloat(document.getElementById('fp_bags').value)||0;
   const loose_kg=parseFloat(document.getElementById('fp_loose').value)||0;
   const cost_ngn=parseFloat(document.getElementById('fp_cost').value)||0;
-  const batch_id=document.getElementById('fp_batch')?.value||'';
   const bag_kg=getBagKg(feed_type);
   const kg=Math.round((bags*bag_kg+loose_kg)*10)/10;
   if(!date){toast('Pick a date');return;}
@@ -315,8 +312,7 @@ function saveFeedPurchase(editId){
   const existing=editId?DB.getFeedStock().find(r=>r.id===editId):null;
   if(!lockGuard(date,existing?.date))return;
   const id=editId||uid();
-  const rec={id,date,kind:'purchase',feed_type,bags,loose_kg,kg,bag_kg,cost_ngn,batch_id,
-    batch_name:batch_id?(DB.getBatches().find(b=>b.id===batch_id)?.name||''):'',
+  const rec={id,date,kind:'purchase',feed_type,bags,loose_kg,kg,bag_kg,cost_ngn,
     supplier:document.getElementById('fp_supplier').value.trim(),
     notes:document.getElementById('fp_notes').value.trim(),
     expense_id:existing?.expense_id||undefined};
@@ -337,7 +333,7 @@ function syncFeedPurchaseExpense(rec){
     +(rec.loose_kg>0?` + ${rec.loose_kg} kg`:'')
     +` (${rec.kg} kg)`+(rec.supplier?` · ${rec.supplier}`:'');
   const payload={date:rec.date,category:'Feed',amount_ngn:rec.cost_ngn,amount_usd:0,
-    batch_id:rec.batch_id||'',batch_name:rec.batch_name||'',notes,feed_stock_id:rec.id};
+    batch_id:'',batch_name:'',notes,feed_stock_id:rec.id};
   if(linked){ DB.updExpense(linked.id,payload); }
   else { const eid=uid(); DB.addExpense({id:eid,...payload}); rec.expense_id=eid; }
 }

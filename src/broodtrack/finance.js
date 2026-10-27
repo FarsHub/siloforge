@@ -14,12 +14,17 @@ function renderFinance(){
   const allExpenses=DB.getExpenses().sort((a,b)=>b.date.localeCompare(a.date));
   const allSalesRaw=DB.getSales().sort((a,b)=>b.date.localeCompare(a.date));
   const showAll=_finAllBatches||!_activeBatchId;
-  const expenses=showAll?allExpenses:allExpenses.filter(e=>e.batch_id===_activeBatchId);
+  // Farm-wide is cash: a feed purchase counts the day it is paid for. One batch
+  // is what it cost: its own expenses plus the store feed it ate, so its feed
+  // purchases are left out of its list and replaced by a feed-eaten line.
+  const expenses=showAll?allExpenses:allExpenses.filter(e=>e.batch_id===_activeBatchId&&!e.feed_stock_id);
   const sales=showAll?allSalesRaw:allSalesRaw.filter(s=>s.batch_id===_activeBatchId);
   const batch=_activeBatchId?DB.getBatches().find(b=>b.id===_activeBatchId):null;
-  const monthExp=expenses.filter(e=>e.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.amount_ngn||0),0);
+  const bcAll=showAll?null:batchCost(_activeBatchId);
+  const monthExp=showAll?expenses.filter(e=>e.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.amount_ngn||0),0)
+    :batchCost(_activeBatchId,thisMonth).total;
   const monthSales=sales.filter(s=>s.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.total_amount_ngn||0),0);
-  const allExp=expenses.reduce((s,e)=>s+(e.amount_ngn||0),0);
+  const allExp=showAll?expenses.reduce((s,e)=>s+(e.amount_ngn||0),0):bcAll.total;
   const allSales=sales.reduce((s,e)=>s+(e.total_amount_ngn||0),0);
   const creditSales=sales.filter(s=>s.payment_type==='credit');
   const unpaidCredit=creditSales.filter(s=>getSaleBalance(s)>0.5);
@@ -39,6 +44,10 @@ function renderFinance(){
   if(FIN_TAB==='expenses'){
     tabContent=`<div style="margin:12px 16px"><button class="btn btn-primary" onclick="openExpenseForm()">+ Add Expense</button></div>
       <div class="card" style="padding:0;overflow:hidden">
+        ${bcAll&&bcAll.feedKg>0?`<div class="list-item" style="background:var(--p5)">
+          <div><div style="font-weight:700;font-size:14px">Feed eaten <span class="badge badge-purple" style="vertical-align:middle">🌾 Feed store</span></div>
+            <div style="font-size:12px;color:var(--gray)">${bcAll.feedKg.toFixed(0)} kg logged · priced at store cost when eaten</div></div>
+          <div style="text-align:right"><div style="font-weight:800;color:var(--red)">${fmtMoney(Math.round(bcAll.feedCost))}</div></div></div>`:''}
         ${expenses.slice(0,50).map(e=>`<div class="list-item">
           <div><div style="font-weight:700;font-size:14px">${e.category}${e.feed_stock_id?' <span class="badge badge-purple" style="vertical-align:middle">🌾 Feed store</span>':''}</div>
             <div style="font-size:12px;color:var(--gray)">${fmtDate(e.date)}${e.batch_name?' · '+e.batch_name:''} · ${e.notes||'—'}</div></div>
@@ -47,7 +56,7 @@ function renderFinance(){
             <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
               ${isLocked(e.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openExpenseForm('${e.id}')">Edit</button>
               <button class="btn btn-danger btn-sm" onclick="delExpense('${e.id}')">✕</button>`}
-            </div></div></div>`).join('')||'<div class="empty" style="padding:24px"><p>No expenses logged yet.</p></div>'}
+            </div></div></div>`).join('')||(bcAll&&bcAll.feedKg>0?'':'<div class="empty" style="padding:24px"><p>No expenses logged yet.</p></div>')}
       </div>`;
 
   } else if(FIN_TAB==='sales'){
@@ -149,12 +158,12 @@ function renderFinance(){
   } else if(FIN_TAB==='pl'){
     const batches=DB.getBatches();
     const batchPL=batches.map(b=>{
-      const bExp=expenses.filter(e=>e.batch_id===b.id).reduce((s,e)=>s+(e.amount_ngn||0),0);
+      const bc=batchCost(b.id), bExp=bc.total;
       const bSales=sales.filter(s=>s.batch_id===b.id).reduce((s,e)=>s+(e.total_amount_ngn||0),0);
       const bOwed=sales.filter(s=>s.batch_id===b.id&&s.payment_type==='credit')
         .reduce((sum,e)=>sum+getSaleBalance(e),0);
       const birds=getBatchBirdCount(b), sold=sales.filter(s=>s.batch_id===b.id).reduce((s,e)=>s+(e.quantity||0),0);
-      return{batch:b,exp:bExp,sales:bSales,owed:bOwed,profit:bSales-bExp,birds,sold,
+      return{batch:b,exp:bExp,feedCost:bc.feedCost,feedKg:bc.feedKg,sales:bSales,owed:bOwed,profit:bSales-bExp,birds,sold,
         costPerBird:birds>0?(bExp/birds):null,revenuePerBird:sold>0?(bSales/sold):null};
     });
     tabContent=`<div class="sec-hdr" style="margin-top:8px">Batch Profit & Loss</div>
@@ -165,7 +174,7 @@ function renderFinance(){
           <span class="badge ${pl.profit>=0?'badge-green':pl.profit>-50000?'badge-amber':'badge-red'}">${pl.profit>=0?'Profitable':'Loss'}</span>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-          <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--red)">${fmtMoney(pl.exp)}</div><div class="kpi-lbl">Total Cost</div></div>
+          <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--red)">${fmtMoney(pl.exp)}</div><div class="kpi-lbl">Total Cost</div>${pl.feedCost>0?`<div style="font-size:10px;color:var(--gray);margin-top:2px">incl. ${fmtMoney(Math.round(pl.feedCost))} feed eaten</div>`:''}</div>
           <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g2)">${fmtMoney(pl.sales)}</div><div class="kpi-lbl">Total Revenue</div></div>
           <div class="kpi-sm" style="grid-column:1/-1"><div class="kpi-val" style="color:${pl.profit>=0?'var(--g2)':'var(--red)'}">${pl.profit>=0?'+':''}${fmtMoney(pl.profit)}</div><div class="kpi-lbl">Net Profit/Loss</div></div>
         </div>

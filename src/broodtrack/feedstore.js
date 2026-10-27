@@ -381,6 +381,89 @@ function lastFeedPricePerKg(feedType){
   return p?Number(p.cost_ngn)/Number(p.kg):null;
 }
 
+// ── Feed valuation ──────────────────────────────────────────────────────
+// A batch is charged for the feed it ate, not the feed bought while it was on
+// the farm. The bag or two left when a batch goes is eaten by the next one, and
+// it is the next one that pays for it.
+//
+// Walks each feed type's store ledger keeping a running kg and a running naira
+// value, so every usage record is priced at what the store was worth per kg
+// that day. A purchase adds value, a count re-anchors the kg at the prevailing
+// unit price, a usage draws both down. A count that finds the store short
+// drops that value without charging any batch — which is also how leftover
+// feed nobody will eat is written off: count it as gone.
+//
+// Only feed the store held is charged. Feed bought outside the store, as an
+// ordinary expense, was already charged the day it was paid for, so pricing it
+// again when eaten would bill the same sack twice. Those kg still count
+// towards FCR; they just cost nothing here.
+let _FV_MEMO={stamp:-1,val:null};
+function feedValuation(){
+  if(_FV_MEMO.stamp===_FS_STAMP)return _FV_MEMO.val;
+  const out={};
+  feedStoreTypes().forEach(t=>{
+    let balKg=0,balVal=0,unit=null;
+    const avg=avgFeedPricePerKg(t);
+    feedStockEvents(t).forEach(e=>{
+      const kg=Number(e.kg)||0;
+      if(e.kind==='count'){
+        // Feed a count finds before the store has ever priced a purchase of
+        // it was bought as an ordinary expense, before the store existed, and
+        // is already in a batch's costs — so it enters at nothing. Valuing it
+        // at a later purchase's price would charge the same sack twice.
+        const u=balKg>0?balVal/balKg:(unit??0);
+        balKg=kg; balVal=kg*u;
+      } else if(e.kind==='usage'){
+        const u=balKg>0?balVal/balKg:(unit??avg??0);
+        const coveredKg=Math.min(kg,Math.max(0,balKg));
+        const val=coveredKg*u;
+        out[e.rec.id]={ngn:val,unit:u};
+        balKg=Math.max(0,balKg-kg); balVal=Math.max(0,balVal-val);
+      } else {
+        const cost=Number(e.rec.cost_ngn)||0;
+        // A purchase logged without a price still adds kg; value those kg at
+        // the going rate so they do not enter the store for free.
+        balKg+=kg; balVal+=cost>0?cost:kg*(unit??avg??0);
+      }
+      if(balKg>0)unit=balVal/balKg;
+    });
+  });
+  _FV_MEMO={stamp:_FS_STAMP,val:out};
+  return out;
+}
+// Weighted average of every priced purchase of a feed type. Values kg the
+// running average cannot price — feed eaten before the first purchase was
+// logged, or a purchase entered without its cost.
+function avgFeedPricePerKg(feedType){
+  const want=canonFeedType(feedType);
+  let kg=0,ngn=0;
+  DB.getFeedStock().forEach(r=>{
+    if((r.kind||'purchase')!=='purchase')return;
+    if(canonFeedType(r.feed_type)!==want)return;
+    if(!(Number(r.cost_ngn)>0&&Number(r.kg)>0))return;
+    kg+=Number(r.kg); ngn+=Number(r.cost_ngn);
+  });
+  return kg>0?ngn/kg:lastFeedPricePerKg(feedType);
+}
+// What a batch cost: expenses tagged to it, plus the store feed it ate. A
+// feed-store purchase is stock, not a batch cost — its money reaches a batch
+// through the kg logged against it — so it is left out even if an old record
+// was tagged to a batch. `month` ('YYYY-MM') narrows both sides to that month.
+function batchCost(batchId,month){
+  const inM=d=>!month||String(d||'').startsWith(month);
+  const tagged=DB.getExpenses()
+    .filter(e=>e.batch_id===batchId&&!e.feed_stock_id&&inM(e.date))
+    .reduce((s,e)=>s+(Number(e.amount_ngn)||0),0);
+  const val=feedValuation();
+  let feedCost=0,feedKg=0;
+  DB.getFeed().forEach(r=>{
+    if(r.batch_id!==batchId||!inM(r.date))return;
+    feedKg+=Number(r.feed_kg_used)||0;
+    feedCost+=(val[r.id]||{}).ngn||0;
+  });
+  return {tagged,feedCost,feedKg,total:tagged+feedCost};
+}
+
 // ── Low-feed ticker ─────────────────────────────────────────────────────
 // Rendered outside the views so it survives navigation, and refreshed by the
 // same calls that redraw a screen. It shows only what someone has to act on:

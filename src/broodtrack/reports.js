@@ -25,7 +25,7 @@ function renderReports(){
     const batchCards=batches.map(b=>{
       const bDaily=daily.filter(r=>r.batch_id===b.id).sort((a,b2)=>a.date.localeCompare(b2.date));
       const bWeight=weight.filter(r=>r.batch_id===b.id).sort((a,b2)=>a.date.localeCompare(b2.date));
-      const bExp=expenses.filter(e=>e.batch_id===b.id).reduce((s,e)=>s+(e.amount_ngn||0),0);
+      const bExp=batchCost(b.id).total;
       const bSales=sales.filter(s=>s.batch_id===b.id).reduce((s,e)=>s+(e.total_amount_ngn||0),0);
       const totalDeaths=bDaily.reduce((s,r)=>s+(r.deaths||0),0);
       const totalFeed=DB.getFeed().filter(r=>r.batch_id===b.id).reduce((s,r)=>s+(r.feed_kg_used||0),0);
