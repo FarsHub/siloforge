@@ -574,15 +574,17 @@ function exportData(){
     farm,
     daily_egg_production:Object.values(eggDayMap).sort((a,b)=>a.date.localeCompare(b.date)),
     egg_collection_detail:cols,
-    daily_bird_status:birds.map(b=>({date:b.date,opening_birds:b.opening_birds,age_weeks:b.age_weeks,
+    // Every record carries its id: import merges by id and skips any record
+    // without one, so an id-less backup restores as nothing. pen_id keeps a
+    // restored record on its own pen instead of falling to the oldest one.
+    daily_bird_status:birds.map(b=>({id:b.id,pen_id:b.pen_id||null,date:b.date,opening_birds:b.opening_birds,age_weeks:b.age_weeks,
       deaths:b.deaths,culls:b.culls,closing_birds:b.closing_birds,notes:b.notes})),
-    daily_feed_usage:feed.map(f=>({date:f.date,age_weeks:f.age_weeks,feed_type:f.feed_type,
-      feed_kg_used:f.feed_kg_used,feed_req_kg:f.feed_req_kg})),
+    daily_feed_usage:feed.map(f=>({id:f.id,pen_id:f.pen_id||null,date:f.date,age_weeks:f.age_weeks,feed_type:f.feed_type,
+      feed_kg_used:f.feed_kg_used,feed_req_kg:f.feed_req_kg,feed_rate_g:f.feed_rate_g,notes:f.notes})),
     feed_store:DB.getFeedStock().map(r=>({id:r.id,date:r.date,kind:r.kind||'purchase',
       feed_type:r.feed_type,bags:r.bags,loose_kg:r.loose_kg,kg:r.kg,bag_kg:r.bag_kg,
       cost_ngn:r.cost_ngn,supplier:r.supplier,counted_by:r.counted_by,
       variance_kg:r.variance_kg,expense_id:r.expense_id,notes:r.notes})),
-    // Derived, so an analyst does not have to reimplement the forward walk.
     // Derived, so an analyst does not have to reimplement the forward walk.
     feed_store_status:getFeedStoreStatus().map(c=>({feed_type:c.feed_type,state:c.state,
       kg_on_hand:c.kg,bags_on_hand:c.bags,loose_kg:c.loose,
@@ -592,10 +594,12 @@ function exportData(){
       short_kg:Math.round(c.shortKg),surplus_kg:Math.round(c.surplusKg),
       bags_to_buy:c.buyBags,last_count_date:c.lastCountDate,headline:c.headline})),
     feed_programme:getFeedProgramme(),
-    health_log:health.map(h=>({date:h.date,water_consumed_liters:h.water_consumed_liters,
+    health_log:health.map(h=>({id:h.id,pen_id:h.pen_id||null,date:h.date,water_consumed_liters:h.water_consumed_liters,
       droppings_observation:h.droppings_observation,vaccination_or_medication:h.vaccination_or_medication,
       admin_method:h.admin_method,notes:h.notes})),
-    expenses:expenses.map(e=>({date:e.date,category:e.category,amount_usd:e.amount_usd,amount_ngn:e.amount_ngn,
+    // feed_stock_id marks a feed-store purchase. Lose it and a restored
+    // purchase counts as a pen cost on top of the feed the pen ate.
+    expenses:expenses.map(e=>({id:e.id,feed_stock_id:e.feed_stock_id||null,date:e.date,category:e.category,amount_usd:e.amount_usd,amount_ngn:e.amount_ngn,
       pen_id:e.pen_id||null,pen_name:e.pen_id?(((DB.getFarm()||{}).pens||[]).find(p=>p.id===e.pen_id)||{}).name||null:null,
       notes:e.notes})),
     sales:sales.map(s=>({id:s.id,date:s.date,product:s.product,quantity:s.quantity,unit_price:s.unit_price_ngn,
