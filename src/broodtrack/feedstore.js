@@ -130,8 +130,13 @@ function getFeedStockByType(){
     const counts=led.filter(e=>e.kind==='count');
     const purchases=led.filter(e=>e.kind==='purchase');
     const last=led[led.length-1], lastCount=counts[counts.length-1];
+    // When the stock now on the floor started arriving: the last time the
+    // balance rose from empty. Stock that has never been counted only needs a
+    // count once it has had time to drift, not the day it is bought.
+    let stockSince=null, prev=0;
+    led.forEach(e=>{ if(prev<=0&&e.balance>0)stockSince=e.date; prev=e.balance; });
     return {feed_type:t, kg:last?last.balance:0,
-      lastCountDate:lastCount?lastCount.date:null,
+      lastCountDate:lastCount?lastCount.date:null, stockSince,
       lastPurchaseDate:purchases.length?purchases[purchases.length-1].date:null,
       countCount:counts.length,
       ...kgToBags(last?last.balance:0,t)};

@@ -65,10 +65,12 @@ function renderHome(){
   // below carries the numbers and somewhere to tap, so a third copy here only
   // pushed the rest of the screen down.
   // Stock the app has never had confirmed on the floor drifts, so nudge for a
-  // count rather than quietly presenting book figures as fact.
+  // count rather than quietly presenting book figures as fact. Never-counted
+  // stock runs the same 30-day clock from when it arrived — a fresh delivery
+  // is exactly what the book says it is.
   (()=>{
-    const stale=getFeedStoreStatus().filter(c=>c.kg>0&&(!c.lastCountDate||
-      daysBetween(c.lastCountDate,today)>30));
+    const stale=getFeedStoreStatus().filter(c=>c.kg>0&&
+      daysBetween(c.lastCountDate||c.stockSince||today,today)>30);
     if(stale.length)alerts.push(`<div class="alert-item alert-amber" onclick="FEED_TAB='store';openFeedCount(null,'${stale[0].feed_type}')" style="cursor:pointer">🧮 ${stale[0].feed_type} not counted ${stale[0].lastCountDate?'in over a month':'yet'} — tap to count the store</div>`);
   })();
 
