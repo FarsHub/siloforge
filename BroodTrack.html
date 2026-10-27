@@ -664,7 +664,7 @@ function initApp(){
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.09.29-b22';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.10.27-b23';  // bump on each deploy; shown on login screen + console
 const BREEDS_BY_TYPE={
   broiler:['Arbor Acres','Marshall','Other'],
   pullet:['Isa Brown','Lohmann Brown','Hy-Line Brown','Black Pullet','Other'],
@@ -675,8 +675,13 @@ const BREED_BENCHMARKS={
   'Lohmann Brown': {0:40,1:72,2:128,3:210,4:295,5:395,6:495,7:605,8:715,9:830,10:945,11:1060,12:1175,13:1275,14:1375,15:1450,16:1525,17:1585,18:1640},
   'Hy-Line Brown': {0:38,1:70,2:122,3:198,4:275,5:375,6:475,7:585,8:695,9:810,10:925,11:1040,12:1155,13:1258,14:1360,15:1438,16:1515,17:1573,18:1630},
   'Black Pullet':  {0:42,1:85,2:140,3:225,4:310,5:415,6:520,7:635,8:750,9:875,10:1000,11:1120,12:1240,13:1350,14:1460,15:1555,16:1650,17:1725,18:1800},
-  'Arbor Acres':   {2:450,4:1100,6:1900,8:2700,10:3300,12:3700,14:4000,16:4200},
-  'Marshall':      {2:430,4:1050,6:1800,8:2600,10:3100,12:3500,14:3800,16:4000},
+  // Broilers: every week 0–8, about 90% of the Arbor Acres Plus 2022 as-hatched
+  // objectives (day 7N weight), to match BROILER_FEED_BY_WEEK. Every week is
+  // listed because the lookup takes the next week up when one is missing — an
+  // even-weeks-only table held a week-1 chick to the week-2 weight. Marshall
+  // shares it: no published Marshall objectives, and the two run close.
+  'Arbor Acres':   {0:42,1:188,2:474,3:905,4:1450,5:2058,6:2683,7:3284,8:3837},
+  'Marshall':      {0:42,1:188,2:474,3:905,4:1450,5:2058,6:2683,7:3284,8:3837},
   'Noiler':        {2:200,4:500,6:720,8:900,10:1050,12:1200,14:1350,16:1400,18:1500},
   'Other':         {2:160,4:380,6:560,8:750,10:900,12:1050,14:1180,16:1280,18:1380},
 };
@@ -902,8 +907,12 @@ function getFeedPhaseForBatch(batch,ageDays){
 // Week-by-week feed intake (g/bird/day) transcribed from the farm programme book.
 // Pullet weeks 1–22 explicit; week 23 (125 g) covers the 23–70 laying period.
 // Broiler weeks 1–8 (birds not kept past 8 wk). Week = floor(ageDays/7)+1.
+// Broilers are fed to appetite, so this is a planning figure for buying feed,
+// not a ration. It is about 90% of the Arbor Acres Plus 2022 as-hatched
+// objectives (24/53/89/129/167/196/216/226), allowing for Nigerian heat and feed
+// energy: about 4.15 kg a bird to day 42.
 const PULLET_FEED_BY_WEEK={1:15,2:25,3:30,4:35,5:37,6:40,7:45,8:50,9:55,10:58,11:60,12:65,13:68,14:70,15:80,16:90,17:100,18:110,19:115,20:115,21:115,22:115,23:125};
-const BROILER_FEED_BY_WEEK={1:18,2:45,3:70,4:95,5:120,6:130,7:150,8:165};
+const BROILER_FEED_BY_WEEK={1:22,2:48,3:80,4:116,5:150,6:176,7:194,8:203};
 function getFeedByWeekTable(birdType){return birdType==='broiler'?BROILER_FEED_BY_WEEK:birdType==='pullet'?PULLET_FEED_BY_WEEK:null;}
 function getFeedRateForAge(birdType,ageDays){
   const t=getFeedByWeekTable(birdType); if(!t)return null;      // noiler → no book data
@@ -2543,6 +2552,89 @@ function lastFeedPricePerKg(feedType){
   return p?Number(p.cost_ngn)/Number(p.kg):null;
 }
 
+// ── Feed valuation ──────────────────────────────────────────────────────
+// A batch is charged for the feed it ate, not the feed bought while it was on
+// the farm. The bag or two left when a batch goes is eaten by the next one, and
+// it is the next one that pays for it.
+//
+// Walks each feed type's store ledger keeping a running kg and a running naira
+// value, so every usage record is priced at what the store was worth per kg
+// that day. A purchase adds value, a count re-anchors the kg at the prevailing
+// unit price, a usage draws both down. A count that finds the store short
+// drops that value without charging any batch — which is also how leftover
+// feed nobody will eat is written off: count it as gone.
+//
+// Only feed the store held is charged. Feed bought outside the store, as an
+// ordinary expense, was already charged the day it was paid for, so pricing it
+// again when eaten would bill the same sack twice. Those kg still count
+// towards FCR; they just cost nothing here.
+let _FV_MEMO={stamp:-1,val:null};
+function feedValuation(){
+  if(_FV_MEMO.stamp===_FS_STAMP)return _FV_MEMO.val;
+  const out={};
+  feedStoreTypes().forEach(t=>{
+    let balKg=0,balVal=0,unit=null;
+    const avg=avgFeedPricePerKg(t);
+    feedStockEvents(t).forEach(e=>{
+      const kg=Number(e.kg)||0;
+      if(e.kind==='count'){
+        // Feed a count finds before the store has ever priced a purchase of
+        // it was bought as an ordinary expense, before the store existed, and
+        // is already in a batch's costs — so it enters at nothing. Valuing it
+        // at a later purchase's price would charge the same sack twice.
+        const u=balKg>0?balVal/balKg:(unit??0);
+        balKg=kg; balVal=kg*u;
+      } else if(e.kind==='usage'){
+        const u=balKg>0?balVal/balKg:(unit??avg??0);
+        const coveredKg=Math.min(kg,Math.max(0,balKg));
+        const val=coveredKg*u;
+        out[e.rec.id]={ngn:val,unit:u};
+        balKg=Math.max(0,balKg-kg); balVal=Math.max(0,balVal-val);
+      } else {
+        const cost=Number(e.rec.cost_ngn)||0;
+        // A purchase logged without a price still adds kg; value those kg at
+        // the going rate so they do not enter the store for free.
+        balKg+=kg; balVal+=cost>0?cost:kg*(unit??avg??0);
+      }
+      if(balKg>0)unit=balVal/balKg;
+    });
+  });
+  _FV_MEMO={stamp:_FS_STAMP,val:out};
+  return out;
+}
+// Weighted average of every priced purchase of a feed type. Values kg the
+// running average cannot price — feed eaten before the first purchase was
+// logged, or a purchase entered without its cost.
+function avgFeedPricePerKg(feedType){
+  const want=canonFeedType(feedType);
+  let kg=0,ngn=0;
+  DB.getFeedStock().forEach(r=>{
+    if((r.kind||'purchase')!=='purchase')return;
+    if(canonFeedType(r.feed_type)!==want)return;
+    if(!(Number(r.cost_ngn)>0&&Number(r.kg)>0))return;
+    kg+=Number(r.kg); ngn+=Number(r.cost_ngn);
+  });
+  return kg>0?ngn/kg:lastFeedPricePerKg(feedType);
+}
+// What a batch cost: expenses tagged to it, plus the store feed it ate. A
+// feed-store purchase is stock, not a batch cost — its money reaches a batch
+// through the kg logged against it — so it is left out even if an old record
+// was tagged to a batch. `month` ('YYYY-MM') narrows both sides to that month.
+function batchCost(batchId,month){
+  const inM=d=>!month||String(d||'').startsWith(month);
+  const tagged=DB.getExpenses()
+    .filter(e=>e.batch_id===batchId&&!e.feed_stock_id&&inM(e.date))
+    .reduce((s,e)=>s+(Number(e.amount_ngn)||0),0);
+  const val=feedValuation();
+  let feedCost=0,feedKg=0;
+  DB.getFeed().forEach(r=>{
+    if(r.batch_id!==batchId||!inM(r.date))return;
+    feedKg+=Number(r.feed_kg_used)||0;
+    feedCost+=(val[r.id]||{}).ngn||0;
+  });
+  return {tagged,feedCost,feedKg,total:tagged+feedCost};
+}
+
 // ── Low-feed ticker ─────────────────────────────────────────────────────
 // Rendered outside the views so it survives navigation, and refreshed by the
 // same calls that redraw a screen. It shows only what someone has to act on:
@@ -3246,7 +3338,7 @@ function renderWeight(){
     <div class="card" style="background:var(--p5)">
       <div class="card-title">Breed Benchmarks (Average Weight g)</div>
       <div style="overflow-x:auto"><table style="font-size:11px;width:100%;border-collapse:collapse">
-        ${(()=>{const bt=getBirdType(batch);const wks=bt==='broiler'?[2,4,6,8,12]:[6,8,12,16,18];
+        ${(()=>{const bt=getBirdType(batch);const wks=bt==='broiler'?[1,2,3,4,5,6,7,8]:[6,8,12,16,18];
         const rows=(BREEDS_BY_TYPE[bt]||[]).filter(b=>b!=='Other');
         return`<tr style="color:var(--p1);font-weight:800"><th>Breed</th>${wks.map(w=>`<th>Wk${w}</th>`).join('')}</tr>
           ${rows.map(b=>`<tr ${b===batch.breed?'style="background:var(--p5)"':''}><td style="font-weight:${b===batch.breed?'800':'700'};white-space:nowrap">${b}${b===batch.breed?' ←':''}</td>
@@ -3628,18 +3720,16 @@ function feedStoreBody(){
 
 // ── Feed purchase ───────────────────────────────────────────────────────
 // Entered once, in bags, and it writes the matching Feed expense so the store
-// and the books cannot drift apart through double entry.
+// and the books cannot drift apart through double entry. No batch is picked:
+// a batch is charged for what it eats, not for what was bought.
 function openFeedPurchase(editId,presetType){
   const today=DB.today();
   const rec=editId?DB.getFeedStock().find(r=>r.id===editId):null;
-  const active=getActiveBatches();
   const type=canonFeedType(rec?.feed_type||presetType||getFeedStockByType()[0]?.feed_type)||BROOD_FEED_TYPES[1];
   openModal(`<div class="modal-ttl">${rec?'Edit':'Record'} Feed Purchase <button class="modal-x" onclick="closeModal()">×</button></div>
     <div class="field"><label>Date</label><input type="date" id="fp_date" value="${rec?rec.date:today}" min="${lockMinDate()}" max="${today}"></div>
     <div class="field"><label>Feed Type</label>
       <select id="fp_type" onchange="calcFeedPurchase()">${BROOD_FEED_TYPES.map(t=>`<option value="${t}" ${t===type?'selected':''}>${t}</option>`).join('')}</select></div>
-    ${active.length?`<div class="field"><label>Batch <span style="color:var(--gray);font-weight:400">— optional, for the expense</span></label>
-      <select id="fp_batch"><option value="">Not batch-specific</option>${active.map(b=>`<option value="${b.id}" ${rec?.batch_id===b.id?'selected':''}>${b.name}</option>`).join('')}</select></div>`:'<input type="hidden" id="fp_batch" value="">'}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Bags</label><input type="number" id="fp_bags" value="${rec?.bags??''}" min="0" step="1" inputmode="numeric" placeholder="e.g. 20" oninput="calcFeedPurchase()"></div>
       <div class="field"><label>Loose kg <span style="color:var(--gray);font-weight:400">opt</span></label><input type="number" id="fp_loose" value="${rec?.loose_kg||''}" min="0" step="0.5" placeholder="0" oninput="calcFeedPurchase()"></div>
@@ -3676,7 +3766,6 @@ function saveFeedPurchase(editId){
   const bags=parseFloat(document.getElementById('fp_bags').value)||0;
   const loose_kg=parseFloat(document.getElementById('fp_loose').value)||0;
   const cost_ngn=parseFloat(document.getElementById('fp_cost').value)||0;
-  const batch_id=document.getElementById('fp_batch')?.value||'';
   const bag_kg=getBagKg(feed_type);
   const kg=Math.round((bags*bag_kg+loose_kg)*10)/10;
   if(!date){toast('Pick a date');return;}
@@ -3684,8 +3773,7 @@ function saveFeedPurchase(editId){
   const existing=editId?DB.getFeedStock().find(r=>r.id===editId):null;
   if(!lockGuard(date,existing?.date))return;
   const id=editId||uid();
-  const rec={id,date,kind:'purchase',feed_type,bags,loose_kg,kg,bag_kg,cost_ngn,batch_id,
-    batch_name:batch_id?(DB.getBatches().find(b=>b.id===batch_id)?.name||''):'',
+  const rec={id,date,kind:'purchase',feed_type,bags,loose_kg,kg,bag_kg,cost_ngn,
     supplier:document.getElementById('fp_supplier').value.trim(),
     notes:document.getElementById('fp_notes').value.trim(),
     expense_id:existing?.expense_id||undefined};
@@ -3706,7 +3794,7 @@ function syncFeedPurchaseExpense(rec){
     +(rec.loose_kg>0?` + ${rec.loose_kg} kg`:'')
     +` (${rec.kg} kg)`+(rec.supplier?` · ${rec.supplier}`:'');
   const payload={date:rec.date,category:'Feed',amount_ngn:rec.cost_ngn,amount_usd:0,
-    batch_id:rec.batch_id||'',batch_name:rec.batch_name||'',notes,feed_stock_id:rec.id};
+    batch_id:'',batch_name:'',notes,feed_stock_id:rec.id};
   if(linked){ DB.updExpense(linked.id,payload); }
   else { const eid=uid(); DB.addExpense({id:eid,...payload}); rec.expense_id=eid; }
 }
@@ -4020,12 +4108,17 @@ function renderFinance(){
   const allExpenses=DB.getExpenses().sort((a,b)=>b.date.localeCompare(a.date));
   const allSalesRaw=DB.getSales().sort((a,b)=>b.date.localeCompare(a.date));
   const showAll=_finAllBatches||!_activeBatchId;
-  const expenses=showAll?allExpenses:allExpenses.filter(e=>e.batch_id===_activeBatchId);
+  // Farm-wide is cash: a feed purchase counts the day it is paid for. One batch
+  // is what it cost: its own expenses plus the store feed it ate, so its feed
+  // purchases are left out of its list and replaced by a feed-eaten line.
+  const expenses=showAll?allExpenses:allExpenses.filter(e=>e.batch_id===_activeBatchId&&!e.feed_stock_id);
   const sales=showAll?allSalesRaw:allSalesRaw.filter(s=>s.batch_id===_activeBatchId);
   const batch=_activeBatchId?DB.getBatches().find(b=>b.id===_activeBatchId):null;
-  const monthExp=expenses.filter(e=>e.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.amount_ngn||0),0);
+  const bcAll=showAll?null:batchCost(_activeBatchId);
+  const monthExp=showAll?expenses.filter(e=>e.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.amount_ngn||0),0)
+    :batchCost(_activeBatchId,thisMonth).total;
   const monthSales=sales.filter(s=>s.date.startsWith(thisMonth)).reduce((s,e)=>s+(e.total_amount_ngn||0),0);
-  const allExp=expenses.reduce((s,e)=>s+(e.amount_ngn||0),0);
+  const allExp=showAll?expenses.reduce((s,e)=>s+(e.amount_ngn||0),0):bcAll.total;
   const allSales=sales.reduce((s,e)=>s+(e.total_amount_ngn||0),0);
   const creditSales=sales.filter(s=>s.payment_type==='credit');
   const unpaidCredit=creditSales.filter(s=>getSaleBalance(s)>0.5);
@@ -4045,6 +4138,10 @@ function renderFinance(){
   if(FIN_TAB==='expenses'){
     tabContent=`<div style="margin:12px 16px"><button class="btn btn-primary" onclick="openExpenseForm()">+ Add Expense</button></div>
       <div class="card" style="padding:0;overflow:hidden">
+        ${bcAll&&bcAll.feedKg>0?`<div class="list-item" style="background:var(--p5)">
+          <div><div style="font-weight:700;font-size:14px">Feed eaten <span class="badge badge-purple" style="vertical-align:middle">🌾 Feed store</span></div>
+            <div style="font-size:12px;color:var(--gray)">${bcAll.feedKg.toFixed(0)} kg logged · priced at store cost when eaten</div></div>
+          <div style="text-align:right"><div style="font-weight:800;color:var(--red)">${fmtMoney(Math.round(bcAll.feedCost))}</div></div></div>`:''}
         ${expenses.slice(0,50).map(e=>`<div class="list-item">
           <div><div style="font-weight:700;font-size:14px">${e.category}${e.feed_stock_id?' <span class="badge badge-purple" style="vertical-align:middle">🌾 Feed store</span>':''}</div>
             <div style="font-size:12px;color:var(--gray)">${fmtDate(e.date)}${e.batch_name?' · '+e.batch_name:''} · ${e.notes||'—'}</div></div>
@@ -4053,7 +4150,7 @@ function renderFinance(){
             <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
               ${isLocked(e.date)?LOCK_BADGE:`<button class="btn btn-secondary btn-sm" onclick="openExpenseForm('${e.id}')">Edit</button>
               <button class="btn btn-danger btn-sm" onclick="delExpense('${e.id}')">✕</button>`}
-            </div></div></div>`).join('')||'<div class="empty" style="padding:24px"><p>No expenses logged yet.</p></div>'}
+            </div></div></div>`).join('')||(bcAll&&bcAll.feedKg>0?'':'<div class="empty" style="padding:24px"><p>No expenses logged yet.</p></div>')}
       </div>`;
 
   } else if(FIN_TAB==='sales'){
@@ -4155,12 +4252,12 @@ function renderFinance(){
   } else if(FIN_TAB==='pl'){
     const batches=DB.getBatches();
     const batchPL=batches.map(b=>{
-      const bExp=expenses.filter(e=>e.batch_id===b.id).reduce((s,e)=>s+(e.amount_ngn||0),0);
+      const bc=batchCost(b.id), bExp=bc.total;
       const bSales=sales.filter(s=>s.batch_id===b.id).reduce((s,e)=>s+(e.total_amount_ngn||0),0);
       const bOwed=sales.filter(s=>s.batch_id===b.id&&s.payment_type==='credit')
         .reduce((sum,e)=>sum+getSaleBalance(e),0);
       const birds=getBatchBirdCount(b), sold=sales.filter(s=>s.batch_id===b.id).reduce((s,e)=>s+(e.quantity||0),0);
-      return{batch:b,exp:bExp,sales:bSales,owed:bOwed,profit:bSales-bExp,birds,sold,
+      return{batch:b,exp:bExp,feedCost:bc.feedCost,feedKg:bc.feedKg,sales:bSales,owed:bOwed,profit:bSales-bExp,birds,sold,
         costPerBird:birds>0?(bExp/birds):null,revenuePerBird:sold>0?(bSales/sold):null};
     });
     tabContent=`<div class="sec-hdr" style="margin-top:8px">Batch Profit & Loss</div>
@@ -4171,7 +4268,7 @@ function renderFinance(){
           <span class="badge ${pl.profit>=0?'badge-green':pl.profit>-50000?'badge-amber':'badge-red'}">${pl.profit>=0?'Profitable':'Loss'}</span>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-          <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--red)">${fmtMoney(pl.exp)}</div><div class="kpi-lbl">Total Cost</div></div>
+          <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--red)">${fmtMoney(pl.exp)}</div><div class="kpi-lbl">Total Cost</div>${pl.feedCost>0?`<div style="font-size:10px;color:var(--gray);margin-top:2px">incl. ${fmtMoney(Math.round(pl.feedCost))} feed eaten</div>`:''}</div>
           <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--g2)">${fmtMoney(pl.sales)}</div><div class="kpi-lbl">Total Revenue</div></div>
           <div class="kpi-sm" style="grid-column:1/-1"><div class="kpi-val" style="color:${pl.profit>=0?'var(--g2)':'var(--red)'}">${pl.profit>=0?'+':''}${fmtMoney(pl.profit)}</div><div class="kpi-lbl">Net Profit/Loss</div></div>
         </div>
@@ -5301,7 +5398,7 @@ function renderReports(){
     const batchCards=batches.map(b=>{
       const bDaily=daily.filter(r=>r.batch_id===b.id).sort((a,b2)=>a.date.localeCompare(b2.date));
       const bWeight=weight.filter(r=>r.batch_id===b.id).sort((a,b2)=>a.date.localeCompare(b2.date));
-      const bExp=expenses.filter(e=>e.batch_id===b.id).reduce((s,e)=>s+(e.amount_ngn||0),0);
+      const bExp=batchCost(b.id).total;
       const bSales=sales.filter(s=>s.batch_id===b.id).reduce((s,e)=>s+(e.total_amount_ngn||0),0);
       const totalDeaths=bDaily.reduce((s,r)=>s+(r.deaths||0),0);
       const totalFeed=DB.getFeed().filter(r=>r.batch_id===b.id).reduce((s,r)=>s+(r.feed_kg_used||0),0);
@@ -5792,12 +5889,18 @@ function saveFeedRates(){
 function exportData(){
   const bundle={exported_at:new Date().toISOString(),source:'BroodTrack',version:'1.0',
     farm:DB.getFarm(),batches:DB.getBatches(),
+    // Every record carries its id: import merges by id and skips any record
+    // without one, so an id-less backup restores as nothing.
     brooding_daily_log:DB.getDaily().map(r=>({
-      date:r.date,batch_id:r.batch_id,batch_name:r.batch_name,age_days:r.age_days,
+      id:r.id,date:r.date,batch_id:r.batch_id,batch_name:r.batch_name,age_days:r.age_days,
       opening_birds:r.opening_birds,deaths:r.deaths,culls:r.culls,closing_birds:r.closing_birds,
       feed_kg_used:r.feed_kg_used,feed_req_kg:r.feed_req_kg,water_liters:r.water_liters,
       temperature_c:r.temperature_c,humidity_pct:r.humidity_pct,notes:r.notes
     })),
+    // Feed usage is its own collection, not part of the daily log. Without it a
+    // restored farm has purchases but no consumption, and every batch's feed
+    // cost reads as nothing.
+    feed_log:DB.getFeed(),
     brooding_weight_log:DB.getWeight().map(r=>({
       id:r.id,date:r.date,batch_id:r.batch_id,batch_name:r.batch_name,breed:r.breed,
       week_num:r.week_num,sample_size:r.sample_size,avg_weight_g:r.avg_weight_g,
@@ -5836,7 +5939,7 @@ function exportData(){
       o[bt]=getBroodFeedProgramme(bt).map(p=>({phase:p.key,label:p.label,to_day:p.maxDay,feed_type:p.type}));
       return o;},{}),
     expenses:DB.getExpenses().map(e=>({
-      date:e.date,batch_id:e.batch_id,batch_name:e.batch_name,
+      id:e.id,date:e.date,batch_id:e.batch_id,batch_name:e.batch_name,
       category:e.category,amount_ngn:e.amount_ngn,amount_usd:e.amount_usd,notes:e.notes,
       feed_stock_id:e.feed_stock_id
     })),
@@ -5886,6 +5989,7 @@ function importData(input){
     if(data.brooding_daily_log?.length){const m=_mergeById(DB._arr(KEYS.daily),data.brooding_daily_log);DB._set(KEYS.daily,m);counts.daily=data.brooding_daily_log.length+' daily logs merged';}
     if(data.brooding_weight_log?.length){const m=_mergeById(DB._arr(KEYS.weight),data.brooding_weight_log);DB._set(KEYS.weight,m);counts.weight=data.brooding_weight_log.length+' weight records merged';}
     if(data.brooding_health_log?.length){const m=_mergeById(DB._arr(KEYS.health),data.brooding_health_log);DB._set(KEYS.health,m);counts.health=data.brooding_health_log.length+' health records merged';}
+    if(data.feed_log?.length){const m=_mergeById(DB._arr(KEYS.feed),data.feed_log);DB._set(KEYS.feed,m);counts.feed=data.feed_log.length+' feed logs merged';}
     if(data.feed_store?.length){const m=_mergeById(DB._arr(KEYS.feedstock),data.feed_store);DB._set(KEYS.feedstock,m);counts.feedstock=data.feed_store.length+' feed store entries merged';}
     if(data.expenses?.length){const m=_mergeById(DB._arr(KEYS.expenses),data.expenses);DB._set(KEYS.expenses,m);counts.expenses=data.expenses.length+' expenses merged';}
     if(data.customers?.length){const m=_mergeById(DB._arr(KEYS.customers),data.customers);DB._set(KEYS.customers,m);counts.customers=data.customers.length+' customer(s) merged';}

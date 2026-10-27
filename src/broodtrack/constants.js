@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.09.29-b22';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.10.27-b23';  // bump on each deploy; shown on login screen + console
 const BREEDS_BY_TYPE={
   broiler:['Arbor Acres','Marshall','Other'],
   pullet:['Isa Brown','Lohmann Brown','Hy-Line Brown','Black Pullet','Other'],
@@ -12,8 +12,13 @@ const BREED_BENCHMARKS={
   'Lohmann Brown': {0:40,1:72,2:128,3:210,4:295,5:395,6:495,7:605,8:715,9:830,10:945,11:1060,12:1175,13:1275,14:1375,15:1450,16:1525,17:1585,18:1640},
   'Hy-Line Brown': {0:38,1:70,2:122,3:198,4:275,5:375,6:475,7:585,8:695,9:810,10:925,11:1040,12:1155,13:1258,14:1360,15:1438,16:1515,17:1573,18:1630},
   'Black Pullet':  {0:42,1:85,2:140,3:225,4:310,5:415,6:520,7:635,8:750,9:875,10:1000,11:1120,12:1240,13:1350,14:1460,15:1555,16:1650,17:1725,18:1800},
-  'Arbor Acres':   {2:450,4:1100,6:1900,8:2700,10:3300,12:3700,14:4000,16:4200},
-  'Marshall':      {2:430,4:1050,6:1800,8:2600,10:3100,12:3500,14:3800,16:4000},
+  // Broilers: every week 0–8, about 90% of the Arbor Acres Plus 2022 as-hatched
+  // objectives (day 7N weight), to match BROILER_FEED_BY_WEEK. Every week is
+  // listed because the lookup takes the next week up when one is missing — an
+  // even-weeks-only table held a week-1 chick to the week-2 weight. Marshall
+  // shares it: no published Marshall objectives, and the two run close.
+  'Arbor Acres':   {0:42,1:188,2:474,3:905,4:1450,5:2058,6:2683,7:3284,8:3837},
+  'Marshall':      {0:42,1:188,2:474,3:905,4:1450,5:2058,6:2683,7:3284,8:3837},
   'Noiler':        {2:200,4:500,6:720,8:900,10:1050,12:1200,14:1350,16:1400,18:1500},
   'Other':         {2:160,4:380,6:560,8:750,10:900,12:1050,14:1180,16:1280,18:1380},
 };
@@ -239,8 +244,12 @@ function getFeedPhaseForBatch(batch,ageDays){
 // Week-by-week feed intake (g/bird/day) transcribed from the farm programme book.
 // Pullet weeks 1–22 explicit; week 23 (125 g) covers the 23–70 laying period.
 // Broiler weeks 1–8 (birds not kept past 8 wk). Week = floor(ageDays/7)+1.
+// Broilers are fed to appetite, so this is a planning figure for buying feed,
+// not a ration. It is about 90% of the Arbor Acres Plus 2022 as-hatched
+// objectives (24/53/89/129/167/196/216/226), allowing for Nigerian heat and feed
+// energy: about 4.15 kg a bird to day 42.
 const PULLET_FEED_BY_WEEK={1:15,2:25,3:30,4:35,5:37,6:40,7:45,8:50,9:55,10:58,11:60,12:65,13:68,14:70,15:80,16:90,17:100,18:110,19:115,20:115,21:115,22:115,23:125};
-const BROILER_FEED_BY_WEEK={1:18,2:45,3:70,4:95,5:120,6:130,7:150,8:165};
+const BROILER_FEED_BY_WEEK={1:22,2:48,3:80,4:116,5:150,6:176,7:194,8:203};
 function getFeedByWeekTable(birdType){return birdType==='broiler'?BROILER_FEED_BY_WEEK:birdType==='pullet'?PULLET_FEED_BY_WEEK:null;}
 function getFeedRateForAge(birdType,ageDays){
   const t=getFeedByWeekTable(birdType); if(!t)return null;      // noiler → no book data

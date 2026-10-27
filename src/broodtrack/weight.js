@@ -91,7 +91,7 @@ function renderWeight(){
     <div class="card" style="background:var(--p5)">
       <div class="card-title">Breed Benchmarks (Average Weight g)</div>
       <div style="overflow-x:auto"><table style="font-size:11px;width:100%;border-collapse:collapse">
-        ${(()=>{const bt=getBirdType(batch);const wks=bt==='broiler'?[2,4,6,8,12]:[6,8,12,16,18];
+        ${(()=>{const bt=getBirdType(batch);const wks=bt==='broiler'?[1,2,3,4,5,6,7,8]:[6,8,12,16,18];
         const rows=(BREEDS_BY_TYPE[bt]||[]).filter(b=>b!=='Other');
         return`<tr style="color:var(--p1);font-weight:800"><th>Breed</th>${wks.map(w=>`<th>Wk${w}</th>`).join('')}</tr>
           ${rows.map(b=>`<tr ${b===batch.breed?'style="background:var(--p5)"':''}><td style="font-weight:${b===batch.breed?'800':'700'};white-space:nowrap">${b}${b===batch.breed?' ←':''}</td>
