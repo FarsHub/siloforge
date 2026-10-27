@@ -3078,6 +3078,13 @@ function feedStoreBody(){
     // The sub-line explains the shape of the verdict, which is the part that is
     // easy to misread: a window is judged on finishing, a runway on lasting.
     let sub='';
+    // Name the pens a stage feed is forecast for, so a pen the eggs have moved
+    // on can be seen to have dropped out of it.
+    const _pn=r.demand&&!r.openEnded
+      ?((DB.getFarm()||{}).pens||[]).filter(p=>r.demand.pens.has(p.id)).map(p=>p.name)
+      :[];
+    const penNames=_pn.length>1?`${_pn.slice(0,-1).join(', ')} and ${_pn[_pn.length-1]}`:(_pn[0]||'');
+    const forPens=penNames?` for ${penNames}`:'';
     if(r.state==='idle'){
       sub='';
     } else if(r.openEnded){
@@ -3085,9 +3092,9 @@ function feedStoreBody(){
         ?`Eating <b>${r.todayKg.toFixed(1)} kg/day</b> today across ${r.penCount} pen${r.penCount===1?'':'s'} — rises as the flock ages`
         :`Starts ${fmtDate(r.startDate)}, then no end date`;
     } else if(r.startDay>0){
-      sub=`This stage needs <b>${bagsFor(r.needKg,r.feed_type)} bag${bagsFor(r.needKg,r.feed_type)===1?'':'s'}</b> (${r.needKg.toFixed(0)} kg) from ${fmtDate(r.startDate)} to ${fmtDate(r.endDate)}`;
+      sub=`This stage needs <b>${bagsFor(r.needKg,r.feed_type)} bag${bagsFor(r.needKg,r.feed_type)===1?'':'s'}</b> (${r.needKg.toFixed(0)} kg)${forPens} from ${fmtDate(r.startDate)} to ${fmtDate(r.endDate)}`;
     } else {
-      sub=`Rest of this stage needs <b>${bagsFor(r.needKg,r.feed_type)} bag${bagsFor(r.needKg,r.feed_type)===1?'':'s'}</b> (${r.needKg.toFixed(0)} kg) through ${fmtDate(r.endDate)}`
+      sub=`Rest of this stage needs <b>${bagsFor(r.needKg,r.feed_type)} bag${bagsFor(r.needKg,r.feed_type)===1?'':'s'}</b> (${r.needKg.toFixed(0)} kg)${forPens} through ${fmtDate(r.endDate)}`
         +(r.todayKg>0?` · ${r.todayKg.toFixed(1)} kg/day now`:'');
     }
     const footer=r.state==='idle'
