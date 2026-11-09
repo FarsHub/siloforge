@@ -710,7 +710,7 @@ function initApp(){
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.10.27-b35';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.11.09-b36';  // bump on each deploy; shown on login screen + console
 const ROUNDS = [
   {id:1,label:'1st Pick',sub:'Morning',  cls:'round-1'},
   {id:2,label:'2nd Pick',sub:'Afternoon',cls:'round-2'},
@@ -5648,30 +5648,47 @@ function renderReports(){
 
   } else if(REP_TAB==='flock'){
     const bRecs=scopedBirds.slice().sort((a,b)=>a.date.localeCompare(b.date));
-    const last30=bRecs.filter(r=>{const d=new Date(DB.today());d.setDate(d.getDate()-30);return r.date>=d.toISOString().slice(0,10);});
+    const since30=(()=>{const d=new Date(DB.today());d.setDate(d.getDate()-30);return d.toISOString().slice(0,10);})();
+    const last30=bRecs.filter(r=>r.date>=since30);
     const totalDeaths=last30.reduce((s,r)=>s+(r.deaths||0),0);
     const totalCulls=last30.reduce((s,r)=>s+(r.culls||0),0);
-    const maxDeath=Math.max(...last30.map(r=>r.deaths||0),1);
-    const chartBars=last30.slice(-14).map(r=>{
-      const h=Math.max(2,Math.round((r.deaths||0)/maxDeath*50));
-      const c=(r.deaths||0)===0?'var(--g4)':(r.deaths/r.opening_birds*100)>0.5?'var(--red)':'var(--amber)';
+    // Whole-flock mortality: every death on record against each pen's first
+    // opening count — the same rule the pen economics uses.
+    const allDeaths=bRecs.reduce((s,r)=>s+(r.deaths||0),0);
+    const firstOpen={};
+    bRecs.forEach(r=>{const pid=r.pen_id||legacyPen;if(!(pid in firstOpen))firstOpen[pid]=r.opening_birds||0;});
+    const opening=Object.values(firstOpen).reduce((s,n)=>s+n,0);
+    const mortPct=opening>0?allDeaths/opening*100:null;
+    // One bar per day: with several pens in scope their logs share a date.
+    const byDate={};
+    last30.forEach(r=>{const d=byDate[r.date]=byDate[r.date]||{deaths:0,opening:0};d.deaths+=(r.deaths||0);d.opening+=(r.opening_birds||0);});
+    const days=Object.keys(byDate).sort().slice(-14).map(k=>byDate[k]);
+    const maxDeath=Math.max(...days.map(d=>d.deaths),1);
+    const chartBars=days.map(d=>{
+      const h=Math.max(2,Math.round(d.deaths/maxDeath*50));
+      const c=d.deaths===0?'var(--g4)':(d.opening>0&&d.deaths/d.opening*100>0.5)?'var(--red)':'var(--amber)';
       return`<div class="bar-col"><div class="bar-fill" style="height:${h}px;background:${c}"></div>
-        <div class="bar-lbl">${(r.deaths||0)}</div></div>`;}).join('');
+        <div class="bar-lbl">${d.deaths}</div></div>`;}).join('');
+    const penName=id=>((farm.pens||[]).find(p=>p.id===id)||{}).name||'';
     tabContent=`
       <div class="kpi-row-3">
         <div class="kpi"><div class="kpi-val" style="color:var(--red)">${totalDeaths}</div><div class="kpi-lbl">Deaths (30d)</div></div>
         <div class="kpi"><div class="kpi-val" style="color:var(--amber)">${totalCulls}</div><div class="kpi-lbl">Culls (30d)</div></div>
         <div class="kpi"><div class="kpi-val">${farmBirds}</div><div class="kpi-lbl">Current Birds</div></div>
+        <div class="kpi"><div class="kpi-val" style="color:var(--red)">${allDeaths}</div><div class="kpi-lbl">Deaths (All)</div></div>
+        <div class="kpi"><div class="kpi-val">${opening||'—'}</div><div class="kpi-lbl">Opening Birds</div></div>
+        <div class="kpi"><div class="kpi-val">${mortPct!==null?mortPct.toFixed(1)+'%':'—'}</div><div class="kpi-lbl">Mortality (All)</div></div>
       </div>
-      <div class="sec-hdr" style="margin-top:8px">Daily Mortality (Last 14 Days)</div>
+      <div class="sec-hdr" style="margin-top:8px">Daily Mortality (Last 14 Log Days)</div>
       <div class="card"><div class="bar-chart-row">${chartBars||'<div style="color:var(--gray);font-size:13px">No flock data.</div>'}</div></div>
       <div class="sec-hdr">Death Log (Last 30 Days)</div>
       <div class="card" style="padding:0;overflow:hidden">
         ${last30.filter(r=>(r.deaths||0)>0).reverse().map(r=>{
           const mortality=r.opening_birds>0?(r.deaths/r.opening_birds*100):0;
           const bc=mortality>0.5?'badge-red':mortality>0.2?'badge-amber':'badge-gray';
+          const pn=!_activePenId?penName(r.pen_id||legacyPen):'';
           return`<div class="list-item"><div>
-            <div style="font-weight:700;font-size:14px">${fmtDate(r.date)}</div>
+            <div style="font-weight:700;font-size:14px">${fmtDate(r.date)}${pn?` · ${pn}`:''}</div>
             <div style="font-size:12px;color:var(--gray)">${r.deaths} deaths · ${r.culls} culls · Opening: ${r.opening_birds}</div>
             </div><span class="badge ${bc}">${mortality.toFixed(2)}%</span></div>`;}).join('')||
           '<div class="empty" style="padding:24px"><p>No deaths recorded in last 30 days.</p></div>'}
