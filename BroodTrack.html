@@ -664,7 +664,7 @@ function initApp(){
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
-const APP_VERSION='2026.10.27-b23';  // bump on each deploy; shown on login screen + console
+const APP_VERSION='2026.11.09-b24';  // bump on each deploy; shown on login screen + console
 const BREEDS_BY_TYPE={
   broiler:['Arbor Acres','Marshall','Other'],
   pullet:['Isa Brown','Lohmann Brown','Hy-Line Brown','Black Pullet','Other'],
@@ -2843,9 +2843,10 @@ function renderHome(){
         }
       }
     }
-    if(todayDeaths>0&&ageDays!==null){
-      const mortality=totalActiveBirds>0?(todayDeaths/totalActiveBirds*100):0;
-      if(mortality>2)alerts.push(`<div class="alert-item alert-red">💀 High mortality today: ${todayDeaths} deaths (${mortality.toFixed(1)}%)</div>`);
+    if(todayLog?.deaths>0){
+      const base=todayLog.opening_birds||getBatchBirdCount(b);
+      const mortality=base>0?(todayLog.deaths/base*100):0;
+      if(mortality>2)alerts.push(`<div class="alert-item alert-red">💀 ${b.name} — high mortality today: ${todayLog.deaths} deaths (${mortality.toFixed(1)}%)</div>`);
     }
     // Upcoming vaccinations
     const vaccStatus=getBatchVaccStatus(b);
@@ -2928,6 +2929,12 @@ function renderHome(){
 // ═══════════════════════════════════════════════
 // BATCHES
 // ═══════════════════════════════════════════════
+// Closed/sold batches start collapsed to their header; tapping it opens the full card.
+const _openClosedBatches=new Set();
+function toggleBatchCard(id){
+  if(_openClosedBatches.has(id))_openClosedBatches.delete(id);else _openClosedBatches.add(id);
+  renderBatches();
+}
 function renderBatches(){
   const el=document.getElementById('v-batches');
   const batches=DB.getBatches().sort((a,b)=>b.arrival_date.localeCompare(a.arrival_date));
@@ -2952,16 +2959,17 @@ function renderBatches(){
         </span>
       </div>`).join('');
     const isSelected=_activeBatchId===b.id;
+    const collapsible=b.status!=='Active', collapsed=collapsible&&!_openClosedBatches.has(b.id);
     return`<div class="batch-card ${statusCls}${isSelected?' batch-card-selected':''}" id="bc_${b.id}">
       <div style="padding:14px 16px">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between${collapsible?';cursor:pointer':''}"${collapsible?` onclick="toggleBatchCard('${b.id}')"`:''}>
           <div>
             <div style="font-weight:800;font-size:16px">${b.name}${isSelected?` <span style="font-size:11px;background:var(--p5);color:var(--p2);border-radius:20px;padding:2px 8px;font-weight:700;vertical-align:middle">Viewing</span>`:''}</div>
             <div style="font-size:12px;color:var(--gray);margin-top:2px">${b.breed} · ${getBirdTypeLabel(getBirdType(b))}${b.supplier?` · ${b.supplier}`:''} · Arrived: ${b.arrival_date?fmtDate(b.arrival_date):'Unknown'}</div>
           </div>
-          <span class="badge ${statusBadge}">${b.status}</span>
+          <span class="badge ${statusBadge}">${b.status}${collapsible?` ${collapsed?'▾':'▴'}`:''}</span>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin:10px 0">
+        ${collapsed?'':`<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin:10px 0">
           <div class="kpi-sm"><div class="kpi-val-sm">${ageDays!==null?ageDays:'—'}</div><div class="kpi-lbl">Days Old</div></div>
           <div class="kpi-sm"><div class="kpi-val-sm">${b.doc_count}</div><div class="kpi-lbl">DOC In</div></div>
           <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--p2)">${birds}</div><div class="kpi-lbl">Current</div></div>
@@ -2974,9 +2982,9 @@ function renderBatches(){
           <button class="btn btn-secondary btn-sm" style="flex:1;min-width:70px" onclick="openDailyForm('${b.id}')">Log Today</button>
           <button class="btn btn-amber btn-sm" onclick="editBatch('${b.id}')">Edit</button>
           <button class="btn btn-danger btn-sm" onclick="closeBatch('${b.id}')">Close</button>
-        </div>
+        </div>`}
       </div>
-      <div style="border-top:1px solid #f5f5f5">
+      ${collapsed?'':`<div style="border-top:1px solid #f5f5f5">
         <div style="padding:8px 16px;font-size:12px;font-weight:800;color:var(--gray);text-transform:uppercase;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px" onclick="toggleVaccPanel('${b.id}')">
           <span>💉 Vaccination Schedule <span id="vacc_arr_${b.id}">▾</span></span>
           <button class="btn btn-secondary btn-sm" style="padding:5px 10px;font-size:11px;flex-shrink:0" onclick="event.stopPropagation();openVaccDoc('${b.id}')">🖨 Print</button>
@@ -2985,7 +2993,7 @@ function renderBatches(){
           ${vaccRows}
           <div style="padding:10px 14px;font-size:11px;color:var(--amber);border-top:1px solid #f5f5f5;font-style:italic">💊 ${VACC_NOTE}</div>
         </div>
-      </div>
+      </div>`}
     </div>`;
   }).join('');
   el.innerHTML=`<div class="topbar"><div><h1>Batches</h1><small>Broiler · Pullet · Noiler</small></div></div>
@@ -4043,24 +4051,21 @@ function renderHealth(){
 function openHealthForm(editId){
   const today=DB.today(), rec=editId?DB.getHealth().find(r=>r.id===editId):null;
   const active=getActiveBatches();
-  const farm=DB.getFarm();
-  // Calculate total expected water across all active batches (or selected batch)
-  const totalBirds=active.reduce((s,b)=>s+getBatchBirdCount(b),0);
-  const avgAge=active.length>0?Math.round(active.reduce((s,b)=>s+(batchAgeInDays(b)||0),0)/active.length):0;
-  const defWaterReq=(active.reduce((s,b)=>s+getBatchBirdCount(b)*getWaterRateMl(batchAgeInDays(b)||0,getBirdType(b),farm),0)/1000).toFixed(1);
+  const selId=rec?(rec.batch_id||''):(_activeBatchId||'');
+  const w=healthWaterReq(selId,rec?rec.date:today);
   const medOpts=MED_SUGGESTIONS.map(m=>`<option value="${m}">${m}</option>`).join('');
   const dropOpts=['Normal','Brownish','Greenish','Bloody','Watery','Yellowish'].map(d=>`<option value="${d}" ${rec?.droppings===d?'selected':''}>${d}</option>`).join('');
   const adminOpts=['Oral (Water)','Oral (Direct)','Injection','Eye Drop','Feed Mixing'].map(m=>`<option value="${m}" ${rec?.admin_method===m?'selected':''}>${m}</option>`).join('');
   openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Health Record <button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="background:#e8f4fd;border-left:3px solid #4895ef;padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
-      📅 Change the date to log records for any past day.<br><span style="display:block;margin-top:4px">💧 Expected for ${totalBirds} birds: <b>${defWaterReq} L</b> (avg age ~${avgAge}d)</span>
+      📅 Change the date to log records for any past day.<br><span style="display:block;margin-top:4px"><span id="hf_water_hint">${healthWaterHint(w)}</span></span>
     </div>
-    <div class="field"><label>Date</label><input type="date" id="hf_date" value="${rec?rec.date:today}" max="${today}"></div>
+    <div class="field"><label>Date</label><input type="date" id="hf_date" value="${rec?rec.date:today}" max="${today}" onchange="refreshHealthWaterReq()"></div>
     ${active.length>1?`<div class="field"><label>Batch</label>
-      <select id="hf_batch"><option value="">— All Batches —</option>${active.map(b=>`<option value="${b.id}" ${(rec?.batch_id||_activeBatchId)===b.id?'selected':''}>${b.name}</option>`).join('')}</select></div>`:`<input type="hidden" id="hf_batch" value="${active[0]?.id||_activeBatchId||''}">`}
+      <select id="hf_batch" onchange="refreshHealthWaterReq()"><option value="" ${selId===''?'selected':''}>— All Batches —</option>${active.map(b=>`<option value="${b.id}" ${selId===b.id?'selected':''}>${b.name}</option>`).join('')}</select></div>`:`<input type="hidden" id="hf_batch" value="${selId||active[0]?.id||''}">`}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="field"><label>Water Consumed (L)</label><input type="number" id="hf_water" value="${rec?.water_liters||''}" min="0" step="1" placeholder="${defWaterReq}"></div>
-      <div class="field"><label>Water Required (L)</label><input type="number" id="hf_water_req" value="${rec?.water_req_liters||defWaterReq}" min="0" step="0.5" placeholder="${defWaterReq}"></div>
+      <div class="field"><label>Water Consumed (L)</label><input type="number" id="hf_water" value="${rec?.water_liters||''}" min="0" step="1" placeholder="${w.liters}"></div>
+      <div class="field"><label>Water Required (L)</label><input type="number" id="hf_water_req" value="${rec?.water_req_liters||w.liters}" min="0" step="0.5" placeholder="${w.liters}"></div>
     </div>
     <div class="field"><label>Droppings</label><select id="hf_drop">${dropOpts}</select></div>
     <div class="field"><label>Medication / Vaccination <span style="color:var(--gray);font-weight:400">— optional</span></label>
@@ -4070,16 +4075,28 @@ function openHealthForm(editId){
     <div class="field"><label>Notes</label><textarea id="hf_notes" placeholder="Any health observations...">${rec?.notes||''}</textarea></div>
     <button class="btn btn-primary" onclick="saveHealth('${editId||''}')">Save</button>`);
 }
+// Expected water for one batch (or all active batches when batchId is '') at its age on `date`.
+function healthWaterReq(batchId,date){
+  const farm=DB.getFarm(), active=getActiveBatches();
+  const batches=batchId?DB.getBatches().filter(b=>b.id===batchId):active;
+  const ageOn=b=>{if(!b.arrival_date)return 0;return Math.max(0,Math.round((new Date(date+'T00:00:00')-new Date(b.arrival_date+'T00:00:00'))/864e5));};
+  const birds=batches.reduce((s,b)=>s+getBatchBirdCount(b),0);
+  const ml=batches.reduce((s,b)=>s+getBatchBirdCount(b)*getWaterRateMl(ageOn(b),getBirdType(b),farm),0);
+  const age=batches.length?Math.round(batches.reduce((s,b)=>s+ageOn(b),0)/batches.length):0;
+  return{birds,age,liters:(ml/1000).toFixed(1),rateMl:birds?Math.round(ml/birds):0,single:!!batchId};
+}
+function healthWaterHint(w){return`💧 Expected for ${w.birds} birds: <b>${w.liters} L</b> (${w.single?'':'avg '}age ${w.age}d)`;}
+function refreshHealthWaterReq(){
+  const w=healthWaterReq(document.getElementById('hf_batch')?.value||'',document.getElementById('hf_date').value||DB.today());
+  document.getElementById('hf_water_hint').innerHTML=healthWaterHint(w);
+  const req=document.getElementById('hf_water_req');req.value=w.liters;req.placeholder=w.liters;
+  document.getElementById('hf_water').placeholder=w.liters;
+}
 function saveHealth(editId){
   const batchEl=document.getElementById('hf_batch'), batchId=batchEl?.value||'';
   const batch=batchId?DB.getBatches().find(b=>b.id===batchId):null;
-  const farm=DB.getFarm();
   const existing=editId?DB.getHealth().find(r=>r.id===editId):null;
-  const active=getActiveBatches();
-  const totalBirds=active.reduce((s,b)=>s+getBatchBirdCount(b),0);
-  const water_rate_ml=existing?.water_rate_ml||(batch
-    ? getWaterRateMl(batchAgeInDays(batch)||0,getBirdType(batch),farm)
-    : (totalBirds?Math.round(active.reduce((s,b)=>s+getBatchBirdCount(b)*getWaterRateMl(batchAgeInDays(b)||0,getBirdType(b),farm),0)/totalBirds):0));
+  const water_rate_ml=existing?.water_rate_ml||healthWaterReq(batchId,document.getElementById('hf_date').value||DB.today()).rateMl;
   const rec={id:editId||uid(),date:document.getElementById('hf_date').value,
     batch_id:batchId,batch_name:batch?.name||'',
     water_liters:parseFloat(document.getElementById('hf_water').value)||0,
@@ -5381,7 +5398,7 @@ function openPassport(saleId){
 // ═══════════════════════════════════════════════
 // REPORTS
 // ═══════════════════════════════════════════════
-let REP_TAB='batches', FEED_RPT_BATCH=null;
+let REP_TAB='batches', FEED_RPT_BATCH=null, MORT_RPT_BATCH=null, GRW_BATCH=null;
 let GRW_SORT={field:null,dir:'desc'};
 function setGrwSort(field){GRW_SORT=GRW_SORT.field===field?{field,dir:GRW_SORT.dir==='desc'?'asc':'desc'}:{field,dir:'desc'};renderReports();}
 function sortGrowth(arr){
@@ -5478,27 +5495,39 @@ function renderReports(){
     tabContent=batchCards;
 
   } else if(REP_TAB==='mortality'){
-    const allDeaths=daily.sort((a,b)=>b.date.localeCompare(a.date)).filter(r=>r.deaths>0);
-    const last30=daily.filter(r=>{const d=new Date(DB.today());d.setDate(d.getDate()-30);return r.date>=d.toISOString().slice(0,10);});
+    const mBatchId=[MORT_RPT_BATCH,_activeBatchId].find(id=>id&&batches.some(b=>b.id===id))||(getActiveBatches()[0]||batches[0]).id;
+    const mBatch=batches.find(b=>b.id===mBatchId);
+    const batchOpts=batches.map(b=>`<option value="${b.id}" ${b.id===mBatchId?'selected':''}>${b.name}${b.status!=='Active'?` (${b.status})`:''}</option>`).join('');
+    const bDaily=daily.filter(r=>r.batch_id===mBatchId).sort((a,b2)=>a.date.localeCompare(b2.date));
+    const since30=(()=>{const d=new Date(DB.today());d.setDate(d.getDate()-30);return d.toISOString().slice(0,10);})();
+    const last30=bDaily.filter(r=>r.date>=since30);
     const totalDeaths30=last30.reduce((s,r)=>s+(r.deaths||0),0);
-    const maxDeath=Math.max(...last30.map(r=>r.deaths||0),1);
-    const bars=last30.slice(-14).map(r=>{
+    const totalDeaths=bDaily.reduce((s,r)=>s+(r.deaths||0),0);
+    const cumMort=mBatch.doc_count>0?totalDeaths/mBatch.doc_count*100:null;
+    const last14=bDaily.slice(-14);
+    const maxDeath=Math.max(...last14.map(r=>r.deaths||0),1);
+    const bars=last14.map(r=>{
       const h=Math.max(2,Math.round((r.deaths||0)/maxDeath*50));
       return`<div class="bar-col"><div class="bar-fill" style="height:${h}px;background:${(r.deaths||0)===0?'var(--p4)':'var(--red)'}"></div>
         <div class="bar-lbl">${r.deaths||0}</div></div>`;}).join('');
-    tabContent=`<div class="kpi-row-2">
+    const events=last30.filter(r=>r.deaths>0).reverse();
+    tabContent=`<div style="margin:12px 16px">
+      <select style="width:100%;padding:10px;border:1.5px solid #ddd;border-radius:10px;font-size:14px" onchange="MORT_RPT_BATCH=this.value;renderReports()">
+        ${batchOpts}</select></div>
+    <div class="kpi-row-2">
       <div class="kpi"><div class="kpi-val" style="color:var(--red)">${totalDeaths30}</div><div class="kpi-lbl">Deaths (30d)</div></div>
-      <div class="kpi"><div class="kpi-val">${DB.getBatches().reduce((s,b)=>s+b.doc_count,0)}</div><div class="kpi-lbl">Total DOC</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:var(--red)">${totalDeaths}</div><div class="kpi-lbl">Deaths (Batch)</div></div>
+      <div class="kpi"><div class="kpi-val">${mBatch.doc_count}</div><div class="kpi-lbl">DOC In</div></div>
+      <div class="kpi"><div class="kpi-val">${cumMort!==null?cumMort.toFixed(1)+'%':'—'}</div><div class="kpi-lbl">Mortality (Batch)</div></div>
     </div>
-    <div class="sec-hdr">Daily Mortality (Last 14 Days)</div>
+    <div class="sec-hdr">Daily Mortality (Last 14 Log Days)</div>
     <div class="card"><div class="bar-chart-row">${bars||'No data'}</div></div>
     <div class="sec-hdr">Death Events (Last 30 Days)</div>
     <div class="card" style="padding:0;overflow:hidden">
-      ${allDeaths.slice(0,20).map(r=>{
-        const batch=DB.getBatches().find(b=>b.id===r.batch_id);
+      ${events.map(r=>{
         const mortality=r.opening_birds>0?(r.deaths/r.opening_birds*100):0;
         return`<div class="list-item"><div>
-          <div style="font-weight:700">${batch?.name||r.batch_id} — Day ${r.age_days}</div>
+          <div style="font-weight:700">Day ${r.age_days}</div>
           <div style="font-size:12px;color:var(--gray)">${fmtDate(r.date)}</div></div>
           <span class="badge ${mortality>2?'badge-red':mortality>0.5?'badge-amber':'badge-gray'}">${r.deaths} deaths · ${mortality.toFixed(2)}%</span></div>`;}).join('')||
         '<div class="empty" style="padding:24px"><p>No death events in last 30 days.</p></div>'}
@@ -5648,9 +5677,9 @@ function renderReports(){
       :'<div class="empty" style="padding:40px 24px"><p>No feed logs for this batch yet.<br>Log feed in the <b>Feed</b> tab.</p></div>'}`;
 
   } else if(REP_TAB==='growth'){
-    const batchSelect=batches[0]?.id;
+    const batchSelect=[GRW_BATCH,_activeBatchId].find(id=>id&&batches.some(b=>b.id===id))||batches[0]?.id;
     const bWeight=weight.filter(r=>batchSelect&&r.batch_id===batchSelect).sort((a,b)=>a.week_num-b.week_num);
-    const batchOpts=batches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+    const batchOpts=batches.map(b=>`<option value="${b.id}" ${b.id===batchSelect?'selected':''}>${b.name}</option>`).join('');
     tabContent=`<div style="margin:12px 16px">
       <select style="width:100%;padding:10px;border:1.5px solid #ddd;border-radius:10px;font-size:14px" onchange="GRW_BATCH=this.value;renderReports()">
         ${batchOpts}</select></div>
@@ -5689,7 +5718,6 @@ function renderReports(){
     ${tabContent}
     <div style="height:12px"></div>`;
 }
-let GRW_BATCH=null;
 
 // ═══════════════════════════════════════════════
 // SETTINGS

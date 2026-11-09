@@ -42,24 +42,21 @@ function renderHealth(){
 function openHealthForm(editId){
   const today=DB.today(), rec=editId?DB.getHealth().find(r=>r.id===editId):null;
   const active=getActiveBatches();
-  const farm=DB.getFarm();
-  // Calculate total expected water across all active batches (or selected batch)
-  const totalBirds=active.reduce((s,b)=>s+getBatchBirdCount(b),0);
-  const avgAge=active.length>0?Math.round(active.reduce((s,b)=>s+(batchAgeInDays(b)||0),0)/active.length):0;
-  const defWaterReq=(active.reduce((s,b)=>s+getBatchBirdCount(b)*getWaterRateMl(batchAgeInDays(b)||0,getBirdType(b),farm),0)/1000).toFixed(1);
+  const selId=rec?(rec.batch_id||''):(_activeBatchId||'');
+  const w=healthWaterReq(selId,rec?rec.date:today);
   const medOpts=MED_SUGGESTIONS.map(m=>`<option value="${m}">${m}</option>`).join('');
   const dropOpts=['Normal','Brownish','Greenish','Bloody','Watery','Yellowish'].map(d=>`<option value="${d}" ${rec?.droppings===d?'selected':''}>${d}</option>`).join('');
   const adminOpts=['Oral (Water)','Oral (Direct)','Injection','Eye Drop','Feed Mixing'].map(m=>`<option value="${m}" ${rec?.admin_method===m?'selected':''}>${m}</option>`).join('');
   openModal(`<div class="modal-ttl">${rec?'Edit':'Add'} Health Record <button class="modal-x" onclick="closeModal()">×</button></div>
     <div style="background:#e8f4fd;border-left:3px solid #4895ef;padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1a5fa8;margin-bottom:12px">
-      📅 Change the date to log records for any past day.<br><span style="display:block;margin-top:4px">💧 Expected for ${totalBirds} birds: <b>${defWaterReq} L</b> (avg age ~${avgAge}d)</span>
+      📅 Change the date to log records for any past day.<br><span style="display:block;margin-top:4px"><span id="hf_water_hint">${healthWaterHint(w)}</span></span>
     </div>
-    <div class="field"><label>Date</label><input type="date" id="hf_date" value="${rec?rec.date:today}" max="${today}"></div>
+    <div class="field"><label>Date</label><input type="date" id="hf_date" value="${rec?rec.date:today}" max="${today}" onchange="refreshHealthWaterReq()"></div>
     ${active.length>1?`<div class="field"><label>Batch</label>
-      <select id="hf_batch"><option value="">— All Batches —</option>${active.map(b=>`<option value="${b.id}" ${(rec?.batch_id||_activeBatchId)===b.id?'selected':''}>${b.name}</option>`).join('')}</select></div>`:`<input type="hidden" id="hf_batch" value="${active[0]?.id||_activeBatchId||''}">`}
+      <select id="hf_batch" onchange="refreshHealthWaterReq()"><option value="" ${selId===''?'selected':''}>— All Batches —</option>${active.map(b=>`<option value="${b.id}" ${selId===b.id?'selected':''}>${b.name}</option>`).join('')}</select></div>`:`<input type="hidden" id="hf_batch" value="${selId||active[0]?.id||''}">`}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="field"><label>Water Consumed (L)</label><input type="number" id="hf_water" value="${rec?.water_liters||''}" min="0" step="1" placeholder="${defWaterReq}"></div>
-      <div class="field"><label>Water Required (L)</label><input type="number" id="hf_water_req" value="${rec?.water_req_liters||defWaterReq}" min="0" step="0.5" placeholder="${defWaterReq}"></div>
+      <div class="field"><label>Water Consumed (L)</label><input type="number" id="hf_water" value="${rec?.water_liters||''}" min="0" step="1" placeholder="${w.liters}"></div>
+      <div class="field"><label>Water Required (L)</label><input type="number" id="hf_water_req" value="${rec?.water_req_liters||w.liters}" min="0" step="0.5" placeholder="${w.liters}"></div>
     </div>
     <div class="field"><label>Droppings</label><select id="hf_drop">${dropOpts}</select></div>
     <div class="field"><label>Medication / Vaccination <span style="color:var(--gray);font-weight:400">— optional</span></label>
@@ -69,16 +66,28 @@ function openHealthForm(editId){
     <div class="field"><label>Notes</label><textarea id="hf_notes" placeholder="Any health observations...">${rec?.notes||''}</textarea></div>
     <button class="btn btn-primary" onclick="saveHealth('${editId||''}')">Save</button>`);
 }
+// Expected water for one batch (or all active batches when batchId is '') at its age on `date`.
+function healthWaterReq(batchId,date){
+  const farm=DB.getFarm(), active=getActiveBatches();
+  const batches=batchId?DB.getBatches().filter(b=>b.id===batchId):active;
+  const ageOn=b=>{if(!b.arrival_date)return 0;return Math.max(0,Math.round((new Date(date+'T00:00:00')-new Date(b.arrival_date+'T00:00:00'))/864e5));};
+  const birds=batches.reduce((s,b)=>s+getBatchBirdCount(b),0);
+  const ml=batches.reduce((s,b)=>s+getBatchBirdCount(b)*getWaterRateMl(ageOn(b),getBirdType(b),farm),0);
+  const age=batches.length?Math.round(batches.reduce((s,b)=>s+ageOn(b),0)/batches.length):0;
+  return{birds,age,liters:(ml/1000).toFixed(1),rateMl:birds?Math.round(ml/birds):0,single:!!batchId};
+}
+function healthWaterHint(w){return`💧 Expected for ${w.birds} birds: <b>${w.liters} L</b> (${w.single?'':'avg '}age ${w.age}d)`;}
+function refreshHealthWaterReq(){
+  const w=healthWaterReq(document.getElementById('hf_batch')?.value||'',document.getElementById('hf_date').value||DB.today());
+  document.getElementById('hf_water_hint').innerHTML=healthWaterHint(w);
+  const req=document.getElementById('hf_water_req');req.value=w.liters;req.placeholder=w.liters;
+  document.getElementById('hf_water').placeholder=w.liters;
+}
 function saveHealth(editId){
   const batchEl=document.getElementById('hf_batch'), batchId=batchEl?.value||'';
   const batch=batchId?DB.getBatches().find(b=>b.id===batchId):null;
-  const farm=DB.getFarm();
   const existing=editId?DB.getHealth().find(r=>r.id===editId):null;
-  const active=getActiveBatches();
-  const totalBirds=active.reduce((s,b)=>s+getBatchBirdCount(b),0);
-  const water_rate_ml=existing?.water_rate_ml||(batch
-    ? getWaterRateMl(batchAgeInDays(batch)||0,getBirdType(batch),farm)
-    : (totalBirds?Math.round(active.reduce((s,b)=>s+getBatchBirdCount(b)*getWaterRateMl(batchAgeInDays(b)||0,getBirdType(b),farm),0)/totalBirds):0));
+  const water_rate_ml=existing?.water_rate_ml||healthWaterReq(batchId,document.getElementById('hf_date').value||DB.today()).rateMl;
   const rec={id:editId||uid(),date:document.getElementById('hf_date').value,
     batch_id:batchId,batch_name:batch?.name||'',
     water_liters:parseFloat(document.getElementById('hf_water').value)||0,

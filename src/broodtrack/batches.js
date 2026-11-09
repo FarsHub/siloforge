@@ -1,6 +1,12 @@
 // ═══════════════════════════════════════════════
 // BATCHES
 // ═══════════════════════════════════════════════
+// Closed/sold batches start collapsed to their header; tapping it opens the full card.
+const _openClosedBatches=new Set();
+function toggleBatchCard(id){
+  if(_openClosedBatches.has(id))_openClosedBatches.delete(id);else _openClosedBatches.add(id);
+  renderBatches();
+}
 function renderBatches(){
   const el=document.getElementById('v-batches');
   const batches=DB.getBatches().sort((a,b)=>b.arrival_date.localeCompare(a.arrival_date));
@@ -25,16 +31,17 @@ function renderBatches(){
         </span>
       </div>`).join('');
     const isSelected=_activeBatchId===b.id;
+    const collapsible=b.status!=='Active', collapsed=collapsible&&!_openClosedBatches.has(b.id);
     return`<div class="batch-card ${statusCls}${isSelected?' batch-card-selected':''}" id="bc_${b.id}">
       <div style="padding:14px 16px">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between${collapsible?';cursor:pointer':''}"${collapsible?` onclick="toggleBatchCard('${b.id}')"`:''}>
           <div>
             <div style="font-weight:800;font-size:16px">${b.name}${isSelected?` <span style="font-size:11px;background:var(--p5);color:var(--p2);border-radius:20px;padding:2px 8px;font-weight:700;vertical-align:middle">Viewing</span>`:''}</div>
             <div style="font-size:12px;color:var(--gray);margin-top:2px">${b.breed} · ${getBirdTypeLabel(getBirdType(b))}${b.supplier?` · ${b.supplier}`:''} · Arrived: ${b.arrival_date?fmtDate(b.arrival_date):'Unknown'}</div>
           </div>
-          <span class="badge ${statusBadge}">${b.status}</span>
+          <span class="badge ${statusBadge}">${b.status}${collapsible?` ${collapsed?'▾':'▴'}`:''}</span>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin:10px 0">
+        ${collapsed?'':`<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin:10px 0">
           <div class="kpi-sm"><div class="kpi-val-sm">${ageDays!==null?ageDays:'—'}</div><div class="kpi-lbl">Days Old</div></div>
           <div class="kpi-sm"><div class="kpi-val-sm">${b.doc_count}</div><div class="kpi-lbl">DOC In</div></div>
           <div class="kpi-sm"><div class="kpi-val-sm" style="color:var(--p2)">${birds}</div><div class="kpi-lbl">Current</div></div>
@@ -47,9 +54,9 @@ function renderBatches(){
           <button class="btn btn-secondary btn-sm" style="flex:1;min-width:70px" onclick="openDailyForm('${b.id}')">Log Today</button>
           <button class="btn btn-amber btn-sm" onclick="editBatch('${b.id}')">Edit</button>
           <button class="btn btn-danger btn-sm" onclick="closeBatch('${b.id}')">Close</button>
-        </div>
+        </div>`}
       </div>
-      <div style="border-top:1px solid #f5f5f5">
+      ${collapsed?'':`<div style="border-top:1px solid #f5f5f5">
         <div style="padding:8px 16px;font-size:12px;font-weight:800;color:var(--gray);text-transform:uppercase;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px" onclick="toggleVaccPanel('${b.id}')">
           <span>💉 Vaccination Schedule <span id="vacc_arr_${b.id}">▾</span></span>
           <button class="btn btn-secondary btn-sm" style="padding:5px 10px;font-size:11px;flex-shrink:0" onclick="event.stopPropagation();openVaccDoc('${b.id}')">🖨 Print</button>
@@ -58,7 +65,7 @@ function renderBatches(){
           ${vaccRows}
           <div style="padding:10px 14px;font-size:11px;color:var(--amber);border-top:1px solid #f5f5f5;font-style:italic">💊 ${VACC_NOTE}</div>
         </div>
-      </div>
+      </div>`}
     </div>`;
   }).join('');
   el.innerHTML=`<div class="topbar"><div><h1>Batches</h1><small>Broiler · Pullet · Noiler</small></div></div>

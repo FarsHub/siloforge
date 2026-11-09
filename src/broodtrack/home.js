@@ -32,9 +32,10 @@ function renderHome(){
         }
       }
     }
-    if(todayDeaths>0&&ageDays!==null){
-      const mortality=totalActiveBirds>0?(todayDeaths/totalActiveBirds*100):0;
-      if(mortality>2)alerts.push(`<div class="alert-item alert-red">💀 High mortality today: ${todayDeaths} deaths (${mortality.toFixed(1)}%)</div>`);
+    if(todayLog?.deaths>0){
+      const base=todayLog.opening_birds||getBatchBirdCount(b);
+      const mortality=base>0?(todayLog.deaths/base*100):0;
+      if(mortality>2)alerts.push(`<div class="alert-item alert-red">💀 ${b.name} — high mortality today: ${todayLog.deaths} deaths (${mortality.toFixed(1)}%)</div>`);
     }
     // Upcoming vaccinations
     const vaccStatus=getBatchVaccStatus(b);

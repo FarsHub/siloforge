@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════
 // REPORTS
 // ═══════════════════════════════════════════════
-let REP_TAB='batches', FEED_RPT_BATCH=null;
+let REP_TAB='batches', FEED_RPT_BATCH=null, MORT_RPT_BATCH=null, GRW_BATCH=null;
 let GRW_SORT={field:null,dir:'desc'};
 function setGrwSort(field){GRW_SORT=GRW_SORT.field===field?{field,dir:GRW_SORT.dir==='desc'?'asc':'desc'}:{field,dir:'desc'};renderReports();}
 function sortGrowth(arr){
@@ -98,27 +98,39 @@ function renderReports(){
     tabContent=batchCards;
 
   } else if(REP_TAB==='mortality'){
-    const allDeaths=daily.sort((a,b)=>b.date.localeCompare(a.date)).filter(r=>r.deaths>0);
-    const last30=daily.filter(r=>{const d=new Date(DB.today());d.setDate(d.getDate()-30);return r.date>=d.toISOString().slice(0,10);});
+    const mBatchId=[MORT_RPT_BATCH,_activeBatchId].find(id=>id&&batches.some(b=>b.id===id))||(getActiveBatches()[0]||batches[0]).id;
+    const mBatch=batches.find(b=>b.id===mBatchId);
+    const batchOpts=batches.map(b=>`<option value="${b.id}" ${b.id===mBatchId?'selected':''}>${b.name}${b.status!=='Active'?` (${b.status})`:''}</option>`).join('');
+    const bDaily=daily.filter(r=>r.batch_id===mBatchId).sort((a,b2)=>a.date.localeCompare(b2.date));
+    const since30=(()=>{const d=new Date(DB.today());d.setDate(d.getDate()-30);return d.toISOString().slice(0,10);})();
+    const last30=bDaily.filter(r=>r.date>=since30);
     const totalDeaths30=last30.reduce((s,r)=>s+(r.deaths||0),0);
-    const maxDeath=Math.max(...last30.map(r=>r.deaths||0),1);
-    const bars=last30.slice(-14).map(r=>{
+    const totalDeaths=bDaily.reduce((s,r)=>s+(r.deaths||0),0);
+    const cumMort=mBatch.doc_count>0?totalDeaths/mBatch.doc_count*100:null;
+    const last14=bDaily.slice(-14);
+    const maxDeath=Math.max(...last14.map(r=>r.deaths||0),1);
+    const bars=last14.map(r=>{
       const h=Math.max(2,Math.round((r.deaths||0)/maxDeath*50));
       return`<div class="bar-col"><div class="bar-fill" style="height:${h}px;background:${(r.deaths||0)===0?'var(--p4)':'var(--red)'}"></div>
         <div class="bar-lbl">${r.deaths||0}</div></div>`;}).join('');
-    tabContent=`<div class="kpi-row-2">
+    const events=last30.filter(r=>r.deaths>0).reverse();
+    tabContent=`<div style="margin:12px 16px">
+      <select style="width:100%;padding:10px;border:1.5px solid #ddd;border-radius:10px;font-size:14px" onchange="MORT_RPT_BATCH=this.value;renderReports()">
+        ${batchOpts}</select></div>
+    <div class="kpi-row-2">
       <div class="kpi"><div class="kpi-val" style="color:var(--red)">${totalDeaths30}</div><div class="kpi-lbl">Deaths (30d)</div></div>
-      <div class="kpi"><div class="kpi-val">${DB.getBatches().reduce((s,b)=>s+b.doc_count,0)}</div><div class="kpi-lbl">Total DOC</div></div>
+      <div class="kpi"><div class="kpi-val" style="color:var(--red)">${totalDeaths}</div><div class="kpi-lbl">Deaths (Batch)</div></div>
+      <div class="kpi"><div class="kpi-val">${mBatch.doc_count}</div><div class="kpi-lbl">DOC In</div></div>
+      <div class="kpi"><div class="kpi-val">${cumMort!==null?cumMort.toFixed(1)+'%':'—'}</div><div class="kpi-lbl">Mortality (Batch)</div></div>
     </div>
-    <div class="sec-hdr">Daily Mortality (Last 14 Days)</div>
+    <div class="sec-hdr">Daily Mortality (Last 14 Log Days)</div>
     <div class="card"><div class="bar-chart-row">${bars||'No data'}</div></div>
     <div class="sec-hdr">Death Events (Last 30 Days)</div>
     <div class="card" style="padding:0;overflow:hidden">
-      ${allDeaths.slice(0,20).map(r=>{
-        const batch=DB.getBatches().find(b=>b.id===r.batch_id);
+      ${events.map(r=>{
         const mortality=r.opening_birds>0?(r.deaths/r.opening_birds*100):0;
         return`<div class="list-item"><div>
-          <div style="font-weight:700">${batch?.name||r.batch_id} — Day ${r.age_days}</div>
+          <div style="font-weight:700">Day ${r.age_days}</div>
           <div style="font-size:12px;color:var(--gray)">${fmtDate(r.date)}</div></div>
           <span class="badge ${mortality>2?'badge-red':mortality>0.5?'badge-amber':'badge-gray'}">${r.deaths} deaths · ${mortality.toFixed(2)}%</span></div>`;}).join('')||
         '<div class="empty" style="padding:24px"><p>No death events in last 30 days.</p></div>'}
@@ -268,9 +280,9 @@ function renderReports(){
       :'<div class="empty" style="padding:40px 24px"><p>No feed logs for this batch yet.<br>Log feed in the <b>Feed</b> tab.</p></div>'}`;
 
   } else if(REP_TAB==='growth'){
-    const batchSelect=batches[0]?.id;
+    const batchSelect=[GRW_BATCH,_activeBatchId].find(id=>id&&batches.some(b=>b.id===id))||batches[0]?.id;
     const bWeight=weight.filter(r=>batchSelect&&r.batch_id===batchSelect).sort((a,b)=>a.week_num-b.week_num);
-    const batchOpts=batches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+    const batchOpts=batches.map(b=>`<option value="${b.id}" ${b.id===batchSelect?'selected':''}>${b.name}</option>`).join('');
     tabContent=`<div style="margin:12px 16px">
       <select style="width:100%;padding:10px;border:1.5px solid #ddd;border-radius:10px;font-size:14px" onchange="GRW_BATCH=this.value;renderReports()">
         ${batchOpts}</select></div>
@@ -309,4 +321,3 @@ function renderReports(){
     ${tabContent}
     <div style="height:12px"></div>`;
 }
-let GRW_BATCH=null;
