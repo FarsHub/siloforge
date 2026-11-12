@@ -297,6 +297,7 @@ function renderReports(){
             <th style="padding:9px 12px;cursor:pointer;user-select:none" onclick="setGrwSort('pct')">
               % Target <span style="color:${GRW_SORT.field==='pct'?'var(--p2)':'var(--gray)'}">${GRW_SORT.field==='pct'?(GRW_SORT.dir==='desc'?'↓':'↑'):'↕'}</span>
             </th>
+            <th style="padding:9px 12px" title="Share of birds within ±10% of the average">Uniformity</th>
           </tr>
           ${sortGrowth(bWeight.map(w=>{const bm=getWeightBenchmark(batches.find(b=>b.id===w.batch_id)?.breed||'Isa Brown',w.week_num);return{...w,benchmark_g:bm};})).map(w=>{
             const pct=w.benchmark_g?Math.round(w.avg_weight_g/w.benchmark_g*100):null;
@@ -305,7 +306,10 @@ function renderReports(){
               <td style="padding:9px 12px;text-align:center;color:var(--gray)">${w.benchmark_g?w.benchmark_g+'g':'—'}</td>
               <td style="padding:9px 12px;text-align:center">
                 <span class="badge ${pct===null?'badge-gray':pct>=95?'badge-green':pct>=85?'badge-amber':'badge-red'}">${pct!==null?pct+'%':'—'}</span>
-              </td></tr>`;}).join('')||'<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--gray)">No weight records for this batch.</td></tr>'}
+              </td>
+              <td style="padding:9px 12px;text-align:center"${w.uniformity_pct==null?' title="Birds were not individually weighed"':''}>
+                <span class="badge ${w.uniformity_pct==null?'badge-gray':w.uniformity_pct>=UNIF_GOOD?'badge-green':w.uniformity_pct>=UNIF_OK?'badge-amber':'badge-red'}">${w.uniformity_pct!=null?w.uniformity_pct+'%':'—'}</span>
+              </td></tr>`;}).join('')||'<tr><td colspan="5"style="padding:24px;text-align:center;color:var(--gray)">No weight records for this batch.</td></tr>'}
         </table>
       </div>`;
   }
